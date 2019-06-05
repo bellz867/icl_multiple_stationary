@@ -7,10 +7,10 @@
 
 	  <!-- forward camera -->
 	  <param name="cameraName" value="camera"/>
-	  <param name="image_roi_percent" value="0.9"/>
+	  <param name="image_roi_percent" value="0.75"/>
 	  <param name="numberFeaturesToFindPerPart" value="200"/>
-	  <param name="minFeaturesDanger" value="150"/>
-	  <param name="minFeaturesBad" value="50"/>
+	  <param name="minFeaturesDanger" value="50"/>
+	  <param name="minFeaturesBad" value="25"/>
     <param name="patchRadius" value="50"/>
     <param name="partitionRows" value="2"/>
     <param name="partitionCols" value="2"/>

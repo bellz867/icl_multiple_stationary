@@ -247,12 +247,20 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	}
 
 	//check if any remaining patches are shutdown, if so delete
+	std::vector<cv::Point2f> pts;
 	std::vector<PatchEstimator*> patchsIn;
 	for (int ii = 0; ii < patchs.size(); ii++)
 	{
 		if (!patchs.at(ii)->patchShutdown)
 		{
 			patchsIn.push_back(patchs.at(ii));
+			for (int jj = 0; jj < patchs.at(ii)->depthEstimators.size(); jj++)
+			{
+				//get the points after update
+				Eigen::Vector3f mci = patchs.at(ii)->depthEstimators.at(jj)->mc;
+				cv::Point2f cPti(fx*mci(0)+cx,fy*mci(1)+cy);
+				cv::circle(gray, cPti, 10, cv::Scalar(150, 150, 150), -1);
+			}
 		}
 		else
 		{
