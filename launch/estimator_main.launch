@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- estimator node -->
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen" >
+
+	  <!-- forward camera -->
+	  <param name="cameraName" value="camera"/>
+	  <param name="image_roi_percent" value="0.9"/>
+	  <param name="numberFeaturesToFindPerPart" value="200"/>
+	  <param name="minFeaturesDanger" value="150"/>
+	  <param name="minFeaturesBad" value="50"/>
+    <param name="patchRadius" value="50"/>
+    <param name="partitionRows" value="2"/>
+    <param name="partitionCols" value="2"/>
+
+    <!-- min and max depths-->
+    <param name="zmin" value="0.5"/>
+    <param name="zmax" value="6.0"/>
+
+	  <!-- cut off frequencies-->
+	  <param name="fq" value="10.0"/>
+    <param name="fp" value="1.5"/>
+    <param name="ft" value="10.0"/>
+    <param name="fn" value="0.5"/>
+    <param name="fd" value="50.0"/>
+
+    <!-- integration window -->
+    <param name="tau" value="5.0"/>
+
+    <!-- experiment details -->
+    <param name="saveExp" value="false"/>
+    <param name="expName" value="s16"/>
+
+  </node>
+
+</launch>
