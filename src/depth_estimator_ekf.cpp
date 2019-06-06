@@ -22,13 +22,13 @@ DepthEstimatorEKF::DepthEstimatorEKF()
 	// R(1,1) = 0.000005;
 
 	// feature variance
-	float rr = 0.00001;
+	float rr = 0.001;
 	P(0,0) = 1.0*rr;//covariance
 	P(1,1) = 1.0*rr;//covariance
 	P(2,2) = 1.5;//covariance
-	Q(0,0) = 100.0*rr;//process covariance
-	Q(1,1) = 100.0*rr;//process covariance
-	Q(2,2) = 100000.0*rr;//process covariance
+	Q(0,0) = 10.0*rr;//process covariance
+	Q(1,1) = 10.0*rr;//process covariance
+	Q(2,2) = 1000.0*rr;//process covariance
 	R = rr*Eigen::Matrix2f::Identity();//measurment covariancece
 }
 
@@ -41,11 +41,9 @@ void DepthEstimatorEKF::initialize(Eigen::Vector2f m, float zminInit, float zmax
 	xHat(2) = 1.0/zmin;
 }
 
-//update the kalman
-float DepthEstimatorEKF::update(Eigen::Vector2f m, Eigen::Vector3f v, Eigen::Vector3f w, float dt)
+//predict the kalman
+Eigen::Vector3f DepthEstimatorEKF::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
 {
-	float mx = m(0);
-	float my = m(1);
 	float vx = v(0);
 	float vy = v(1);
 	float vz = v(2);
@@ -69,6 +67,15 @@ float DepthEstimatorEKF::update(Eigen::Vector2f m, Eigen::Vector3f v, Eigen::Vec
 	xHat += (xHatDot*dt);
 	// P += (PDot*dt);
 	P = (F*P*F.transpose() + Q);
+	return Eigen::Vector3f(xHat(0),xHat(1),1.0);
+}
+
+//update the kalman
+float DepthEstimatorEKF::update(Eigen::Vector2f m)
+{
+	float mx = m(0);
+	float my = m(1);
+
 	// std::cout << "\n P \n" << P << std::endl;
 
 	// std::cout << "\n xHat \n" << xHat << std::endl;

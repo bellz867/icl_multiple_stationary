@@ -448,7 +448,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 	//get the points from the previous image
 	std::vector<cv::Point2f> pPts,kPts,cPts;
-	std::vector<cv::Point2f> pPtsInPred,kPtsInPred,cPtsInPred;
 	for (int ii = 0; ii < depthEstimators.size(); ii++)
 	{
 		// Eigen::Vector4f xHati = depthEstimators.at(ii)->xHat;
@@ -463,68 +462,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// std::cout << "mpix " << pPts.at(ii).x << " mpiy " << pPts.at(ii).y << " mkix " << kPts.at(ii).x << " mkiy " << kPts.at(ii).y << std::endl;
 	}
 
-	try
-	{
-		cv::Mat inliersGp;
-		cv::Mat Gp = cv::findHomography(pPts, cPts, cv::RANSAC, 5.0, inliersGp, 2000, 0.99);//calculate homography using RANSAC
-		Eigen::Matrix3f Gpf = Eigen::Matrix3f::Zero();
-		for (int ii = 0; ii < 9; ii++)
-		{
-			Gpf(ii/3,ii%3) = Gp.at<double>(ii/3,ii%3);
-		}
-
-		Eigen::Matrix3f Hp = camMatIf*Gpf*camMatf;
-		Eigen::Matrix<float,2,3> Hp12 = Hp.block(0,0,2,3);
-		Eigen::RowVector3f Hp3 = Hp.block(2,0,1,3);
-
-		//remove the outliers from prediction
-		std::vector<DepthEstimator*> depthEstimatorsInPred;
-		assert(depthEstimators.size() > 0);
-		ROS_WARN("depthEstimators size before %d",int(depthEstimators.size()));
-
-		Eigen::Vector3f mpi(0,0,1.0);
-		float Hp3mpi = 0;
-		float alphapi = 0;
-		Eigen::Vector3f mci1(0,0,1.0);
-		Eigen::Vector3f mci = mci1;
-
-		float tlcx = (0.0-cx)/fx;
-		float tlcy = (0.0-cy)/fy;
-		float brcx = (imageWidth-cx)/fx;
-		float brcy = (imageHeight-cy)/fy;
-
-		for (int ii = 0; ii < pPts.size(); ii++)
-		{
-			mpi(0) = (pPts.at(ii).x-cx)/fx;
-			mpi(1) = (pPts.at(ii).y-cy)/fy;
-			Hp3mpi = Hp3*mpi;
-			alphapi = 1.0/Hp3mpi;
-			mci1(0) = (cPts.at(ii).x-cx)/fx;
-			mci1(1) = (cPts.at(ii).y-cy)/fy;
-			// mci.segment(0,2) = 0.25*alphapi*Hp12*mpi+0.75*mci1.segment(0,2);
-
-			if (inliersGp.at<uchar>(ii) && (mci1(0) >= tlcx) && (mci1(0) < brcx) && (mci1(1) >= tlcy) && (mci1(1) < brcy))
-			// if ((mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy))
-			{
-				depthEstimatorsInPred.push_back(depthEstimators.at(ii));
-				pPtsInPred.push_back(pPts.at(ii));
-				kPtsInPred.push_back(kPts.at(ii));
-				cPtsInPred.push_back(cPts.at(ii));
-			}
-			else
-			{
-				delete depthEstimators.at(ii);
-			}
-		}
-		depthEstimators = depthEstimatorsInPred;
-		depthEstimatorsInPred.clear();
-	}
-	catch (cv::Exception e)
-	{
-		ROS_ERROR("update failed");
-	}
-
-
 	// ROS_WARN("keyframe %d patch %d pPts size before flow %d",keyInd,patchInd,int(pPts.size()));
 	ROS_WARN("time for getting points %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
 	estimatorUpdateTime = clock();
@@ -535,13 +472,13 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	{
 		std::vector<uchar> status;//holds the status of a feature
 		std::vector<float> err;//holds error of a feature
-		cv::calcOpticalFlowPyrLK(pimage,image,pPtsInPred,cPtsInPred,status,err,cv::Size(5,5),1,cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,20,0.03),cv::OPTFLOW_USE_INITIAL_FLOW+cv::OPTFLOW_LK_GET_MIN_EIGENVALS,0.0001);//optical flow to get new measurement
+		cv::calcOpticalFlowPyrLK(pimage,image,pPts,cPts,status,err,cv::Size(5,5),1,cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,20,0.03),cv::OPTFLOW_USE_INITIAL_FLOW+cv::OPTFLOW_LK_GET_MIN_EIGENVALS,0.0001);//optical flow to get new measurement
 		cv::cornerSubPix(image,cPts,cv::Size(5,5),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 		ROS_WARN("time for optical flow %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
 		estimatorUpdateTime = clock();
 
 		//update the estimtators using the estimted points
-		update(pPtsInPred,kPtsInPred,cPtsInPred,vc,wc,t,dt);
+		update(pPts,kPts,cPts,vc,wc,t,dt);
 		ROS_WARN("time for update call %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
 		estimatorUpdateTime = clock();
 	}
@@ -579,9 +516,10 @@ void PatchEstimator::update(std::vector<cv::Point2f>& pPts, std::vector<cv::Poin
 		assert(kPts.size()>0);
 		assert(cPts.size()>0);
 
-		cv::Mat inliersG;
+		cv::Mat inliersG,inliersGp;
 		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 2.0, inliersG, 2000, 0.99);//calculate homography using RANSAC
 		cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
+		cv::Mat Gp = cv::findHomography(pPts, cPts, cv::RANSAC, 30.0, inliersGp, 2000, 0.75);//calculate homography using RANSAC
 
 		ROS_WARN("time for homog %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
@@ -708,11 +646,17 @@ void PatchEstimator::update(std::vector<cv::Point2f>& pPts, std::vector<cv::Poin
 
 		Eigen::RowVector3f nkHatT = nkHat.transpose();
 		Eigen::Matrix3f H = RkcHat+tkcHat*nkHatT;
+		Eigen::Matrix3f Gpf = Eigen::Matrix3f::Zero();
 		Eigen::Matrix3f Gf = Eigen::Matrix3f::Zero();
 		for (int ii = 0; ii < 9; ii++)
 		{
+			Gpf(ii/3,ii%3) = Gp.at<double>(ii/3,ii%3);
 			Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
 		}
+
+		Eigen::Matrix3f Hp = camMatIf*Gpf*camMatf;
+		Eigen::Matrix<float,2,3> Hp12 = Hp.block(0,0,2,3);
+		Eigen::RowVector3f Hp3 = Hp.block(2,0,1,3);
 
 		// Eigen::Matrix3f H = camMatIf*Gf*camMatf;
 		// Eigen::Matrix<float,2,3> H12 = H.block(0,0,2,3);
@@ -723,15 +667,80 @@ void PatchEstimator::update(std::vector<cv::Point2f>& pPts, std::vector<cv::Poin
 		// Eigen::RowVector3f Gp3 = Gpf.block(2,0,1,3);
 
 		//remove the outliers
+		std::vector<DepthEstimator*> depthEstimatorsIn;
 		std::vector<float> dkcs;
 		assert(depthEstimators.size() > 0);
+		ROS_WARN("depthEstimators size before %d",int(depthEstimators.size()));
+		// ROS_WARN("keyframe %d patch %d kPts size %d",keyInd,patchInd,int(kPts.size()));
+		// ROS_WARN("keyframe %d patch %d cPts size %d",keyInd,patchInd,int(cPts.size()));
+		Eigen::Vector3f mpi((pPts.at(0).x-cx)/fx,(pPts.at(0).y-cy)/fy,1.0);
+		float Hp3mpi = Hp3*mpi;
+		float alphapi = 1.0/Hp3mpi;
+		Eigen::Vector3f mci1((cPts.at(0).x-cx)/fx,(cPts.at(0).y-cy)/fy,1.0);
+		// Eigen::Vector3f mci = 0.1*alphapi*Hp*mpi+0.9*mci1;
+		// mci /= mci(2);
+		Eigen::Vector3f mci = mci1;
+
+		float tlcx = (0.0-cx)/fx;
+		float tlcy = (0.0-cy)/fy;
+		float brcx = (imageWidth-cx)/fx;
+		float brcy = (imageHeight-cy)/fy;
+
+		// std::cout << "\n imageWidth " << imageWidth << std::endl;
+		// std::cout << "\n imageHeight " << imageHeight << std::endl;
+		// std::cout << "\n tlcx " << tlcx << std::endl;
+		// std::cout << "\n tlcy " << tlcy << std::endl;
+		// std::cout << "\n brcx " << brcx << std::endl;
+		// std::cout << "\n brcy " << brcy << std::endl;
+		// std::cout << "\n fx " << fx << std::endl;
+		// std::cout << "\n fy " << fy << std::endl;
+		// std::cout << "\n cx " << cx << std::endl;
+		// std::cout << "\n cy " << cy << std::endl;
 
 		for (int ii = 0; ii < kPts.size(); ii++)
 		{
-			float dkcHati = depthEstimators.at(ii)->update(H,Eigen::Vector3f((cPts.at(ii).x-cx)/fx,(cPts.at(ii).y-cy)/fy,1.0),nkHatT,tkcHat,RkcHat,vc,wc,t,pkcHat,qkcHat);
-			dkcs.push_back(dkcHati);
-		}
+			mpi(0) = (pPts.at(ii).x-cx)/fx;
+			mpi(1) = (pPts.at(ii).y-cy)/fy;
+			Hp3mpi = Hp3*mpi;
+			alphapi = 1.0/Hp3mpi;
+			mci1(0) = (cPts.at(ii).x-cx)/fx;
+			mci1(1) = (cPts.at(ii).y-cy)/fy;
+			mci.segment(0,2) = 0.25*alphapi*Hp12*mpi+0.75*mci1.segment(0,2);
+			// mci.segment(0,2) = mci1.segment(0,2);
 
+			// std::cout << "\n cPts.at(ii).x " << cPts.at(ii).x << " cPts.at(ii).y " << cPts.at(ii).y << std::endl;
+			// std::cout << "\n pPts.at(ii).x " << pPts.at(ii).x << " pPts.at(ii).y " << pPts.at(ii).y << std::endl;
+			// std::cout << "\n mci1x " << mci1(0) << " mci1y " << mci1(1) << std::endl;
+			// std::cout << "\n mcix " << mci(0) << " mciy " << mci(1) << std::endl;
+			// std::cout << "\n inliersGp.at<uchar>(ii) " << int(inliersGp.at<uchar>(ii)) << std::endl;
+			// std::cout << "\n (mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy) " << int((mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy)) << std::endl;
+
+			if (inliersGp.at<uchar>(ii) && (mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy))
+			// if ((mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy))
+			{
+				float dkcHati = depthEstimators.at(ii)->update(H,mci,nkHatT,tkcHat,RkcHat,vc,wc,t,pkcHat,qkcHat);
+				depthEstimatorsIn.push_back(depthEstimators.at(ii));
+				dkcs.push_back(dkcHati);
+			}
+			else
+			{
+				delete depthEstimators.at(ii);
+
+				// if (((mci(0)*fx+cx) >= 0) && ((mci(0)*fx+cx) < 640) && ((mci(1)*fy+cy) >= 0) && ((mci(1)*fy+cy) < 480))
+				// {
+				// 	// std::cout << "\n outlier pruned \n";
+				// }
+				// else
+				// {
+				// 	// std::cout << "\n out of image pruned \n";
+				// }
+
+			}
+		}
+		depthEstimators = depthEstimatorsIn;
+		depthEstimatorsIn.clear();
+
+		ROS_WARN("depthEstimators size after %d",int(depthEstimators.size()));
 		ROS_WARN("time for estimators %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
 
@@ -760,11 +769,11 @@ void PatchEstimator::update(std::vector<cv::Point2f>& pPts, std::vector<cv::Poin
 	{
 		ROS_ERROR("update failed");
 	}
-	//
-	// std::cout << "\n after update \n";
-	// std::cout << "\n tkcHat \n" << tkcHat << std::endl;
-	// std::cout << "\n pkcHat \n" << pkcHat << std::endl;
-	// std::cout << "\n dkHat " << dkHat << std::endl;
-	// std::cout << "\n dkcHat " << dkcHat << std::endl;
+
+	std::cout << "\n after update \n";
+	std::cout << "\n tkcHat \n" << tkcHat << std::endl;
+	std::cout << "\n pkcHat \n" << pkcHat << std::endl;
+	std::cout << "\n dkHat " << dkHat << std::endl;
+	std::cout << "\n dkcHat " << dkcHat << std::endl;
 
 }

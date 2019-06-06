@@ -26,12 +26,17 @@ DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Tim
   depthEstimatorICLExt.initialize(uk,zmin,zmax,tau,t);
 }
 
+Eigen::Vector3f DepthEstimator::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
+{
+  return (depthEstimatorEKF.predict(v,w,dt));
+}
+
 float DepthEstimator::update(Eigen::Matrix3f H, Eigen::Vector3f mcMeas, Eigen::RowVector3f nkT, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
   float dt = (t - lastt).toSec();
   lastt = t;
 
-  zcHatEKF = depthEstimatorEKF.update(mcMeas.segment(0,2),v,w,dt);
+  zcHatEKF = depthEstimatorEKF.update(mcMeas.segment(0,2));
 
   float mcTau = 1.0/(2.0*M_PI*120.0);
   float kmc = dt/(mcTau + dt);
@@ -46,10 +51,6 @@ float DepthEstimator::update(Eigen::Matrix3f H, Eigen::Vector3f mcMeas, Eigen::R
 
   uc = mc/mc.norm();
   Eigen::Vector3f ukc = tkc/tkc.norm();
-
-  // float zkTau = 1.0/(2.0*M_PI*50.0);
-  // float kzk = dt/(zkTau + dt);
-  float kzk = 20.0;
 
   Eigen::Vector3f dkdcdkcICLExt = depthEstimatorICLExt.update(uc,ukc,Rkc,v,w,pkc,t,dt);
   dcHatICLExt = dkdcdkcICLExt(1);

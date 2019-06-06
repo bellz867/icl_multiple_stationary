@@ -261,25 +261,26 @@ void ImageReceiver::camInfoCB(const sensor_msgs::CameraInfo::ConstPtr& camInfoMs
 	//get the tl corner of the centered roi applied to the images to find features
 	// int image_roi_x_tl = image_width*(1.0-image_roi_percent)/2;
 	int image_roi_x_tl = 0;
-	// int image_roi_y_tl = image_height*(1.0-image_roi_percent);
-	int image_roi_y_tl = 0;
+	int image_roi_y_tl = image_roi_percent*imageHeight;
+	// int image_roi_y_tl = 0;
 
 	//break the roi into the correct number of partitions
 	int image_roi_x_size = imageWidth/partitionCols;
-	// int image_roi_y_size = image_roi_percent*image_height/partitionRows;
-	int image_roi_y_size = imageHeight/partitionRows;
+	// int image_roi_y_size = image_roi_percent*imageHeight/partitionRows;
+	int image_roi_y_size = image_roi_percent*imageHeight/partitionRows;
 
 	cv::Size image_roi_size(image_roi_x_size,image_roi_y_size);
 	cv::Mat onesMat = cv::Mat::ones(image_roi_size,CV_8UC1);
 
-	masks.resize((2*partitionRows-1)*(2*partitionCols-1));
+	masks.resize((partitionRows)*(partitionCols));
 	int maskInd = 0;
-	for (int ii = 0; ii < (2*partitionRows-1); ii++)
+	for (int ii = 0; ii < partitionRows; ii++)
 	{
-		for (int jj = 0; jj < (2*partitionCols-1); jj++)
+		for (int jj = 0; jj < partitionCols; jj++)
 		{
 			cv::Mat maskii = cv::Mat::zeros(imageSize,CV_8UC1);
-			cv::Rect rectii(cv::Point(image_roi_x_tl+image_roi_x_size*jj/2,image_roi_y_tl+image_roi_y_size*ii/2),image_roi_size);
+			cv::Rect rectii(cv::Point(image_roi_x_tl+image_roi_x_size*jj,image_roi_y_tl+image_roi_y_size*ii),image_roi_size);
+			std::cout << "\n rectii " << rectii << std::endl;
 			onesMat.copyTo(maskii(rectii));
 			masks.at(maskInd) = maskii.clone();
 			maskInd++;

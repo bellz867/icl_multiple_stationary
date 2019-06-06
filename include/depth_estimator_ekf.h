@@ -22,7 +22,9 @@ struct DepthEstimatorEKF
 
 	void initialize(Eigen::Vector2f m, float zminInit, float zmaxInit);
 
-	float update(Eigen::Vector2f m, Eigen::Vector3f v, Eigen::Vector3f w, float dt);
+	float update(Eigen::Vector2f m);
+
+	Eigen::Vector3f predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt);
 
 	Eigen::Vector3f getxDot(float mx, float my, float mz, float vx, float vy, float vz, float wx, float wy, float wz);
 

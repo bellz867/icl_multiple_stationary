@@ -75,6 +75,9 @@ struct Keyframe
 	bool firstOutput;
 	float keyHeight;
 	float keyToCeiling;
+	int minDistance;
+	int blockSize;
+	float qualityLevel;
 	int minFeaturesBad;
 	int minFeaturesDanger;
 	bool tooFewFeatures;

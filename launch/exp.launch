@@ -3,9 +3,9 @@
 <launch>
 
   <!-- odom estimator -->
-  <include file="$(find icl_stationary)/launch/odom_estimator.launch"/>
+  <include file="$(find icl_multiple_stationary)/launch/odom_estimator.launch"/>
 
   <!-- keyframe estimator -->
-  <include file="$(find icl_stationary)/launch/patch_estimator.launch"/>
+  <include file="$(find icl_multiple_stationary)/launch/estimator_main.launch"/>
 
 </launch>

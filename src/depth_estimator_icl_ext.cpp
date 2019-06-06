@@ -24,7 +24,7 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
 
 Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, Eigen::Vector3f pkc, ros::Time t, float dt)
 {
-  float kzk = 25.0;
+  float kzk = 15.0;
 
   Eigen::RowVector3f ucT = uc.transpose();
   Eigen::RowVector3f ukcT = ukc.transpose();
@@ -54,7 +54,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
   Eigen::Vector3f rho = (uc*ucT - Eigen::Matrix3f::Identity())*v;
   float xixi = xiT*xi;
   float xirho = xiT*rho;
-  float kxixiTilde = 25.0*kzk*(xirho - xixi*dcHat);
+  float kxixiTilde = 15.0*kzk*(xirho - xixi*dcHat);
 
   // std::cout << "\n vx " << v(0) << " vy " << v(1) << " vz " << v(2) << std::endl;
   // std::cout << "\n tx " << tkc(0) << " ty " << tkc(1) << " tz " << tkc(2) << std::endl;
