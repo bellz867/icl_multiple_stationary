@@ -113,6 +113,9 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	Eigen::JacobiSVD<Eigen::MatrixXf> svdcamMatf(camMatf, Eigen::ComputeThinU | Eigen::ComputeThinV);
 	camMatIf = svdcamMatf.solve(Eigen::Matrix3f::Identity());
 
+	TfLast = Eigen::Matrix<float,2,3>::Zero();
+	TfLast.block(0,0,2,2) = Eigen::Matrix2f::Identity();
+
 	zmin = zminInit;
 	zmax = zmaxInit;
 	dkcHat = zmin;
@@ -143,7 +146,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	saveExp = saveExpInit;
 	expName = expNameInit;
 
-	// imagePub = it.advertise(cameraName+"/image_output",1);
+	imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
 	imageSub = it.subscribe(cameraName+"/image_undistort", 1000, &PatchEstimator::imageCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom", 1000, &PatchEstimator::odomCB,this);
 	odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
@@ -419,16 +422,16 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	ROS_WARN("get circle time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
 	processTime = clock();
 
-	// publish key image
-	cv_bridge::CvImage out_msg;
-	out_msg.header = msg->header; // Same timestamp and tf frame as input image
-	out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-	out_msg.image = image; // Your cv::Mat
+	// // publish key image
+	// cv_bridge::CvImage out_msg;
+	// out_msg.header = msg->header; // Same timestamp and tf frame as input image
+	// out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+	// out_msg.image = image; // Your cv::Mat
 
-	{
-		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-		imagePub.publish(out_msg.toImageMsg());
-	}
+	// {
+		// std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+		// imagePub.publish(out_msg.toImageMsg());
+	// }
 
 	// ROS_WARN("cb time %2.4f",float(clock()-callbackTime)/CLOCKS_PER_SEC);
 
@@ -445,10 +448,13 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t)
 {
 	clock_t estimatorUpdateTime = clock();
+	ROS_WARN("depthEstimators size before predict %d",int(depthEstimators.size()));
 
 	//get the points from the previous image
 	std::vector<cv::Point2f> pPts,kPts,cPts;
 	std::vector<cv::Point2f> pPtsInPred,kPtsInPred,cPtsInPred;
+	std::vector<std::vector<cv::Point2i>> pPatches,cPatches;
+	std::vector<std::vector<uint8_t>> pPatchesIntensities,cPatchesIntensities;
 	for (int ii = 0; ii < depthEstimators.size(); ii++)
 	{
 		// Eigen::Vector4f xHati = depthEstimators.at(ii)->xHat;
@@ -465,59 +471,150 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 	try
 	{
-		cv::Mat inliersGp;
-		cv::Mat Gp = cv::findHomography(pPts, cPts, cv::RANSAC, 5.0, inliersGp, 2000, 0.99);//calculate homography using RANSAC
-		Eigen::Matrix3f Gpf = Eigen::Matrix3f::Zero();
-		for (int ii = 0; ii < 9; ii++)
+		float kT = 0.03/(1.0/(2.0*M_PI*10.0)+ 0.03);
+		cv::Mat inliersAffine;
+		cv::Mat T = cv::estimateAffine2D(pPts, cPts, inliersAffine, cv::RANSAC, 5.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
+		Eigen::Matrix<float,2,3> Tf = Eigen::Matrix<float,2,3>::Zero();
+		for (int ii = 0; ii < 6; ii++)
 		{
-			Gpf(ii/3,ii%3) = Gp.at<double>(ii/3,ii%3);
+			Tf(ii/3,ii%3) = T.at<double>(ii/3,ii%3);
 		}
 
-		Eigen::Matrix3f Hp = camMatIf*Gpf*camMatf;
-		Eigen::Matrix<float,2,3> Hp12 = Hp.block(0,0,2,3);
-		Eigen::RowVector3f Hp3 = Hp.block(2,0,1,3);
+		if (!T.empty())
+		{
+			TfLast += kT*(Tf - TfLast);
+		}
 
-		//remove the outliers from prediction
+		for (int ii = 0; ii < 6; ii++)
+		{
+			T.at<double>(ii/3,ii%3) = TfLast(ii/3,ii%3);
+		}
+
+		//correct points and remove the outliers
 		std::vector<DepthEstimator*> depthEstimatorsInPred;
 		assert(depthEstimators.size() > 0);
-		ROS_WARN("depthEstimators size before %d",int(depthEstimators.size()));
 
-		Eigen::Vector3f mpi(0,0,1.0);
-		float Hp3mpi = 0;
-		float alphapi = 0;
-		Eigen::Vector3f mci1(0,0,1.0);
-		Eigen::Vector3f mci = mci1;
-
+		Eigen::Vector3f cPtif(0,0,1.0);
+		Eigen::Vector3f pPtif(0,0,1.0);
+		cv::Point2f cPti;
 		float tlcx = (0.0-cx)/fx;
 		float tlcy = (0.0-cy)/fy;
 		float brcx = (imageWidth-cx)/fx;
 		float brcy = (imageHeight-cy)/fy;
 
-		for (int ii = 0; ii < pPts.size(); ii++)
+		std::cout << "\n T \n" << T << std::endl << std::endl;
+		std::cout << "\n TfLast \n" << TfLast << std::endl << std::endl;
+		std::cout << "\n pPts.size() \n" << pPts.size() << std::endl << std::endl;
+		cv::Mat drawImage = image.clone();
+		for (int ii = 0; ii < depthEstimators.size(); ii++)
 		{
-			mpi(0) = (pPts.at(ii).x-cx)/fx;
-			mpi(1) = (pPts.at(ii).y-cy)/fy;
-			Hp3mpi = Hp3*mpi;
-			alphapi = 1.0/Hp3mpi;
-			mci1(0) = (cPts.at(ii).x-cx)/fx;
-			mci1(1) = (cPts.at(ii).y-cy)/fy;
-			// mci.segment(0,2) = 0.25*alphapi*Hp12*mpi+0.75*mci1.segment(0,2);
 
-			if (inliersGp.at<uchar>(ii) && (mci1(0) >= tlcx) && (mci1(0) < brcx) && (mci1(1) >= tlcy) && (mci1(1) < brcy))
-			// if ((mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy))
+			if (!T.empty())
 			{
-				depthEstimatorsInPred.push_back(depthEstimators.at(ii));
-				pPtsInPred.push_back(pPts.at(ii));
-				kPtsInPred.push_back(kPts.at(ii));
-				cPtsInPred.push_back(cPts.at(ii));
+				pPtif(0) = pPts.at(ii).x;
+				pPtif(1) = pPts.at(ii).y;
+				if ((pPtif(0) >= 5) && (pPtif(0) < imageWidth-5) && (pPtif(1) >= 5) && (pPtif(1) < brcy-5))
+				{
+					//transform every point around the center for the check
+					// start from top left and go row by row
+					Eigen::Matrix<float,5,5> pPatchI;
+					Eigen::Matrix<float,9,9> cPatchICheck;
+
+					//build the previous patch image
+					int rowtl = round(pPtif(0))-2;
+					int coltl = round(pPtif(1))-2;
+					for (int jj = 0; jj < 5*5; jj++)
+					{
+						pPatchI(jj/5,jj%5) = pimage.at<uint8_t>(rowtl+jj/5,coltl+jj%5);
+					}
+
+					//build the current image to check in
+					Eigen::Vector3f pPtjf(0,0,1.0);
+					Eigen::Vector3f cPtjf(0,0,1.0);
+					for (int jj = 0; jj < 9*9; jj++)
+					{
+						//get each point and intensity in the entire check region
+						pPtjf(0) = pPtif(0)-4+jj/9;
+						pPtjf(1) = pPtif(1)-4+jj%9;
+						cPtjf.segment(0,2) = TfLast*pPtjf;
+						cPatchICheck(jj/9,jj%9) = image.at<uint8_t>(std::round(cPtjf(0)),std::round(cPtjf(1)));
+					}
+
+					// std::cout << "\n hi1 \n";
+
+					//move the previous patch around the current check patch to find which is the closest
+					// std::cout << "\n pPatchI \n" << pPatchI << std::endl;
+					// std::cout << "\n cPatchICheck \n" << cPatchICheck << std::endl;
+					std::vector<float> patchIDifs;
+					for (int jj = 0; jj < 5*5; jj++)
+					{
+						// std::cout << "\njj " << jj << std::endl;
+						// std::cout << cPatchICheck.block(jj/5,jj%5,5,5) << std::endl;
+						Eigen::Matrix<float,5,5> patchIDifj = pPatchI - cPatchICheck.block(jj/5,jj%5,5,5);
+						float normpatchIDifj = sqrtf(float((patchIDifj.array().square()).sum()));
+						patchIDifs.push_back(normpatchIDifj);
+					}
+
+					// std::cout << "\n hi2 \n";
+
+					//find the minimum and use that as the measurement
+					int cPtIndex = std::distance(patchIDifs.begin(),std::min_element(patchIDifs.begin(),patchIDifs.end()));
+					Eigen::Vector3f pPtiftl(pPtif(0)-2,pPtif(1)-2,1.0);
+					Eigen::Vector2f cPtiftl = TfLast*pPtiftl;
+					cPti = cv::Point2f(cPtiftl(0)+cPtIndex%5,cPtiftl(1)+cPtIndex/5);
+
+					//predict forward each set of patches
+					// cPtif.segment(0,2) = TfLast*pPtif;
+					// cPti = cv::Point2f(cPtif(0),cPtif(1));
+					std::cout << ii << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
+					          << " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
+										<< " cPtix " << cPti.x << " cPtiy " << cPti.y
+										<< " inlier " << int(inliersAffine.at<uchar>(ii)) << std::endl;
+					if (int(inliersAffine.at<uchar>(ii)) && (cPti.x >= 5) && (cPti.x < imageWidth-5) && (cPti.y >= 5) && (cPti.y < brcy-5))
+					// if ((mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy))
+					{
+
+						depthEstimatorsInPred.push_back(depthEstimators.at(ii));
+						pPtsInPred.push_back(pPts.at(ii));
+						kPtsInPred.push_back(kPts.at(ii));
+						cPtsInPred.push_back(cPti);
+						cv::circle(drawImage, cPti, 5, cv::Scalar(250, 250, 250), -1);
+					}
+					else
+					{
+						delete depthEstimators.at(ii);
+					}
+				}
+				else
+				{
+					delete depthEstimators.at(ii);
+				}
 			}
 			else
 			{
-				delete depthEstimators.at(ii);
+				std::cout << "\n T Empty \n";
 			}
 		}
+		ROS_WARN("depthEstimators size after predict1 %d",int(depthEstimators.size()));
+		ROS_WARN("depthEstimatorsInPred size after predict1 %d",int(depthEstimatorsInPred.size()));
 		depthEstimators = depthEstimatorsInPred;
 		depthEstimatorsInPred.clear();
+
+		ROS_WARN("depthEstimators size after predict2 %d",int(depthEstimators.size()));
+
+		cv::cornerSubPix(image,cPtsInPred,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+
+
+		// publish key image
+		cv_bridge::CvImage out_msg;
+		out_msg.header.stamp = t; // Same timestamp and tf frame as input image
+		out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+		out_msg.image = drawImage; // Your cv::Mat
+
+		{
+			std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+			imagePub.publish(out_msg.toImageMsg());
+		}
 	}
 	catch (cv::Exception e)
 	{
@@ -526,20 +623,33 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 
 	// ROS_WARN("keyframe %d patch %d pPts size before flow %d",keyInd,patchInd,int(pPts.size()));
-	ROS_WARN("time for getting points %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
+	ROS_WARN("time for getting points %2.4f depthEstimators size after predict %d",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC,int(depthEstimators.size()));
 	estimatorUpdateTime = clock();
+
+	assert(pPtsInPred.size()==cPtsInPred.size());
 
 	// find the points using either approximated flow or looking for the board
   //use optical flow to find the features
 	try
 	{
-		std::vector<uchar> status;//holds the status of a feature
-		std::vector<float> err;//holds error of a feature
-		cv::calcOpticalFlowPyrLK(pimage,image,pPtsInPred,cPtsInPred,status,err,cv::Size(5,5),1,cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,20,0.03),cv::OPTFLOW_USE_INITIAL_FLOW+cv::OPTFLOW_LK_GET_MIN_EIGENVALS,0.0001);//optical flow to get new measurement
-		cv::cornerSubPix(image,cPts,cv::Size(5,5),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
-		ROS_WARN("time for optical flow %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
-		estimatorUpdateTime = clock();
+		int patchSize = 5;
+		//search around each feature using the patch size to find the correct match in the new image
+		// for (int ii = 0; ii < pPtsInPred.size(); ii++)
+		// {
+		// 	//rotate all the points in the previous image to the current within the patch
+		// 	//each patch is centered at the point
+		// 	for (int jj = 0; jj < patchSize*patchSize; jj++)
+		// 	{
+		//
+		// 	}
+		// }
+		// std::vector<uchar> status;//holds the status of a feature
+		// std::vector<float> err;//holds error of a feature
+		// cv::calcOpticalFlowPyrLK(pimage,image,pPtsInPred,cPtsInPred,status,err,cv::Size(3,3),0,cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS,20,0.03),cv::OPTFLOW_USE_INITIAL_FLOW+cv::OPTFLOW_LK_GET_MIN_EIGENVALS,0.0001);//optical flow to get new measurement
+		// cv::cornerSubPix(image,cPts,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+		// ROS_WARN("time for optical flow %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
 
+		estimatorUpdateTime = clock();
 		//update the estimtators using the estimted points
 		update(pPtsInPred,kPtsInPred,cPtsInPred,vc,wc,t,dt);
 		ROS_WARN("time for update call %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
