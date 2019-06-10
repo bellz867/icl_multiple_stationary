@@ -38,7 +38,7 @@ void DepthEstimatorEKF::initialize(Eigen::Vector2f m, float zminInit, float zmax
 	zmax = zmaxInit;
 	xHat(0) = m(0);
 	xHat(1) = m(1);
-	xHat(2) = 1.0/zmin;
+	xHat(2) = 1.0/zmax;
 }
 
 //predict the kalman

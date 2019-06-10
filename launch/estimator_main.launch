@@ -7,7 +7,7 @@
 
 	  <!-- forward camera -->
 	  <param name="cameraName" value="camera"/>
-	  <param name="image_roi_percent" value="0.25"/>
+	  <param name="image_roi_percent" value="0.2"/>
 	  <param name="numberFeaturesToFindPerPart" value="50"/>
     <param name="minDistance" value="30"/>
     <param name="blockSize" value="3"/>
@@ -16,8 +16,8 @@
 	  <param name="minFeaturesDanger" value="50"/>
 	  <param name="minFeaturesBad" value="10"/>
     <param name="patchRadius" value="50"/>
-    <param name="partitionRows" value="1"/>
-    <param name="partitionCols" value="1"/>
+    <param name="partitionRows" value="100"/>
+    <param name="partitionCols" value="100"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="0.5"/>

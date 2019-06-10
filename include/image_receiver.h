@@ -42,6 +42,7 @@ struct ImageReceiver
   bool saveExp;
   std::string expName;
 
+  Keyframe* newKeyframe;
   std::vector<Keyframe*> keyframes;
   int keyInd;
   bool firstKey;

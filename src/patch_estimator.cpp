@@ -135,7 +135,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 
 	for (int ii = 0; ii < pts.size(); ii++)
 	{
-		DepthEstimator* newDepthEstimator = new DepthEstimator(ii,Eigen::Vector3f((pts.at(ii).x-cx)/fx,(pts.at(ii).y-cy)/fy,1.0),tLast,zmin,zmax,tau);
+		newDepthEstimator = new DepthEstimator(ii,Eigen::Vector3f((pts.at(ii).x-cx)/fx,(pts.at(ii).y-cy)/fy,1.0),tLast,zmin,zmax,tau);
 		depthEstimators.push_back(newDepthEstimator);
 	}
 
@@ -343,9 +343,6 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	odomDelayedMsg.twist.twist.angular.z = wc(2);
 	odomDelayedPub.publish(odomDelayedMsg);
 
-
-
-
 	if (depthEstimators.size() > 0)
 	{
 		//plot the points
@@ -447,6 +444,8 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 //finds the features in the previous image in the new image and matches the features
 void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t)
 {
+	std::lock_guard<std::mutex> featureMutexGuard(featureMutex);
+
 	clock_t estimatorUpdateTime = clock();
 	ROS_WARN("depthEstimators size before predict %d",int(depthEstimators.size()));
 
@@ -497,102 +496,154 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		Eigen::Vector3f cPtif(0,0,1.0);
 		Eigen::Vector3f pPtif(0,0,1.0);
 		cv::Point2f cPti;
-		float tlcx = (0.0-cx)/fx;
-		float tlcy = (0.0-cy)/fy;
-		float brcx = (imageWidth-cx)/fx;
-		float brcy = (imageHeight-cy)/fy;
 
-		std::cout << "\n T \n" << T << std::endl << std::endl;
+		// std::cout << "\n T \n" << T << std::endl << std::endl;
 		std::cout << "\n TfLast \n" << TfLast << std::endl << std::endl;
-		std::cout << "\n pPts.size() \n" << pPts.size() << std::endl << std::endl;
+		// std::cout << "\n depthEstimators.size() " << depthEstimators.size() << std::endl << std::endl;
+		// std::cout << "\n imageWidth " << imageWidth << " imageHeight " << imageHeight << std::endl << std::endl;
 		cv::Mat drawImage = image.clone();
+		const int patchSize = 5;
+		const int checkSize = 15;
+		const int patchCheckDiff = checkSize - patchSize;
 		for (int ii = 0; ii < depthEstimators.size(); ii++)
 		{
-
-			if (!T.empty())
+			// std::cout << "\n depthEstimators.size() inside " << depthEstimators.size() << std::endl;
+			if (!T.empty() && int(inliersAffine.at<uchar>(ii)))
 			{
+				bool featureBad = false;
+				// std::cout << "\n hi1 \n";
 				pPtif(0) = pPts.at(ii).x;
 				pPtif(1) = pPts.at(ii).y;
-				if ((pPtif(0) >= 5) && (pPtif(0) < imageWidth-5) && (pPtif(1) >= 5) && (pPtif(1) < brcy-5))
+				cPtif.segment(0,2) = TfLast*pPtif;
+				// std::cout << "\n hi2 \n";
+				//transform every point around the center for the check
+				// start from top left and go row by row
+				Eigen::Matrix<float,patchSize,patchSize> pPatchI;
+				Eigen::Matrix<float,checkSize,checkSize> cPatchICheck;
+				Eigen::Matrix<float,checkSize,checkSize> cPatchICheckIndx,cPatchICheckIndy;
+
+				//build the previous patch image
+				int rowtl = round(pPtif(0))-(patchSize-1)/2;
+				int coltl = round(pPtif(1))-(patchSize-1)/2;
+				int pjj = 0;
+				while (pjj < patchSize*patchSize && !featureBad)
 				{
-					//transform every point around the center for the check
-					// start from top left and go row by row
-					Eigen::Matrix<float,5,5> pPatchI;
-					Eigen::Matrix<float,9,9> cPatchICheck;
-
-					//build the previous patch image
-					int rowtl = round(pPtif(0))-2;
-					int coltl = round(pPtif(1))-2;
-					for (int jj = 0; jj < 5*5; jj++)
+					int rowjj = rowtl+pjj/patchSize;
+					int coljj = coltl+pjj%patchSize;
+					// std::cout << "\n prowjj " << rowjj << " pcoljj " << coljj << std::endl;
+					if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
 					{
-						pPatchI(jj/5,jj%5) = pimage.at<uint8_t>(rowtl+jj/5,coltl+jj%5);
-					}
-
-					//build the current image to check in
-					Eigen::Vector3f pPtjf(0,0,1.0);
-					Eigen::Vector3f cPtjf(0,0,1.0);
-					for (int jj = 0; jj < 9*9; jj++)
-					{
-						//get each point and intensity in the entire check region
-						pPtjf(0) = pPtif(0)-4+jj/9;
-						pPtjf(1) = pPtif(1)-4+jj%9;
-						cPtjf.segment(0,2) = TfLast*pPtjf;
-						cPatchICheck(jj/9,jj%9) = image.at<uint8_t>(std::round(cPtjf(0)),std::round(cPtjf(1)));
-					}
-
-					// std::cout << "\n hi1 \n";
-
-					//move the previous patch around the current check patch to find which is the closest
-					// std::cout << "\n pPatchI \n" << pPatchI << std::endl;
-					// std::cout << "\n cPatchICheck \n" << cPatchICheck << std::endl;
-					std::vector<float> patchIDifs;
-					for (int jj = 0; jj < 5*5; jj++)
-					{
-						// std::cout << "\njj " << jj << std::endl;
-						// std::cout << cPatchICheck.block(jj/5,jj%5,5,5) << std::endl;
-						Eigen::Matrix<float,5,5> patchIDifj = pPatchI - cPatchICheck.block(jj/5,jj%5,5,5);
-						float normpatchIDifj = sqrtf(float((patchIDifj.array().square()).sum()));
-						patchIDifs.push_back(normpatchIDifj);
-					}
-
-					// std::cout << "\n hi2 \n";
-
-					//find the minimum and use that as the measurement
-					int cPtIndex = std::distance(patchIDifs.begin(),std::min_element(patchIDifs.begin(),patchIDifs.end()));
-					Eigen::Vector3f pPtiftl(pPtif(0)-2,pPtif(1)-2,1.0);
-					Eigen::Vector2f cPtiftl = TfLast*pPtiftl;
-					cPti = cv::Point2f(cPtiftl(0)+cPtIndex%5,cPtiftl(1)+cPtIndex/5);
-
-					//predict forward each set of patches
-					// cPtif.segment(0,2) = TfLast*pPtif;
-					// cPti = cv::Point2f(cPtif(0),cPtif(1));
-					std::cout << ii << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
-					          << " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
-										<< " cPtix " << cPti.x << " cPtiy " << cPti.y
-										<< " inlier " << int(inliersAffine.at<uchar>(ii)) << std::endl;
-					if (int(inliersAffine.at<uchar>(ii)) && (cPti.x >= 5) && (cPti.x < imageWidth-5) && (cPti.y >= 5) && (cPti.y < brcy-5))
-					// if ((mci(0) >= tlcx) && (mci(0) < brcx) && (mci(1) >= tlcy) && (mci(1) < brcy))
-					{
-
-						depthEstimatorsInPred.push_back(depthEstimators.at(ii));
-						pPtsInPred.push_back(pPts.at(ii));
-						kPtsInPred.push_back(kPts.at(ii));
-						cPtsInPred.push_back(cPti);
-						cv::circle(drawImage, cPti, 5, cv::Scalar(250, 250, 250), -1);
+						pPatchI(pjj/patchSize,pjj%patchSize) = pimage.at<uint8_t>(rowjj,coljj);
+						pjj++;
 					}
 					else
 					{
-						delete depthEstimators.at(ii);
+						featureBad = true;
 					}
+				}
+
+				// std::cout << "\n hi3 \n";
+				//build the current image to check in
+				Eigen::Vector3f pPtjf(0,0,1.0);
+				Eigen::Vector3f cPtjf(0,0,1.0);
+				int pcjj = 0;
+				while (pcjj < checkSize*checkSize && !featureBad)
+				{
+					//get each point and intensity in the entire check region
+					pPtjf(0) = pPtif(0)-patchCheckDiff+pcjj%checkSize;
+					pPtjf(1) = pPtif(1)-patchCheckDiff+pcjj/checkSize;
+					cPtjf.segment(0,2) = TfLast*pPtjf;
+					int rowjj = std::round(cPtjf(1));
+					int coljj = std::round(cPtjf(0));
+
+					if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
+					{
+						cPatchICheck(pcjj/checkSize,pcjj%checkSize) = image.at<uint8_t>(rowjj,coljj);
+						cPatchICheckIndx(pcjj/checkSize,pcjj%checkSize) = coljj;
+						cPatchICheckIndy(pcjj/checkSize,pcjj%checkSize) = rowjj;
+						pcjj++;
+					}
+					else
+					{
+						featureBad = true;
+						break;
+					}
+				}
+
+				// std::cout << "\n hi4 \n";
+
+				// std::cout << "\n hi1 \n";
+
+				//move the previous patch around the current check patch to find which is the closest
+				// std::cout << "\n pPatchI \n" << pPatchI << std::endl;
+				// std::cout << "\n cPatchICheck \n" << cPatchICheck << std::endl << std::endl;
+				std::vector<float> patchIDifs;
+				Eigen::Matrix<float,patchCheckDiff+1,patchCheckDiff+1> cPatchICheckIndCenterx,cPatchICheckIndCentery;
+				// std::cout << ii << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
+				// 					<< " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
+				// 					<< " cPtix " << cPtif(0) << " cPtify " << cPtif(1)
+				// 					<< " inlier " << int(inliersAffine.at<uchar>(ii)) << std::endl;
+				if (!featureBad)
+				{
+					for (int jj = 0; jj < (patchCheckDiff+1)*(patchCheckDiff+1); jj++)
+					{
+						// std::cout << "\njj " << jj << std::endl;
+						Eigen::Matrix<float,patchSize,patchSize> patchIDifj = pPatchI - cPatchICheck.block(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1),patchSize,patchSize);
+						// std::cout << patchIDifj << std::endl << std::endl;
+						// std::cout << pPatchI << std::endl << std::endl;
+						// std::cout << cPatchICheck.block(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1),patchSize,patchSize) << std::endl << std::endl;
+						float normpatchIDifj = sqrtf(float((patchIDifj.array().square()).sum()));
+						// std::cout << "\n normpatchDiff " << normpatchIDifj << std::endl << std::endl;
+						patchIDifs.push_back(normpatchIDifj);
+						cPatchICheckIndCenterx(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) = cPatchICheckIndx(jj/(patchCheckDiff+1)+(patchSize-1)/2,jj%(patchCheckDiff+1)+(patchSize-1)/2);
+						cPatchICheckIndCentery(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) = cPatchICheckIndy(jj/(patchCheckDiff+1)+(patchSize-1)/2,jj%(patchCheckDiff+1)+(patchSize-1)/2);
+						// std::cout << "\n center x " << cPatchICheckIndCenterx(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1))
+						//           << " center y " << cPatchICheckIndCentery(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) << std::endl << std::endl;
+					}
+				}
+
+				// std::cout << "\n hi5 \n";
+
+				// std::cout << "\n hi2 \n";
+				if (!featureBad)
+				{
+					//find the minimum and use that as the measurement
+					int cPtIndex = std::distance(patchIDifs.begin(),std::min_element(patchIDifs.begin(),patchIDifs.end()));
+					// Eigen::Vector3f pPtiftl(pPtif(0)-(patchSize-1)/2,pPtif(1)-(patchSize-1)/2,1.0);
+					// Eigen::Vector2f cPtiftl = TfLast*pPtiftl;
+					// cPti = cv::Point2f(cPtiftl(0)+cPtIndex%patchSize,cPtiftl(1)+cPtIndex/patchSize);
+					cPti = cv::Point2f(cPatchICheckIndCenterx(cPtIndex/(patchCheckDiff+1),cPtIndex%(patchCheckDiff+1)),cPatchICheckIndCentery(cPtIndex/(patchCheckDiff+1),cPtIndex%(patchCheckDiff+1)));
+
+					std::cout << ii << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
+					          << " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
+										<< " cPtix " << cPtif(0) << " cPtify " << cPtif(1)
+										<< " cPtix " << cPti.x << " cPtiy " << cPti.y
+										<< " inlier " << int(inliersAffine.at<uchar>(ii)) << std::endl;
+					if ((cPti.x < 0) && (cPti.x >= imageWidth) && (cPti.y < 0) && (cPti.y >= imageHeight))
+					{
+						featureBad = true;
+					}
+				}
+
+				//if feature not bad then save otherwise delete
+				if (!featureBad)
+				{
+					depthEstimatorsInPred.push_back(depthEstimators.at(ii));
+					pPtsInPred.push_back(pPts.at(ii));
+					kPtsInPred.push_back(kPts.at(ii));
+					cPtsInPred.push_back(cPti);
+					cv::circle(drawImage, cPti, 5, cv::Scalar(250, 250, 250), -1);
 				}
 				else
 				{
 					delete depthEstimators.at(ii);
+					std::cout << "\n ii depthEstimators.size() \n" << depthEstimators.size() << std::endl << std::endl;
 				}
 			}
 			else
 			{
-				std::cout << "\n T Empty \n";
+				delete depthEstimators.at(ii);
+				std::cout << "\n not inlier or T empty \n";
 			}
 		}
 		ROS_WARN("depthEstimators size after predict1 %d",int(depthEstimators.size()));
@@ -602,7 +653,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 		ROS_WARN("depthEstimators size after predict2 %d",int(depthEstimators.size()));
 
-		cv::cornerSubPix(image,cPtsInPred,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+		// cv::cornerSubPix(image,cPtsInPred,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 
 
 		// publish key image
@@ -632,7 +683,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
   //use optical flow to find the features
 	try
 	{
-		int patchSize = 5;
 		//search around each feature using the patch size to find the correct match in the new image
 		// for (int ii = 0; ii < pPtsInPred.size(); ii++)
 		// {

@@ -47,17 +47,19 @@ struct Keyframe
 	// cv::Mat tlmask,trmask,blmask,brmask;
 	std::vector<cv::Mat> masks;
 	int imageWidth,imageHeight;
+	int partitionCols,partitionRows;
 
 	ros::Time tLast;//last time
 	nav_msgs::Odometry keyOdom,imageOdom;
 	Eigen::Vector4f qpw;
 
 	std::deque<nav_msgs::Odometry> odomSync;
-	std::mutex odomMutex,pubMutex;
+	std::mutex odomMutex,pubMutex,patchMutex;
 	bool firstGray;
 
 	// std::queue<ros::Time> plotPointsTimes;//past points estimate
 	// std::queue<std::vector<cv::Point2f>> plotPoints;//past points estimate
+	PatchEstimator* newPatch;
 	std::vector<PatchEstimator*> patchs;
 	int patchIndMax;
 	// std::vector<int> activePatchs;

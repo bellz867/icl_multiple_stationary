@@ -52,10 +52,11 @@ struct PatchEstimator
 	Eigen::Vector4f qckHat;
 	float dkcHat,tau,dkHat;
 	float fx,fy,cx,cy,zmin,zmax;
+	DepthEstimator* newDepthEstimator;
 	std::vector<DepthEstimator*> depthEstimators;
 	std::deque<nav_msgs::Odometry> odomSync;
 	std::deque<nav_msgs::Odometry> markerOdomSync;
-	std::mutex odomMutex,roiMutex,pubMutex,markerOdomMutex;
+	std::mutex odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex;
 	ros::Time tLast;
 	float pTau,qTau,tTau,nTau,dTau;
 	nav_msgs::Odometry keyOdom,imageOdom;

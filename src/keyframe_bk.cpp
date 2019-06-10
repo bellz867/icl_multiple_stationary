@@ -23,8 +23,6 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<float>("qualityLevel", qualityLevel, 0.1);
 	nhp.param<int>("minFeaturesBad", minFeaturesBad, 25);
 	nhp.param<int>("minFeaturesDanger", minFeaturesDanger, 50);
-	nhp.param<int>("partitionRows", partitionRows, 2);
-	nhp.param<int>("partitionCols", partitionCols, 2);
 	nhp.param<int>("numberFeaturesToFindPerPart", numberFeaturesToFindPerPart, 1.0);
 	nhp.param<bool>("saveExp", saveExp, false);
 	nhp.param<std::string>("expName", expName, "exp");
@@ -109,31 +107,36 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 	try
 	{
 		std::lock_guard<std::mutex> patchMutexGuard(patchMutex);
-
-		// determine step size
-		int colstep = imageWidth/partitionCols;
-		int rowstep = imageHeight/partitionRows;
-		std::vector<cv::Point2f> ptsii;
-		for (int ii = 0; ii < partitionRows; ii++)
+		for (int ii = 0; ii < masks.size(); ii++)
 		{
-			//choose the entire partition as each patches feature seperated by min seperation
-			int rowii = rowstep*ii;
+			// std::cout << "\n masks.at(ii) size " << masks.at(ii).size() << std::endl;
+			std::vector<cv::Point2f> ptsii;
+			cv::goodFeaturesToTrack(gray,ptsii,numberFeaturesToFindPerPart,qualityLevel,minDistance,masks.at(ii),blockSize);//find the features
+			cv::cornerSubPix(gray, ptsii, cv::Size(5,5), cv::Size(-1,-1), cv::TermCriteria(cv::TermCriteria::COUNT|cv::TermCriteria::EPS,20,0.03));//refine the features
+			std::cout << "\n ptsii size " << ptsii.size() << std::endl;
 
-			for (int jj = 0; jj < partitionCols; jj++)
+			//if there are not too few features make a patch
+			if (ptsii.size() > minFeaturesBad)
 			{
-				int colii = colstep*jj;
-				ptsii.push_back(cv::Point2f(colii,rowii));
-				std::cout << "\n ptx " << colii << " pty " << rowii << std::endl;
+				std::cout << "\n patch " << patchInd << " before create" << std::endl;
+				std::cout << "\n patch pts " << patchInd << " size " << ptsii.size() << std::endl;
+
+				for (int jj = 0; jj < ptsii.size(); jj++)
+				{
+					std::cout << "\n ptx " << ptsii.at(jj).x << " pty " << ptsii.at(jj).y << std::endl;
+				}
+
+				std::cout << "\n imageWidth " << imageWidth << " imageHeight " << imageHeight << std::endl << std::endl;
+
+				newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,expName);
+				patchs.push_back(newPatch);
+				patchIndMax = patchInd;
+				// delete newPatch;
+				// activePatchs.push_back(patchInd);
+				// std::cout << "\n patch " << patchInd << " after create" << std::endl;
+				patchInd++;
 			}
 		}
-
-		newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,expName);
-		patchs.push_back(newPatch);
-		patchIndMax = patchInd;
-		// delete newPatch;
-		// activePatchs.push_back(patchInd);
-		// std::cout << "\n patch " << patchInd << " after create" << std::endl;
-		patchInd++;
 	}
 	catch (cv::Exception e)
 	{
