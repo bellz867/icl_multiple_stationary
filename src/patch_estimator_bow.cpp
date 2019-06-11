@@ -522,7 +522,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		Eigen::Matrix<int16_t,patchSize,patchSize> patchIDifj;
 		Eigen::Vector3f pPtjf(0,0,1.0);
 		Eigen::Vector3f cPtjf(0,0,1.0);
-		// Eigen::Matrix<uint8_t,> intensities(patchSize*patchSize),occurance(patchSize*patchSize);
 		for (int ii = 0; ii < depthEstimators.size(); ii++)
 		{
 			// std::cout << "\n depthEstimators.size() inside " << depthEstimators.size() << std::endl;
@@ -543,6 +542,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 
 				//build the previous patch image
+				std::vector<int16_t> pIntensities,pOccurance;
 				int rowtl = round(pPtif(1))-(patchSize-1)/2;
 				int coltl = round(pPtif(0))-(patchSize-1)/2;
 				int pjj = 0;
@@ -553,9 +553,33 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 					// std::cout << "\n prowjj " << rowjj << " pcoljj " << coljj << std::endl;
 					if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
 					{
-						pPatchI(pjj/patchSize,pjj%patchSize) = pimage.at<uint8_t>(rowjj,coljj);
+						uint8_t intensityjj = pimage.at<uint8_t>(rowjj,coljj);
+						int hh = 0;
+						bool intensityFound = false;
+						int intensityIndex = 0;
+						while (hh < pIntensities.size() && !intensityFound)
+						{
+							if (intensityjj != pIntensities.at(hh))
+							{
+								hh++;
+							}
+							else
+							{
+								intensityIndex = hh;
+								intensityFound = true;
+							}
+						}
+
+						if (intensityFound)
+						{
+							pOccurance.at(intensityIndex) = pOccurance.at(intensityIndex) + 1;
+						}
+						else
+						{
+							pIntensities.push_back(intensityjj);
+							pOccurance.push_back(1);
+						}
 						pjj++;
-						// intensities
 					}
 					else
 					{
@@ -566,80 +590,83 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 				// std::cout << "\n hi3 \n";
 				//build the current image to check in
 				int pcjj = 0;
-				while (pcjj < checkSize*checkSize && !featureBad)
+				int minDifference = 0;
+				bool firstDifference = true;
+				while (pcjj < patchCheckDiff*patchCheckDiff && !featureBad)
 				{
-					//get each point and intensity in the entire check region
-					pPtjf(0) = pPtif(0)-patchCheckDiff+pcjj%checkSize;
-					pPtjf(1) = pPtif(1)-patchCheckDiff+pcjj/checkSize;
-					cPtjf.segment(0,2) = TfLast*pPtjf;
-					int rowjj = std::round(cPtjf(1));
-					int coljj = std::round(cPtjf(0));
-
-					if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
+					int coltljj = round(pPtif(0))-(checkSize-1)/2 + pcjj%patchCheckDiff;
+					int rowtljj = round(pPtif(1))-(checkSize-1)/2 + pcjj/patchCheckDiff;
+					std::vector<int16_t> cOccurance(pOccurance.size(),0);
+					for (int jj = 0; jj < patchSize*patchSize; jj++)
 					{
-						cPatchICheck(pcjj/checkSize,pcjj%checkSize) = image.at<uint8_t>(rowjj,coljj);
-						cPatchICheckIndx(pcjj/checkSize,pcjj%checkSize) = coljj;
-						cPatchICheckIndy(pcjj/checkSize,pcjj%checkSize) = rowjj;
-						pcjj++;
-					}
-					else
-					{
-						featureBad = true;
-						break;
-					}
-				}
+						//get each point and intensity in the entire check region
+						pPtjf(0) = coltljj+jj%patchSize;
+						pPtjf(1) = rowtljj+jj/patchSize;
+						cPtjf.segment(0,2) = TfLast*pPtjf;
+						int coljj = std::round(cPtjf(0));
+						int rowjj = std::round(cPtjf(1));
 
-				// std::cout << "\n hi4 \n";
+						if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
+						{
+							uint8_t intensityjj = image.at<uint8_t>(rowjj,coljj);
+							int hh = 0;
+							bool intensityFound = false;
+							int intensityIndex = 0;
+							while (hh < pIntensities.size() && !intensityFound)
+							{
+								if (intensityjj != pIntensities.at(hh))
+								{
+									hh++;
+								}
+								else
+								{
+									intensityIndex = hh;
+									intensityFound = true;
+								}
+							}
 
-				// std::cout << "\n hi1 \n";
+							if (intensityFound)
+							{
+								cOccurance.at(intensityIndex) = cOccurance.at(intensityIndex) + 1;
+							}
+							pcjj++;
+						}
+						else
+						{
+							featureBad = true;
+							break;
+						}
 
-				//move the previous patch around the current check patch to find which is the closest
-				// std::cout << "\n pPatchI \n" << pPatchI << std::endl;
-				// std::cout << "\n cPatchICheck \n" << cPatchICheck << std::endl << std::endl;
-				std::vector<float> patchIDifs;
-				// std::cout << ii << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
-				// 					<< " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
-				// 					<< " cPtix " << cPtif(0) << " cPtify " << cPtif(1)
-				// 					<< " inlier " << int(inliersAffine.at<uchar>(ii)) << std::endl;
-				if (!featureBad)
-				{
-					for (int jj = 0; jj < (patchCheckDiff+1)*(patchCheckDiff+1); jj++)
-					{
-						// std::cout << "\njj " << jj << std::endl;
-						patchIDifj = pPatchI - cPatchICheck.block(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1),patchSize,patchSize);
-						// std::cout << patchIDifj << std::endl << std::endl;
-						// std::cout << pPatchI << std::endl << std::endl;
-						// std::cout << cPatchICheck.block(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1),patchSize,patchSize) << std::endl << std::endl;
-						float normpatchIDifj = sqrtf(float((patchIDifj.array().square()).sum()));
-						// std::cout << "\n normpatchDiff " << normpatchIDifj << std::endl << std::endl;
-						patchIDifs.push_back(normpatchIDifj);
-						cPatchICheckIndCenterx(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) = cPatchICheckIndx(jj/(patchCheckDiff+1)+(patchSize-1)/2,jj%(patchCheckDiff+1)+(patchSize-1)/2);
-						cPatchICheckIndCentery(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) = cPatchICheckIndy(jj/(patchCheckDiff+1)+(patchSize-1)/2,jj%(patchCheckDiff+1)+(patchSize-1)/2);
-						// std::cout << "\n center x " << cPatchICheckIndCenterx(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1))
-						//           << " center y " << cPatchICheckIndCentery(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) << std::endl << std::endl;
-					}
-				}
+						// compare the histograms to determine the similarity
+						int difference = 0;
+						for (int hh = 0; hh < pOccurance.size(); hh++)
+						{
+							difference += abs(pOccurance.at(hh)-cOccurance.at(hh));
+						}
 
-				// std::cout << "\n hi5 \n";
-
-				// std::cout << "\n hi2 \n";
-				if (!featureBad)
-				{
-					//find the minimum and use that as the measurement
-					int cPtIndex = std::distance(patchIDifs.begin(),std::min_element(patchIDifs.begin(),patchIDifs.end()));
-					// Eigen::Vector3f pPtiftl(pPtif(0)-(patchSize-1)/2,pPtif(1)-(patchSize-1)/2,1.0);
-					// Eigen::Vector2f cPtiftl = TfLast*pPtiftl;
-					// cPti = cv::Point2f(cPtiftl(0)+cPtIndex%patchSize,cPtiftl(1)+cPtIndex/patchSize);
-					cPti = cv::Point2f(cPatchICheckIndCenterx(cPtIndex/(patchCheckDiff+1),cPtIndex%(patchCheckDiff+1)),cPatchICheckIndCentery(cPtIndex/(patchCheckDiff+1),cPtIndex%(patchCheckDiff+1)));
-
-					// std::cout << ii << " inlier " << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
-					//           << " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
-					// 					<< " cPtix " << cPtif(0) << " cPtify " << cPtif(1)
-					// 					<< " cPtix " << cPti.x << " cPtiy " << cPti.y
-					// 					<< " inlier " << int(inliersAffine.at<uchar>(ii)) << std::endl;
-					if ((cPti.x < 0) && (cPti.x >= imageWidth) && (cPti.y < 0) && (cPti.y >= imageHeight))
-					{
-						featureBad = true;
+						if (firstDifference)
+						{
+							minDifference = difference;
+							pPtjf(0) = coltljj+(patchSize-1)/2;
+							pPtjf(1) = rowtljj+(patchSize-1)/2;
+							cPtjf.segment(0,2) = TfLast*pPtjf;
+							cPti.x = std::round(cPtjf(0));
+							cPti.y = std::round(cPtjf(1));
+							firstDifference = false;
+						}
+						else
+						{
+							if (difference < minDifference)
+							{
+								minDifference = difference;
+								pPtjf(0) = coltljj+(patchSize-1)/2;
+								pPtjf(1) = rowtljj+(patchSize-1)/2;
+								cPtjf.segment(0,2) = TfLast*pPtjf;
+								cPti.x = std::round(cPtjf(0));
+								cPti.y = std::round(cPtjf(1));
+								firstDifference = false;
+							}
+						}
 					}
 				}
 
@@ -650,7 +677,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 					cPtsInPred.push_back(cPti);
 					Eigen::Vector3f mki = depthEstimators.at(ii)->mk;
 					kPtsInPred.push_back(cv::Point2f(fx*mki(0)+cx,fy*mki(1)+cy));
-
 					cv::circle(drawImage, cPti, 5, cv::Scalar(250, 250, 250), -1);
 				}
 				else

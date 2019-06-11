@@ -13,8 +13,8 @@ void VectorDerivativeEstimator::initialize()
 
 	// feature variance
 	R = 0.0001*Eigen::Matrix3f::Identity();//measurment covariance
-	P.block(0,0,3,3) = 1.0*R;//covariance
-	Q.block(0,0,3,3) = 1.0*R;//process covariance
+	P.block(0,0,3,3) = 10.0*R;//covariance
+	Q.block(0,0,3,3) = 10.0*R;//process covariance
 
 	// flow variance
 	P.block(3,3,3,3) = 1000.0*R;//covariance

@@ -3,7 +3,7 @@
 DepthEstimator::DepthEstimator()
 {}
 
-DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zminInit, float zmaxInit, float tauInit)
+DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zminInit, float zmaxInit, float zInit, float tauInit)
 {
   depthInd = depthIndInit;
   mk = mInit;
@@ -22,8 +22,8 @@ DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Tim
   dkKnown = false;
   uvInt = Eigen::Vector2f::Zero();
 
-  depthEstimatorEKF.initialize(mk.segment(0,2),zmin,zmax);
-  depthEstimatorICLExt.initialize(uk,zmin,zmax,tau,t);
+  depthEstimatorEKF.initialize(mk.segment(0,2),zmin,zmax,zInit);
+  depthEstimatorICLExt.initialize(uk,zmin,zmax,zInit,tau,t);
 }
 
 Eigen::Vector3f DepthEstimator::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)

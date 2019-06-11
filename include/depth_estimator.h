@@ -48,7 +48,7 @@ struct DepthEstimator
   DepthEstimatorICLExt depthEstimatorICLExt;
 
   DepthEstimator();
-  DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zminInit, float zmaxInit, float tauInit);
+  DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zminInit, float zmaxInit, float zInit, float tauInit);
   Eigen::Vector3f predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt);
   float update(Eigen::Matrix3f H, Eigen::Vector3f mcMeas, Eigen::RowVector3f nkT, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, Eigen::Vector3f pkc, Eigen::Vector4f qkc);
 };

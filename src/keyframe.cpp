@@ -114,16 +114,17 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 		int colstep = imageWidth/partitionCols;
 		int rowstep = imageHeight/partitionRows;
 		std::vector<cv::Point2f> ptsii;
-		for (int ii = 0; ii < partitionRows; ii++)
+		std::cout << "\n key \n";
+		for (int ii = 2; ii < partitionRows-2; ii++)
 		{
 			//choose the entire partition as each patches feature seperated by min seperation
 			int rowii = rowstep*ii;
 
-			for (int jj = 0; jj < partitionCols; jj++)
+			for (int jj = 2; jj < partitionCols-2; jj++)
 			{
 				int colii = colstep*jj;
 				ptsii.push_back(cv::Point2f(colii,rowii));
-				std::cout << "\n ptx " << colii << " pty " << rowii << std::endl;
+				// std::cout << "\n ptx " << colii << " pty " << rowii << std::endl;
 			}
 		}
 
@@ -153,7 +154,7 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 
 void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 {
-	ROS_WARN("KEYFRAME %d GRAY START",keyInd);
+	// ROS_WARN("KEYFRAME %d GRAY START",keyInd);
 	if (keyframeShutdown)
 	{
 		return;
@@ -188,10 +189,14 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			imageOdom = odomSync.at(minTimeInd);
 
 			// std::cout << "\n odomSync size " << odomSync.size() << std::endl;
-			for (int ii = 0; ii <= minTimeInd; ii++)
+			if ((odomSync.size() > 1) && (minTimeInd < odomSync.size()-1))
 			{
-				odomSync.pop_front();
+				for (int ii = 0; ii <= minTimeInd; ii++)
+				{
+					odomSync.pop_front();
+				}
 			}
+
 			// std::cout << "\n odomSync size " << odomSync.size() << std::endl;
 			if (firstGray)
 			{
@@ -267,13 +272,13 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			if (!patchs.at(ii)->patchShutdown)
 			{
 				patchsIn.push_back(patchs.at(ii));
-				for (int jj = 0; jj < patchs.at(ii)->depthEstimators.size(); jj++)
-				{
-					//get the points after update
-					Eigen::Vector3f mci = patchs.at(ii)->depthEstimators.at(jj)->mc;
-					cv::Point2f cPti(fx*mci(0)+cx,fy*mci(1)+cy);
-					cv::circle(gray, cPti, 10, cv::Scalar(150, 150, 150), -1);
-				}
+				// for (int jj = 0; jj < patchs.at(ii)->depthEstimators.size(); jj++)
+				// {
+				// 	//get the points after update
+				// 	Eigen::Vector3f mci = patchs.at(ii)->depthEstimators.at(jj)->mc;
+				// 	cv::Point2f cPti(fx*mci(0)+cx,fy*mci(1)+cy);
+				// 	cv::circle(gray, cPti, 10, cv::Scalar(150, 150, 150), -1);
+				// }
 			}
 			else
 			{
@@ -286,18 +291,18 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	keyframeInDanger = (float(patchs.size())/float(patchIndMax)) <= 0.4;
 
-	//publish lagged image and odom
-	cv_bridge::CvImage out_msg;
-	out_msg.header = msg->header; // Same timestamp and tf frame as input image
-	out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-	out_msg.image = gray; // Your cv::Mat
+	// //publish lagged image and odom
+	// cv_bridge::CvImage out_msg;
+	// out_msg.header = msg->header; // Same timestamp and tf frame as input image
+	// out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+	// out_msg.image = gray; // Your cv::Mat
 
 	{
 		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
 		if (patchs.size() > 0)
 		{
-			imageOutputPub.publish(out_msg.toImageMsg());
-			odomPub.publish(imageOdom);
+			// imageOutputPub.publish(out_msg.toImageMsg());
+			// odomPub.publish(imageOdom);
 		}
 	}
 

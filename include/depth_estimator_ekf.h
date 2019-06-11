@@ -20,7 +20,7 @@ struct DepthEstimatorEKF
 
 	DepthEstimatorEKF();
 
-	void initialize(Eigen::Vector2f m, float zminInit, float zmaxInit);
+	void initialize(Eigen::Vector2f m, float zminInit, float zmaxInit, float zInit);
 
 	float update(Eigen::Vector2f m);
 

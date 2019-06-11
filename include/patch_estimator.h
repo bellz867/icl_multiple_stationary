@@ -91,7 +91,7 @@ struct PatchEstimator
 
 	void match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t);
 
-	void update(std::vector<cv::Point2f>& pPts, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc,
+	void update(std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc,
 		          Eigen::Vector3f wc, ros::Time t, float dt);
 };
 

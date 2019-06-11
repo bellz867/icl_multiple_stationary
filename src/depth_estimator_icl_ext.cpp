@@ -9,7 +9,7 @@ DepthEstimatorICLExt::DepthEstimatorICLExt()
   dkKnown = false;
   numSaved = 0;
 }
-void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float tauInit, ros::Time t)
+void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t)
 {
     uk = uInit;
     zmin = zminInit;
@@ -54,7 +54,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
   Eigen::Vector3f rho = (uc*ucT - Eigen::Matrix3f::Identity())*v;
   float xixi = xiT*xi;
   float xirho = xiT*rho;
-  float kxixiTilde = 15.0*kzk*(xirho - xixi*dcHat);
+  float kxixiTilde = 10.0*kzk*(xirho - xixi*dcHat);
 
   // std::cout << "\n vx " << v(0) << " vy " << v(1) << " vz " << v(2) << std::endl;
   // std::cout << "\n tx " << tkc(0) << " ty " << tkc(1) << " tz " << tkc(2) << std::endl;

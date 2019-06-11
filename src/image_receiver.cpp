@@ -124,10 +124,14 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 			imageOdom = odomSync.at(minTimeInd);
 
 			// std::cout << "\n odomSync size " << odomSync.size() << std::endl;
-			for (int ii = 0; ii <= minTimeInd; ii++)
+			if ((odomSync.size() > 1) && (minTimeInd < odomSync.size()-1))
 			{
-				odomSync.pop_front();
+				for (int ii = 0; ii <= minTimeInd; ii++)
+				{
+					odomSync.pop_front();
+				}
 			}
+
 			// std::cout << "\n odomSync size " << odomSync.size() << std::endl;
 			if (firstKey)
 			{
@@ -257,37 +261,37 @@ void ImageReceiver::camInfoCB(const sensor_msgs::CameraInfo::ConstPtr& camInfoMs
 
 	cv::initUndistortRectifyMap(camMat,distCoeffs,cv::Mat::eye(3,3,CV_32F),camMat,imageSize,CV_16SC2,map1,map2);
 
-	//get the tl corner of the centered roi applied to the images to find features
-	// int image_roi_x_tl = image_width*(1.0-image_roi_percent)/2;
-	int image_roi_x_tl = 0;
-	int image_roi_y_tl = image_roi_percent*imageHeight;
-	// int image_roi_y_tl = 0;
-
-	//break the roi into the correct number of partitions
-	int image_roi_x_size = imageWidth/partitionCols;
+	// //get the tl corner of the centered roi applied to the images to find features
+	// // int image_roi_x_tl = image_width*(1.0-image_roi_percent)/2;
+	// int image_roi_x_tl = 0;
+	// int image_roi_y_tl = image_roi_percent*imageHeight;
+	// // int image_roi_y_tl = 0;
+	//
+	// //break the roi into the correct number of partitions
+	// int image_roi_x_size = imageWidth/partitionCols;
+	// // int image_roi_y_size = image_roi_percent*imageHeight/partitionRows;
 	// int image_roi_y_size = image_roi_percent*imageHeight/partitionRows;
-	int image_roi_y_size = image_roi_percent*imageHeight/partitionRows;
-
-	cv::Size image_roi_size(image_roi_x_size,image_roi_y_size);
-	cv::Mat onesMat = cv::Mat::ones(image_roi_size,CV_8UC1);
-
-	masks.resize((partitionRows)*(partitionCols));
-	int maskInd = 0;
-	for (int ii = 0; ii < partitionRows; ii++)
-	{
-		for (int jj = 0; jj < partitionCols; jj++)
-		{
-			cv::Mat maskii = cv::Mat::zeros(imageSize,CV_8UC1);
-			cv::Rect rectii(cv::Point(image_roi_x_tl+image_roi_x_size*jj,image_roi_y_tl+image_roi_y_size*ii),image_roi_size);
-			std::cout << "\n rectii " << rectii << std::endl;
-			onesMat.copyTo(maskii(rectii));
-			masks.at(maskInd) = maskii.clone();
-			maskInd++;
-		}
-	}
-
-	std::cout << "masks size " << masks.size() << std::endl;
-	std::cout << "masks.at(0) size " << masks.at(0).size() << std::endl;
+	//
+	// cv::Size image_roi_size(image_roi_x_size,image_roi_y_size);
+	// cv::Mat onesMat = cv::Mat::ones(image_roi_size,CV_8UC1);
+	//
+	// masks.resize((partitionRows)*(partitionCols));
+	// int maskInd = 0;
+	// for (int ii = 0; ii < partitionRows; ii++)
+	// {
+	// 	for (int jj = 0; jj < partitionCols; jj++)
+	// 	{
+	// 		cv::Mat maskii = cv::Mat::zeros(imageSize,CV_8UC1);
+	// 		cv::Rect rectii(cv::Point(image_roi_x_tl+image_roi_x_size*jj,image_roi_y_tl+image_roi_y_size*ii),image_roi_size);
+	// 		std::cout << "\n rectii " << rectii << std::endl;
+	// 		onesMat.copyTo(maskii(rectii));
+	// 		masks.at(maskInd) = maskii.clone();
+	// 		maskInd++;
+	// 	}
+	// }
+	//
+	// std::cout << "masks size " << masks.size() << std::endl;
+	// std::cout << "masks.at(0) size " << masks.at(0).size() << std::endl;
 
 	//unregister subscriber
 	camInfoSub.shutdown();

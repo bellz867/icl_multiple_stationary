@@ -16,8 +16,8 @@
 	  <param name="minFeaturesDanger" value="50"/>
 	  <param name="minFeaturesBad" value="10"/>
     <param name="patchRadius" value="50"/>
-    <param name="partitionRows" value="100"/>
-    <param name="partitionCols" value="100"/>
+    <param name="partitionRows" value="10"/>
+    <param name="partitionCols" value="10"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="0.5"/>
@@ -31,7 +31,7 @@
     <param name="fd" value="50.0"/>
 
     <!-- integration window -->
-    <param name="tau" value="5.0"/>
+    <param name="tau" value="3.0"/>
 
     <!-- experiment details -->
     <param name="saveExp" value="false"/>
