@@ -14,21 +14,27 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
     uk = uInit;
     zmin = zminInit;
     zmax = zmaxInit;
-    dkHat = zmin;
-    dcHat = zmin;
+    dkHat = zInit;
+    dcHat = zInit;
     dkcHat = 0.0;
     tau = tauInit;
     uDotEstimator.initialize();
-  	Eigen::Vector3f ucDot = uDotEstimator.update(uk,t);
+  	uDotEstimator.update(uk,t);
 }
 
-Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, Eigen::Vector3f pkc, ros::Time t, float dt)
+Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, Eigen::Vector3f pkc, ros::Time t, float dt)
 {
-  float kzk = 15.0;
+  // std::cout << "\n hi4 \n";
 
+  float kzk = 10.0;
+
+  Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
+  Eigen::Vector3f uc = xHat.segment(0,3);
+  Eigen::Vector3f ucDot = xHat.segment(3,3);
   Eigen::RowVector3f ucT = uc.transpose();
   Eigen::RowVector3f ukcT = ukc.transpose();
-  Eigen::Vector3f ucDot = uDotEstimator.update(uc,t);
+
+  // std::cout << "\n hi5 \n";
 
   Eigen::Matrix<float,3,2> Yc;
   Eigen::Matrix<float,2,3> YcT;
@@ -44,17 +50,23 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
   YcYcI(1,0) = -YcYc(1,0)/YcYcdet;
   YcYcI(1,1) = YcYc(0,0)/YcYcdet;
 
+  // std::cout << "\n hi6 \n";
+
   Eigen::Vector2f zeta = YcYcI*YcT*Rkc*uk;
   float dcDot = -ucT*v;
   float dkcDot = -ukcT*v;
   Eigen::Vector2f uv(dcDot,dkcDot);
+
+  // std::cout << "\n hi7 \n";
 
   Eigen::Vector3f xi = ucDot + getss(w)*uc;
   Eigen::RowVector3f xiT = xi.transpose();
   Eigen::Vector3f rho = (uc*ucT - Eigen::Matrix3f::Identity())*v;
   float xixi = xiT*xi;
   float xirho = xiT*rho;
-  float kxixiTilde = 10.0*kzk*(xirho - xixi*dcHat);
+  float kxixiTilde = 1.5*kzk*(xirho - xixi*dcHat);
+
+  // std::cout << "\n hi8 \n";
 
   // std::cout << "\n vx " << v(0) << " vy " << v(1) << " vz " << v(2) << std::endl;
   // std::cout << "\n tx " << tkc(0) << " ty " << tkc(1) << " tz " << tkc(2) << std::endl;
@@ -68,6 +80,17 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
   tBuff.push_back(t);
   dtBuff.push_back(dt);
   uvInt += (uv*dt);
+
+  // std::cout << "\n hi9 \n";
+
+  if ((1.0-fabsf(ucT*ukc) < 0.1))
+  {
+    zetaBuff.clear();
+    uvBuff.clear();
+    tBuff.clear();
+    dtBuff.clear();
+    uvInt = Eigen::Vector2f::Zero();
+  }
 
   if (v.norm() < 0.05)
   {
@@ -87,16 +110,39 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
     uvInt = Eigen::Vector2f::Zero();
   }
 
+  // std::cout << "\n hi10 \n";
+
   if (tBuff.size() > 3)
   {
-    while ((tBuff.at(tBuff.size()-1) - tBuff.at(1)).toSec() > tau)
+
+
+    // std::cout << "\n tBuff.size() " << tBuff.size() << " uvBuff.size() " << uvBuff.size() << " zetaBuff.size() " << zetaBuff.size() << " dtBuff.size() " << dtBuff.size() << std::endl;
+
+    bool timeGood = false;
+    while (!timeGood)
     {
-      uvInt -= (uvBuff.at(0)*dtBuff.at(0));
-      zetaBuff.pop_front();
-      uvBuff.pop_front();
-      tBuff.pop_front();
-      dtBuff.pop_front();
+      if (tBuff.size() > 2)
+      {
+        if ((tBuff.at(tBuff.size()-1) - tBuff.at(1)).toSec() > tau)
+        {
+          uvInt -= (uvBuff.at(0)*dtBuff.at(0));
+          zetaBuff.pop_front();
+          uvBuff.pop_front();
+          tBuff.pop_front();
+          dtBuff.pop_front();
+        }
+        else
+        {
+          timeGood = true;
+        }
+      }
+      else
+      {
+        timeGood = true;
+      }
     }
+
+    // std::cout << "\n hi11 \n";
 
     Eigen::Vector2f Y = zetaBuff.at(zetaBuff.size()-1) - zetaBuff.at(0);
     Eigen::Vector2f U = uvInt;
@@ -106,6 +152,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
 
     float Yy = Y(1);
     float Uy = U(1);
+
+    // std::cout << "\n hi12 \n";
 
     // std::cout << "\n mzetaBuffInt \n" << mzetaBuffInt << std::endl;
     // std::cout << "\n psizetaBuffInt \n" << psizetaBuffInt << std::endl;
@@ -125,6 +173,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
 
     bool dirGoodzBad = false;
 
+    // std::cout << "\n hi13 \n";
+
     //check the ys
     if (measgood && (numSaved < 50))
     {
@@ -143,40 +193,6 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
       }
     }
 
-    // //check which estimates are good
-    // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
-    // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
-    //
-    // bool dirGoodzBad = false;
-    //
-    // // //check the xs
-    // // if (xGood)
-    // // {
-    // //   float dk = (Yx*Ux)/(Yx*Yx);
-    // //   if ((dk > zmin) && (dk < zmax))
-    // //   {
-    // //     dkBuff.push_back(dk);
-    // //   }
-    // //   else
-    // //   {
-    // //     dirGoodzBad = true;
-    // //   }
-    // // }
-    //
-    // //check the ys
-    // if (yGood)
-    // {
-    //   float dk = (Yy*Uy)/(Yy*Yy);
-    //   if ((dk > zmin) && (dk < zmax))
-    //   {
-    //     dkBuff.push_back(dk);
-    //   }
-    //   else
-    //   {
-    //     dirGoodzBad = true;
-    //   }
-    // }
-
     if (dirGoodzBad)
     {
       zetaBuff.clear();
@@ -186,6 +202,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
       uvInt = Eigen::Vector2f::Zero();
     }
   }
+
+  // std::cout << "\n hi14 \n";
 
   if (yysum > 0.0001)
   {
@@ -205,12 +223,42 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f uc, Eigen::Vector3f
       dkMed = zmax;
     }
 
-    dcHat += (kzk*(zeta(0)*dkMed-dcHat)*dt);
-    dkcHat += (kzk*(zeta(1)*dkMed-dkcHat)*dt);
+
+
+    Eigen::Vector2f ddTil = (dkMed*YcT*Rkc*uk - YcYc*Eigen::Vector2f(dcHat,dkcHat));
+
+    // std::cout << "\n dkMed*YcT*Rkc*uk \n" << dkMed*YcT*Rkc*uk << std::endl;
+    // std::cout << "\n YcYc*Eigen::Vector2f(dcHat,dkcHat) \n" << YcYc*Eigen::Vector2f(dcHat,dkcHat) << std::endl;
+    // std::cout << "\n ddTil0 " << ddTil(0) << " ddTil1 " << ddTil(1) << std::endl;
+
+    dcHat += (kzk*ddTil(0)*dt);
+    dkcHat += (kzk*ddTil(1)*dt);
     dkHat += (kzk*(dkMed-dkHat)*dt);
+
     // dcHat += (kzk*(zeta(0)*dkHat-dcHat)*dt);
     // dkcHat += (kzk*(zeta(1)*dkHat-dkcHat)*dt);
     // dkHat += (kzk*(yusum-yysum*dkHat)*dt);
+  }
+
+  // std::cout << "\n hi15 \n";
+  if (dcHat > zmax)
+  {
+    dcHat = zmax;
+  }
+
+  if (dcHat < zmin)
+  {
+    dcHat = zmin;
+  }
+
+  if (dkHat > zmax)
+  {
+    dkHat = zmax;
+  }
+
+  if (dkHat < zmin)
+  {
+    dkHat = zmin;
   }
 
   return Eigen::Vector3f(dkHat,dcHat,dkcHat);

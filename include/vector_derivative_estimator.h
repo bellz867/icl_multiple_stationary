@@ -22,7 +22,7 @@ struct VectorDerivativeEstimator
 
     void initialize();
 
-    Eigen::Vector3f update(Eigen::Vector3f newMeasure, ros::Time newTime);
+    Eigen::Matrix<float,6,1> update(Eigen::Vector3f newMeasure, ros::Time newTime);
 
     Eigen::Matrix<float,6,1> xDot(Eigen::Matrix<float,6,1> x);
 };

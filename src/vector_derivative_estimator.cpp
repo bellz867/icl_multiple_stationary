@@ -13,7 +13,7 @@ void VectorDerivativeEstimator::initialize()
 
 	// feature variance
 	R = 0.0001*Eigen::Matrix3f::Identity();//measurment covariance
-	P.block(0,0,3,3) = 10.0*R;//covariance
+	P.block(0,0,3,3) = R;//covariance
 	Q.block(0,0,3,3) = 10.0*R;//process covariance
 
 	// flow variance
@@ -29,7 +29,7 @@ void VectorDerivativeEstimator::initialize()
 	HT = H.transpose();
 }
 
-Eigen::Vector3f VectorDerivativeEstimator::update(Eigen::Vector3f newMeasure, ros::Time newTime)
+Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMeasure, ros::Time newTime)
 {
 	ros::Time t = newTime;
 	Eigen::Vector3f z = newMeasure;
@@ -81,7 +81,7 @@ Eigen::Vector3f VectorDerivativeEstimator::update(Eigen::Vector3f newMeasure, ro
 	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
 	P = (Eigen::Matrix<float,6,6>::Identity() - K*H)*P;
 
-	return xHat.segment(3,3);
+	return xHat;
 }
 
 Eigen::Matrix<float,6,1> VectorDerivativeEstimator::xDot(Eigen::Matrix<float,6,1> x)

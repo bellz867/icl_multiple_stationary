@@ -22,13 +22,13 @@ DepthEstimatorEKF::DepthEstimatorEKF()
 	// R(1,1) = 0.000005;
 
 	// feature variance
-	float rr = 0.0001;
-	P(0,0) = 10.0*rr;//covariance
-	P(1,1) = 10.0*rr;//covariance
-	P(2,2) = 1000.0*rr;//covariance
-	Q(0,0) = 10.0*rr;//process covariance
-	Q(1,1) = 10.0*rr;//process covariance
-	Q(2,2) = 1000.0*rr;//process covariance
+	float rr = 0.00001;
+	P(0,0) = rr;//covariance
+	P(1,1) = rr;//covariance
+	P(2,2) = 1.0;//covariance
+	Q(0,0) = 0.1;//process covariance
+	Q(1,1) = 0.1;//process covariance
+	Q(2,2) = 1.0;//process covariance
 	R = rr*Eigen::Matrix2f::Identity();//measurment covariancece
 }
 

@@ -520,11 +520,11 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		const int patchSize = 5;
 		const int checkSize = 15;
 		const int patchCheckDiff = checkSize - patchSize;
-		Eigen::Matrix<int8_t,patchSize*patchSize,1> pPatchI;
-		Eigen::Matrix<int8_t,checkSize*checkSize,1> cPatchICheck;
-		Eigen::Matrix<int16_t,checkSize*checkSize,1> cPatchICheckIndx,cPatchICheckIndy;
-		Eigen::Matrix<int16_t,(patchCheckDiff+1)*(patchCheckDiff+1),patchCheckDiff+1> cPatchICheckIndCenterx,cPatchICheckIndCentery;
-		Eigen::Matrix<int8_t,patchSize*patchSize,1> patchIDifj;
+		Eigen::Matrix<int16_t,patchSize,patchSize> pPatchI;
+		Eigen::Matrix<int16_t,checkSize,checkSize> cPatchICheck;
+		Eigen::Matrix<int16_t,checkSize,checkSize> cPatchICheckIndx,cPatchICheckIndy;
+		Eigen::Matrix<int16_t,patchCheckDiff+1,patchCheckDiff+1> cPatchICheckIndCenterx,cPatchICheckIndCentery;
+		Eigen::Matrix<int16_t,patchSize,patchSize> patchIDifj;
 		Eigen::Vector3f pPtjf(0,0,1.0);
 		Eigen::Vector3f cPtjf(0,0,1.0);
 		// Eigen::Matrix<uint8_t,> intensities(patchSize*patchSize),occurance(patchSize*patchSize);
@@ -558,7 +558,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 					// std::cout << "\n prowjj " << rowjj << " pcoljj " << coljj << std::endl;
 					if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
 					{
-						pPatchI(pjj) = pimage.at<uint8_t>(rowjj,coljj);
+						pPatchI(pjj/patchSize,pjj%patchSize) = pimage.at<uint8_t>(rowjj,coljj);
 						pjj++;
 						// intensities
 					}
@@ -582,9 +582,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 					if ((coljj>= 0) && (coljj < imageWidth) && (rowjj >= 0) && (rowjj < imageHeight))
 					{
-						cPatchICheck(pcjj) = image.at<uint8_t>(rowjj,coljj);
-						cPatchICheckIndx(pcjj) = coljj;
-						cPatchICheckIndy(pcjj) = rowjj;
+						cPatchICheck(pcjj/checkSize,pcjj%checkSize) = image.at<uint8_t>(rowjj,coljj);
+						cPatchICheckIndx(pcjj/checkSize,pcjj%checkSize) = coljj;
+						cPatchICheckIndy(pcjj/checkSize,pcjj%checkSize) = rowjj;
 						pcjj++;
 					}
 					else
@@ -611,15 +611,15 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 					for (int jj = 0; jj < (patchCheckDiff+1)*(patchCheckDiff+1); jj++)
 					{
 						// std::cout << "\njj " << jj << std::endl;
-						patchIDifj = pPatchI - cPatchICheck.segment(jj/(patchCheckDiff+1)+jj%(patchCheckDiff+1),patchSize*patchSize);
+						patchIDifj = pPatchI - cPatchICheck.block(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1),patchSize,patchSize);
 						// std::cout << patchIDifj << std::endl << std::endl;
 						// std::cout << pPatchI << std::endl << std::endl;
 						// std::cout << cPatchICheck.block(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1),patchSize,patchSize) << std::endl << std::endl;
 						float normpatchIDifj = sqrtf(float((patchIDifj.array().square()).sum()));
 						// std::cout << "\n normpatchDiff " << normpatchIDifj << std::endl << std::endl;
 						patchIDifs.push_back(normpatchIDifj);
-						cPatchICheckIndCenterx(jj/(patchCheckDiff+1)+jj%(patchCheckDiff+1)) = cPatchICheckIndx(jj/(patchCheckDiff+1)+(patchSize-1)/2+jj%(patchCheckDiff+1)+(patchSize-1)/2);
-						cPatchICheckIndCentery(jj/(patchCheckDiff+1)+jj%(patchCheckDiff+1)) = cPatchICheckIndy(jj/(patchCheckDiff+1)+(patchSize-1)/2+jj%(patchCheckDiff+1)+(patchSize-1)/2);
+						cPatchICheckIndCenterx(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) = cPatchICheckIndx(jj/(patchCheckDiff+1)+(patchSize-1)/2,jj%(patchCheckDiff+1)+(patchSize-1)/2);
+						cPatchICheckIndCentery(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) = cPatchICheckIndy(jj/(patchCheckDiff+1)+(patchSize-1)/2,jj%(patchCheckDiff+1)+(patchSize-1)/2);
 						// std::cout << "\n center x " << cPatchICheckIndCenterx(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1))
 						//           << " center y " << cPatchICheckIndCentery(jj/(patchCheckDiff+1),jj%(patchCheckDiff+1)) << std::endl << std::endl;
 					}
@@ -635,7 +635,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 					// Eigen::Vector3f pPtiftl(pPtif(0)-(patchSize-1)/2,pPtif(1)-(patchSize-1)/2,1.0);
 					// Eigen::Vector2f cPtiftl = TfLast*pPtiftl;
 					// cPti = cv::Point2f(cPtiftl(0)+cPtIndex%patchSize,cPtiftl(1)+cPtIndex/patchSize);
-					cPti = cv::Point2f(cPatchICheckIndCenterx(cPtIndex/(patchCheckDiff+1)+cPtIndex%(patchCheckDiff+1)),cPatchICheckIndCentery(cPtIndex/(patchCheckDiff+1)+cPtIndex%(patchCheckDiff+1)));
+					cPti = cv::Point2f(cPatchICheckIndCenterx(cPtIndex/(patchCheckDiff+1),cPtIndex%(patchCheckDiff+1)),cPatchICheckIndCentery(cPtIndex/(patchCheckDiff+1),cPtIndex%(patchCheckDiff+1)));
 
 					// std::cout << ii << " inlier " << " pPtix " << pPts.at(ii).x << " pPtiy " << pPts.at(ii).y
 					//           << " cPtixI " << cPts.at(ii).x << " cPtiyI " << cPts.at(ii).y
