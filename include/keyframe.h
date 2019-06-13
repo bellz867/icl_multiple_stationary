@@ -33,6 +33,9 @@
 #include <helper_functions.h>
 #include <patch_estimator.h>
 
+typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
+typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
+
 struct Keyframe
 {
 	ros::NodeHandle nh;
@@ -41,7 +44,7 @@ struct Keyframe
 	image_transport::Subscriber imageSub;
 	// cv::Mat kgray,pgray;
 	cv::Mat kgray;
-  ros::Publisher featurePub,wallPub,poseDeltaPub,keyInfoPub,odomPub;
+  ros::Publisher featurePub,wallPub,poseDeltaPub,keyInfoPub,odomPub,pointCloudPub;
   ros::Subscriber outputSub,odomSub;
   std::string cameraName;//body name and camera name
 	// cv::Mat tlmask,trmask,blmask,brmask;
@@ -88,6 +91,9 @@ struct Keyframe
 	int numberFeaturesToFindPerPart;
 	int initialNumberFeatures;
 	bool keyframeInDanger;
+	int numberFeaturesPerPartRow;
+	int numberFeaturesPerPartCol;
+	int partitionSide;
 
   Keyframe();
 

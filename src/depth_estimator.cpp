@@ -3,32 +3,24 @@
 DepthEstimator::DepthEstimator()
 {}
 
-DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zminInit, float zmaxInit, float zInit, float tauInit)
+DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zmin, float zmax, float zInit, float tau, float fx, float fy, float cx, float cy)
 {
   depthInd = depthIndInit;
   mk = mInit;
   mc = mk;
+  ptk(0) = fx*mk(0)+cx;
+  ptk(1) = fx*mk(1)+cy;
+  ptk(2) = 1.0;
   uk = mk/mk.norm();
   uc = uk;
   lastt = t;
-  zmin = zminInit;
-  zmax = zmaxInit;
   zcHatEKF = zInit;
   dcHatICLExt = zInit;
   dkcHatICLExt = 0.0;
-  tau = tauInit;
   startt = t;
-  firstzk = true;
-  dkKnown = false;
-  uvInt = Eigen::Vector2f::Zero();
 
   depthEstimatorEKF.initialize(mk.segment(0,2),zmin,zmax,zInit);
   depthEstimatorICLExt.initialize(uk,zmin,zmax,zInit,tau,t);
-}
-
-Eigen::Vector3f DepthEstimator::currentPoint()
-{
-  return Eigen::Vector3f(depthEstimatorEKF.xHat(0),depthEstimatorEKF.xHat(1),1.0);
 }
 
 Eigen::Vector3f DepthEstimator::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
@@ -42,7 +34,10 @@ float DepthEstimator::update(Eigen::Matrix3f H, Eigen::Vector3f mcMeas, Eigen::R
   float dt = (t - lastt).toSec();
   lastt = t;
 
-  zcHatEKF = depthEstimatorEKF.update(mcMeas.segment(0,2));
+  Eigen::Vector3f xHatEKF = depthEstimatorEKF.update(mcMeas.segment(0,2));
+  mc(0) = xHatEKF(0);
+  mc(1) = xHatEKF(1);
+  zcHatEKF = 1.0/xHatEKF(2);
 
   // std::cout << "\n hi2 \n";
 

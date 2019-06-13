@@ -25,10 +25,7 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<int>("minFeaturesDanger", minFeaturesDanger, 50);
 	nhp.param<int>("partitionRows", partitionRows, 2);
 	nhp.param<int>("partitionCols", partitionCols, 2);
-	nhp.param<int>("numberFeaturesToFindPerPart", numberFeaturesToFindPerPart, 1);
-	nhp.param<int>("numberFeaturesPerPartRow", numberFeaturesPerPartRow, 1);
-	nhp.param<int>("numberFeaturesPerPartCol", numberFeaturesPerPartCol, 1);
-	nhp.param<int>("partitionSide", partitionSide, 1);
+	nhp.param<int>("numberFeaturesToFindPerPart", numberFeaturesToFindPerPart, 1.0);
 	nhp.param<bool>("saveExp", saveExp, false);
 	nhp.param<std::string>("expName", expName, "exp");
 
@@ -113,48 +110,38 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 	try
 	{
 		std::lock_guard<std::mutex> patchMutexGuard(patchMutex);
-		// determine width and height of each partition
-		int partitionWidth = imageWidth/partitionSide;
-		int partitionHeight = imageHeight/partitionSide;
-		if ((numberFeaturesPerPartRow*minDistance > partitionHeight) || (numberFeaturesPerPartCol*minDistance > partitionWidth))
-		{
-			ROS_ERROR("Feature config not possible");
-			ros::shutdown();
-		}
 
-		// get the center of each partition and place uniform spacing of points using minDistance
+		// determine step size
+		int colstep = imageWidth/partitionCols;
+		int rowstep = imageHeight/partitionRows;
+		std::vector<cv::Point2f> ptsii;
 		std::cout << "\n key \n";
-		for (int ii = 0; ii < partitionSide*partitionSide; ii++)
+		for (int ii = 2; ii < partitionRows-2; ii++)
 		{
-			std::vector<cv::Point2f> ptsii;
-			int colc = ii%partitionSide*partitionWidth + partitionWidth/2;
-			int rowc = ii/partitionSide*partitionHeight + partitionHeight/2;
-			int coltl = colc - (numberFeaturesPerPartCol-1)*minDistance/2;
-			int rowtl = rowc - (numberFeaturesPerPartRow-1)*minDistance/2;
+			//choose the entire partition as each patches feature seperated by min seperation
+			int rowii = rowstep*ii;
 
-			for (int jj = 0; jj < numberFeaturesPerPartRow; jj++)
+			for (int jj = 2; jj < partitionCols-2; jj++)
 			{
-				int rowii = rowtl + jj*minDistance;
-				for (int hh = 0; hh < numberFeaturesPerPartCol; hh++)
-				{
-					int colii = coltl + hh*minDistance;
-					ptsii.push_back(cv::Point2f(colii,rowii));
-				}
+				int colii = colstep*jj;
+				ptsii.push_back(cv::Point2f(colii,rowii));
+				// std::cout << "\n ptx " << colii << " pty " << rowii << std::endl;
 			}
-
-			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,expName);
-			patchs.push_back(newPatch);
-			patchIndMax = patchInd;
-			patchInd++;
 		}
+
+		newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,expName);
+		patchs.push_back(newPatch);
+		patchIndMax = patchInd;
+		// delete newPatch;
+		// activePatchs.push_back(patchInd);
+		// std::cout << "\n patch " << patchInd << " after create" << std::endl;
+		patchInd++;
 	}
 	catch (cv::Exception e)
 	{
 		ROS_ERROR("good features to track failed");
 		return false;
 	}
-
-	// ros::shutdown();
 
 	if (patchs.size() > 0)
 	{
@@ -277,7 +264,7 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	}
 
 	{
-		// std::lock_guard<std::mutex> patchMutexGuard(patchMutex);
+		std::lock_guard<std::mutex> patchMutexGuard(patchMutex);
 
 		//plot the points
 		// get all the points and draw them on the image
@@ -298,7 +285,6 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		std::vector<PatchEstimator*> patchsIn;
 		for (std::vector<PatchEstimator*>::iterator itP = patchs.begin(); itP != patchs.end(); itP++)
 		{
-			patchMutex.lock();
 			if (!(*itP)->patchShutdown)
 			{
 				patchsIn.push_back(*itP);
@@ -363,7 +349,6 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			{
 				delete *itP;
 			}
-			patchMutex.unlock();
 		}
 		patchs = patchsIn;
 		patchsIn.clear();

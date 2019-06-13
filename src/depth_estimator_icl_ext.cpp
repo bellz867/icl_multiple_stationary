@@ -261,5 +261,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dkHat = zmin;
   }
 
+  if (dkcHat < 0.01)
+  {
+    dkcHat = 0.01;
+  }
+
   return Eigen::Vector3f(dkHat,dcHat,dkcHat);
 }

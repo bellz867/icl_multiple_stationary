@@ -71,7 +71,7 @@ Eigen::Vector3f DepthEstimatorEKF::predict(Eigen::Vector3f v, Eigen::Vector3f w,
 }
 
 //update the kalman
-float DepthEstimatorEKF::update(Eigen::Vector2f m)
+Eigen::Vector3f DepthEstimatorEKF::update(Eigen::Vector2f m)
 {
 	float mx = m(0);
 	float my = m(1);
@@ -105,7 +105,7 @@ float DepthEstimatorEKF::update(Eigen::Vector2f m)
 		xHat(2) = 1.0/zmax;
 	}
 
-	return 1.0/xHat(2);
+	return xHat;
 }
 
 Eigen::Vector3f DepthEstimatorEKF::getxDot(float mx, float my, float mz, float vx, float vy, float vz, float wx, float wy, float wz)

@@ -72,7 +72,7 @@ struct PatchEstimator
 	std::string expName;
 	std::vector<DataSave*> data;
 	ros::Time tStart;
-	Eigen::Matrix<float,2,3> TfLast;
+	Eigen::Matrix<float,2,3> TfLast,TkfLast;
 
 	~PatchEstimator();
 

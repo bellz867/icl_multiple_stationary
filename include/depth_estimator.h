@@ -16,40 +16,18 @@
 struct DepthEstimator
 {
   int depthInd;
-  std::deque<Eigen::Vector2f> zetaBuff;
-  std::deque<Eigen::Vector2f> uvBuff;
-  Eigen::Vector2f uvInt;
-  std::deque<ros::Time> tBuff;
-  std::deque<float> dtBuff;
-  std::vector<float> dkBuff;
-  Eigen::Vector3f mk,mc,pik,uk,uc;
-  float dkHat;
-  float dcHat;
-  float dkcHat;
+  Eigen::Vector3f mk,mc,pik,uk,uc,ptk,ptc;
   float zcHatEKF;
-  float zcHatLS;
-  float zkHatNorm;
-  float zcHatNorm;
-  float dkcHatNorm;
-  float dkHatICL;
-  float dcHatICL;
-  float dkcHatICL;
   float dkHatICLExt;
   float dcHatICLExt;
   float dkcHatICLExt;
   ros::Time lastt;
   ros::Time startt;
-  float zmin;
-  float zmax;
-  float tau;
-  bool firstzk;
-  bool dkKnown;
   DepthEstimatorEKF depthEstimatorEKF;
   DepthEstimatorICLExt depthEstimatorICLExt;
 
   DepthEstimator();
-  DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zminInit, float zmaxInit, float zInit, float tauInit);
-  Eigen::Vector3f currentPoint();
+  DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zmin, float zmax, float zInit, float tau, float fx, float fy, float cx, float cy);
   Eigen::Vector3f predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt);
   float update(Eigen::Matrix3f H, Eigen::Vector3f mcMeas, Eigen::RowVector3f nkT, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, Eigen::Vector3f pkc, Eigen::Vector4f qkc);
 };
