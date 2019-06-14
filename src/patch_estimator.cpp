@@ -605,7 +605,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		}
 		cv::Mat Gk;
 		{
-			Gk = cv::estimateAffine2D(pPts,kPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
+			Gk = cv::estimateAffine2D(kPts, pPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
 			// Gk = cv::estimateAffine2D(kPts, pPts);//calculate affine transform using RANSAC
 			std::cout << std::endl;
 		}
