@@ -67,8 +67,8 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 
 	clock_t initializeKeyframeTime = clock();
 
-	imageSub = it.subscribe(cameraName+"/image_undistort", 1000, &Keyframe::imageCB,this);
-	odomSub = nh.subscribe(cameraName+"/odom", 1000, &Keyframe::odomCB,this);
+	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &Keyframe::imageCB,this);
+	odomSub = nh.subscribe(cameraName+"/odom", 100, &Keyframe::odomCB,this);
 
 	// ROS_WARN("keyframe needed subs time %3.7f",float(clock()-initializeKeyframeTime)/CLOCKS_PER_SEC);
 }
@@ -367,14 +367,18 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		}
 		patchs = patchsIn;
 		patchsIn.clear();
-		map->width = map->points.size();
-		pointCloudPub.publish(map);
-		//publish lagged image and odom
-		cv_bridge::CvImage out_msg;
-		out_msg.header = msg->header; // Same timestamp and tf frame as input image
-		out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-		out_msg.image = gray; // Your cv::Mat
-		imageOutputPub.publish(out_msg.toImageMsg());
+
+		if (patchs.size() > 0)
+		{
+			map->width = map->points.size();
+			pointCloudPub.publish(map);
+			//publish lagged image and odom
+			cv_bridge::CvImage out_msg;
+			out_msg.header = msg->header; // Same timestamp and tf frame as input image
+			out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+			out_msg.image = gray; // Your cv::Mat
+			imageOutputPub.publish(out_msg.toImageMsg());
+		}
 	}
 
 	keyframeInDanger = (float(patchs.size())/float(patchIndMax)) <= 0.4;
@@ -385,28 +389,34 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	// out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
 	// out_msg.image = gray; // Your cv::Mat
 
-	{
-		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-		if (patchs.size() > 0)
-		{
-			// imageOutputPub.publish(out_msg.toImageMsg());
-			// odomPub.publish(imageOdom);
-		}
-	}
+	// {
+	// 	std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+	// 	if (patchs.size() > 0)
+	// 	{
+	// 		// imageOutputPub.publish(out_msg.toImageMsg());
+	// 		// odomPub.publish(imageOdom);
+	// 	}
+	// }
 
 	float dt = (t-tLast).toSec();
 	tLast = t;
 
-	// if (keyframeShutdown)
-	// {
-	// 	odomSub.shutdown();
-	// 	odomPub.shutdown();
-	// 	grayPub.shutdown();
-	// 	graySub.shutdown();
-	// }
+
+	if (keyframeShutdown)
+	{
+		pubMutex.lock();
+		imageSub.shutdown();
+		odomSub.shutdown();
+		odomPub.shutdown();
+		imageOutputPub.shutdown();
+		pointCloudPub.shutdown();
+		pubMutex.unlock();
+	}
 
 	if (patchs.size() < 1)
 	{
+		pubMutex.lock();
 		keyframeShutdown = true;
+		pubMutex.unlock();
 	}
 }
