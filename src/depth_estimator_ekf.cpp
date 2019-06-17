@@ -25,7 +25,7 @@ DepthEstimatorEKF::DepthEstimatorEKF()
 	float rr = 0.00001;
 	P(0,0) = rr;//covariance
 	P(1,1) = rr;//covariance
-	P(2,2) = 1.0;//covariance
+	P(2,2) = 5.0;//covariance
 	Q(0,0) = 0.1;//process covariance
 	Q(1,1) = 0.1;//process covariance
 	Q(2,2) = 1.0;//process covariance
