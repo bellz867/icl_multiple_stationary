@@ -9,7 +9,7 @@
 	  <param name="cameraName" value="camera"/>
 	  <param name="image_roi_percent" value="0.2"/>
 	  <param name="numberFeaturesToFindPerPart" value="25"/>
-    <param name="minDistance" value="75"/>
+    <param name="minDistance" value="100"/>
     <param name="blockSize" value="3"/>
     <param name="qualityLevel" value="0.1"/>
 

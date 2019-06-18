@@ -561,10 +561,10 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 		cv::invert(G,GI,cv::DECOMP_SVD);
 
-		std::cout << "\n Gp \n" << G << std::endl << std::endl;
+		// std::cout << "\n Gp \n" << G << std::endl << std::endl;
 		// std::cout << "\n Gk \n" << Gk << std::endl << std::endl;
 		// std::cout << "\n GpfLast \n" << GfLast << std::endl << std::endl;
-		std::cout << "\n GI \n" << GI << std::endl << std::endl;
+		// std::cout << "\n GI \n" << GI << std::endl << std::endl;
 		// std::cout << "\n GkfLast \n" << GkfLast << std::endl << std::endl;
 		// std::cout << "\n depthEstimators.size() " << depthEstimators.size() << std::endl << std::endl;
 		// std::cout << "\n imageWidth " << imageWidth << " imageHeight " << imageHeight << std::endl << std::endl;
@@ -591,66 +591,129 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		cv::Mat tmresultBlur(resultSize,resultSize,CV_32F);
 		double minResultVal, maxResultVal;
 		cv::Point minResultPt, maxResultPt;
+		// Eigen::Vector3f mcc;
+		// int patchSizeMax = 75;
+		// int checkSizeMin = 30;
 		int checkSizeMax = checkSize;
+		// int checkSizeMag = checkSizeMax-checkSizeMin;
+		// int blurSize = 3;
+
+		// const int patchCheckDiff = checkSize - patchSize;
+		// Eigen::Matrix<int,patchSize,patchSize> pPatchI;
+		// Eigen::Matrix<int,checkSize,checkSize> cPatchICheck;
+		// Eigen::Matrix<int,checkSize,checkSize> cPatchICheckIndx,cPatchICheckIndy;
+		// Eigen::Matrix<int16_t,patchCheckDiff+1,patchCheckDiff+1> cPatchICheckIndCenterx,cPatchICheckIndCentery;
+		// Eigen::Matrix<int,patchSize,patchSize> patchIDifj;
+		// Eigen::Vector3f pPtjf(0,0,1.0);
+		// Eigen::Vector3f cPtjf(0,0,1.0);
+
+
+		// for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
+		// {
+		// 	std::cout << "b pptx " << (*itpp).x << " ppty " << (*itpp).y << std::endl;
+		// }
+		// cv::Mat Gk;
+		// {
+		// 	Gk = cv::estimateAffine2D(kPts, pPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
+		// 	// Gk = cv::estimateAffine2D(kPts, pPts);//calculate affine transform using RANSAC
+		// 	std::cout << std::endl;
+		// }
+		// for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
+		// {
+		// 	std::cout << "a pptx " << (*itpp).x << " ppty " << (*itpp).y << std::endl;
+		// }
 
 		// ROS_WARN("check 2 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 		timeCheck = clock();
 
-		// *
-		// *      c00*xi + c01*yi + c02
-		// * ui = ---------------------
-		// *      c20*xi + c21*yi + c22
-		// *
-		// *      c10*xi + c11*yi + c12
-		// * vi = ---------------------
-		// *      c20*xi + c21*yi + c22
+		cv::Mat cimageWarp;
+		cv::warpPerspective(image.clone(),cimageWarp,G,image.size());
+		// cv::Mat imageWarpBlend;
+		// cv::addWeighted(pimage,0.6,cimageWarp,0.4,20.0,imageWarpBlend);
 
-		//get the four corners that will be searched and rotate into new image
-		cv::Rect pPtsRect = cv::boundingRect(pPts);
-		cv::Rect pPtsRectSearch;
-		pPtsRectSearch.x = pPtsRect.x-checkSize/2;
-		pPtsRectSearch.y = pPtsRect.y-checkSize/2;
-		pPtsRectSearch.width = pPtsRect.width + checkSize;
-		pPtsRectSearch.height = pPtsRect.height + checkSize;
-		std::vector<cv::Point2f> pPtsRecSearchPts,pPtsRecSearchPtsC;
-		pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x,pPtsRectSearch.y));//tl
-		pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x+pPtsRectSearch.width,pPtsRectSearch.y));//tr
-		pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x+pPtsRectSearch.width,pPtsRectSearch.y+pPtsRectSearch.height));//br
-		pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x,pPtsRectSearch.y+pPtsRectSearch.height));//bl
-		cv::perspectiveTransform(pPtsRecSearchPts,pPtsRecSearchPtsC,GI);
-
-		//get the bounding rectangle for the search region and warp the AOI into the previous
-		cv::Rect pPtsRectC = cv::boundingRect(pPtsRecSearchPtsC);
-		cv::Size pPtsRectCSize = pPtsRectC.size();
+		// // cv::Rect kPtsRect = cv::boundingRect(kPts);
+		// cv::Rect pPtsRect = cv::boundingRect(pPts);
+		// cv::Rect pPtsRectSearch;
+		// // cv::Rect cPtsRect = cv::boundingRect(cPts);
+		// // *
+		// // *      c00*xi + c01*yi + c02
+		// // * ui = ---------------------
+		// // *      c20*xi + c21*yi + c22
+		// // *
+		// // *      c10*xi + c11*yi + c12
+		// // * vi = ---------------------
+		// // *      c20*xi + c21*yi + c22
+		//
+		// //get the four corners that will be searched and rotate into new image to find AOI
+		// pPtsRectSearch.x = pPtsRect.x-checkSize/2;
+		// pPtsRectSearch.y = pPtsRect.y-checkSize/2;
+		// pPtsRectSearch.width = pPtsRect.width + checkSize;
+		// pPtsRectSearch.height = pPtsRect.height + checkSize;
+		// std::vector<cv::Point2f> pPtsRecSearchPts,pPtsRecSearchPtsC;
+		// pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x,pPtsRectSearch.y));//tl
+		// pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x+pPtsRectSearch.width,pPtsRectSearch.y));//tr
+		// pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x+pPtsRectSearch.width,pPtsRectSearch.y+pPtsRectSearch.height));//br
+		// pPtsRecSearchPts.push_back(cv::Point2f(pPtsRectSearch.x,pPtsRectSearch.y+pPtsRectSearch.height));//bl
+		// cv::perspectiveTransform(pPtsRecSearchPts,pPtsRecSearchPtsC,GI);
+		// cv::Rect pPtsRectC = cv::boundingRect(pPtsRecSearchPtsC);
+		// cv::Size pPtsRectCSize;
 		// pPtsRectCSize.width = pPtsRectC.width;
 		// pPtsRectCSize.height = pPtsRectC.height;
-		for (int ii = 0; ii < pPtsRecSearchPtsC.size(); ii++)
-		{
-			std::cout << std::endl << ii << " px " << pPtsRecSearchPtsC.at(ii).x << " py " << pPtsRecSearchPtsC.at(ii).y << std::endl;
-		}
+		//
+		// std::cout << "\n pPtsRect " << pPtsRect << std::endl;
+		// std::cout << "\n pPtsRectC " << pPtsRectC << std::endl;
+		//
+		// //warp AOI
+		// cv::Mat cimageWarp;
+		// cv::warpPerspective(image(pPtsRectC),cimageWarp,G,pPtsRectCSize);
 
-		std::cout << "\n pPtsRectC " << pPtsRectC << std::endl;
-		std::cout << "\n tlx " << pPtsRectC.x << " tly " << pPtsRectC.y << std::endl;
-		std::cout << "\n trx " << pPtsRectC.x+pPtsRectC.width << " try " << pPtsRectC.y << std::endl;
-		std::cout << "\n brx " << pPtsRectC.x+pPtsRectC.width << " bry " << pPtsRectC.y+pPtsRectC.height << std::endl;
-		std::cout << "\n blx " << pPtsRectC.x << " bly " << pPtsRectC.y+pPtsRectC.height << std::endl;
-
-		std::vector<cv::Point2f> pPtsRectCPts,pPtsRectCPtsP;
-		pPtsRectCPts.push_back(cv::Point2f(pPtsRectC.x,pPtsRectC.y));//tl
-		pPtsRectCPts.push_back(cv::Point2f(pPtsRectC.x+pPtsRectC.width,pPtsRectC.y));//tr
-		pPtsRectCPts.push_back(cv::Point2f(pPtsRectC.x+pPtsRectC.width,pPtsRectC.y+pPtsRectC.height));//br
-		pPtsRectCPts.push_back(cv::Point2f(pPtsRectC.x,pPtsRectC.y+pPtsRectC.height));//bl
-		cv::perspectiveTransform(pPtsRectCPts,pPtsRectCPtsP,G);
-
-		cv::Point2f pPtsRecSearchtlDiff;
-		pPtsRecSearchtlDiff.x = pPtsRectSearch.x - pPtsRectCPtsP.at(0).x;
-		pPtsRecSearchtlDiff.x = pPtsRectSearch.y - pPtsRectCPtsP.at(0).y;
-		std::cout << "\n tlDiffx " << pPtsRecSearchtlDiff.x << " tlDiffy " << pPtsRecSearchtlDiff.y << std::endl;
-
-		cv::Mat cimageWarp;
-		cv::Mat pPtsRectCimage = image(pPtsRectC);
-		cv::warpPerspective(pPtsRectCimage,cimageWarp,G,pPtsRectCimage.size());
-
+		// //adjust cPts points AOI
+		// if (kPtsRect.x-checkSize > 0)
+		// {
+		// 	kPtsRect.x -= checkSize;
+		// }
+		// else
+		// {
+		// 	kPtsRect.x = 0;
+		// }
+		// if (kPtsRect.y-checkSize > 0)
+		// {
+		// 	kPtsRect.y -= checkSize;
+		// }
+		// else
+		// {
+		// 	kPtsRect.y = 0;
+		// }
+		//
+		// if (kPtsRect.x+kPtsRect.width+2*checkSize < imageWidth)
+		// {
+		// 	kPtsRect.width += 2*checkSize;
+		// }
+		// else
+		// {
+		// 	kPtsRect.width = imageWidth-kPtsRect.x;
+		// }
+		//
+		// if (kPtsRect.y+kPtsRect.height+2*checkSize < imageHeight)
+		// {
+		// 	kPtsRect.height += 2*checkSize;
+		// }
+		// else
+		// {
+		// 	kPtsRect.height = imageHeight-kPtsRect.y;
+		// }
+		//
+		// cv::Size pwarpSize;
+		// pPtsRect.x = pPtsRect.x - (kPtsRect.width-pPtsRect.width)/2;
+		// pPtsRect.y = pPtsRect.y - (kPtsRect.height-pPtsRect.height)/2;
+		// pPtsRect.width = kPtsRect.width;
+		// pPtsRect.height = kPtsRect.height;
+		// pwarpSize.width = kPtsRect.width;
+		// pwarpSize.height = kPtsRect.height;
+		// cv::Mat pimageWarp(pwarpSize,CV_8UC1);
+		//
+		// cv::warpPerspective(pimage(pPtsRect),pimageWarp,Gk,pwarpSize);
+		//
 		// cv::Mat pimageWarpBlend;
 		// cv::addWeighted(pimage(pPtsRect),0.6,pimageWarp,0.4,20.0,pimageWarpBlend);
 
@@ -666,12 +729,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		ROS_WARN("perspective time %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 		timeCheck = clock();
 
-		// ros::shutdown();
-
 		// Eigen::Matrix<uint8_t,> intensities(patchSize*patchSize),occurance(patchSize*patchSize);
 		// for (int ii = 0; ii < depthEstimators.size(); ii++)
 		int numPtsPred = 0;
-		int itppIdx = 0;
 		for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 		{
 			// std::cout << "\n depthEstimators.size() inside " << depthEstimators.size() << std::endl;
@@ -694,11 +754,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 				ppatch = pimage(cv::Rect(std::round((*itpp).x)-(patchSize-1)/2,std::round((*itpp).y)-(patchSize-1)/2,patchSize,patchSize));
 				// cpatch = cimageWarp(cv::Rect(std::round((*itpp).x)-(checkSize-1)/2,std::round((*itpp).y)-(checkSize-1)/2,checkSize,checkSize));
-				int tlxIdx = std::round(pPtsRecSearchtlDiff.x)+(itppIdx%4)*checkSize;
-				int tlxIdy = std::round(pPtsRecSearchtlDiff.y)+(itppIdx/4)*checkSize;
-				std::cout << "\n tlx " << tlxIdx << " tly " << tlxIdy << std::endl;
-				std::cout << "\n tlx+width " << tlxIdx + checkSize << " tly+height " << tlxIdy + checkSize << std::endl;
-				cpatch = cimageWarp(cv::Rect(tlxIdx,tlxIdy,checkSize,checkSize));
+				cpatch = cimageWarp(cv::Rect(std::round((*itpp).x)-(checkSize-1)/2,std::round((*itpp).y)-(checkSize-1)/2,checkSize,checkSize));
 
 				// std::cout << "\n depth " << 1.0/(*itDP)->depthEstimatorEKF.xHat(2) << std::endl;
 				// std::cout << "\n var " << (*itDP)->depthEstimatorEKF.P(2,2) << std::endl;
@@ -720,14 +776,12 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 				// std::cout << "\n maxResultPt \n" << maxResultPt << std::endl;
 
 				*itDPPred = *itDP;
-				// *itcPPred = cv::Point2f(std::round((*itpp).x)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round((*itpp).y)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
-				*itcPPred = cv::Point2f(std::round(pPtsRectCPtsP.at(0).x+pPtsRecSearchtlDiff.x+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.x),std::round(pPtsRectCPtsP.at(0).y+pPtsRecSearchtlDiff.y+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.y));
+				*itcPPred = cv::Point2f(std::round((*itpp).x)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round((*itpp).y)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
 				*itkPred = cv::Point2f((*itDP)->ptk(0),(*itDP)->ptk(1));
 				itDPPred++;
 				itcPPred++;
 				itkPred++;
 				numPtsPred++;
-				itppIdx++;
 				// ROS_WARN("check 7 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 				// timeCheck = clock();
 			}
