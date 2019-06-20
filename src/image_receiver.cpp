@@ -49,12 +49,12 @@ ImageReceiver::ImageReceiver() : it(nh)
 	ROS_INFO("Got forward camera parameters");
 
 	// Publishers
-	undistortPub = it.advertise(cameraName+"/image_undistort",1);
+	undistortPub = it.advertise(cameraName+"/image_undistort",60);
 
 	// Subscribers
 	imageSub = it.subscribe(cameraName+"/image_raw", 60, &ImageReceiver::imageCB,this);
 	keyframeSub = it.subscribe(cameraName+"/image_undistort", 60, &ImageReceiver::keyframeCB,this);
-	odomSub = nh.subscribe(cameraName+"/odom", 5, &ImageReceiver::odomCB,this);
+	odomSub = nh.subscribe(cameraName+"/odom", 10, &ImageReceiver::odomCB,this);
 }
 
 void ImageReceiver::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
@@ -194,10 +194,10 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 
 			if (keyframes.at(ii)->foundKeyImage)
 			{
-				if (!addframe && (keyframes.size() < 2) && keyframes.at(ii)->keyframeInDanger)
-				{
-					addframe = true;
-				}
+				// if (!addframe && (keyframes.size() < 2) && keyframes.at(ii)->keyframeInDanger)
+				// {
+				// 	addframe = true;
+				// }
 
 				if (!keyframes.at(ii)->keyframeShutdown)
 				{

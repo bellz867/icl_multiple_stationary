@@ -72,10 +72,10 @@ PatchEstimator::~PatchEstimator()
 PatchEstimator::PatchEstimator() : it(nh)
 {}
 
-PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minFeaturesDangerInit, int minFeaturesBadInit, int keyIndInit, int patchIndInit, cv::Mat& image,
-	                             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
-															 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd,
-															 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit) : it(nh)
+PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minFeaturesDangerInit, int minFeaturesBadInit, int keyIndInit,
+															 int patchIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
+															 float fyInit, float cxInit, float cyInit, float zminInit, float zmaxInit, ros::Time t, float fq, float fp,
+															 float ft, float fn, float fd, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit) : it(nh)
 {
 	imageWidth = imageWidthInit;
 	imageHeight = imageHeightInit;
@@ -157,13 +157,13 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	expName = expNameInit;
 
 	// imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
-	imagePub = it.advertise(cameraName+"/test_image",1);
-	imagePub2 = it.advertise(cameraName+"/test_image2",1);
+	// imagePub = it.advertise(cameraName+"/test_image",1);
+	// imagePub2 = it.advertise(cameraName+"/test_image2",1);
 	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &PatchEstimator::imageCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom", 100, &PatchEstimator::odomCB,this);
-	odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
-	odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
-	pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
+	// odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
+	// odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
+	// pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
 }
 
 void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
@@ -343,7 +343,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	odomMsg.twist.twist.angular.x = wc(0);
 	odomMsg.twist.twist.angular.y = wc(1);
 	odomMsg.twist.twist.angular.z = wc(2);
-	odomPub.publish(odomMsg);
+	// odomPub.publish(odomMsg);
 
 	nav_msgs::Odometry odomDelayedMsg;
 	odomDelayedMsg.header.stamp = t;
@@ -362,7 +362,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	odomDelayedMsg.twist.twist.angular.x = wc(0);
 	odomDelayedMsg.twist.twist.angular.y = wc(1);
 	odomDelayedMsg.twist.twist.angular.z = wc(2);
-	odomDelayedPub.publish(odomDelayedMsg);
+	// odomDelayedPub.publish(odomDelayedMsg);
 
 	// if (depthEstimators.size() > 0)
 	// {
@@ -465,13 +465,13 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			delete *it;
 		}
 		depthEstimators.clear();
-		imagePub.shutdown();
-		imagePub2.shutdown();
+		// imagePub.shutdown();
+		// imagePub2.shutdown();
 		imageSub.shutdown();
 		odomSub.shutdown();
-		odomPub.shutdown();
-		odomDelayedPub.shutdown();
-		pointCloudPub.shutdown();
+		// odomPub.shutdown();
+		// odomDelayedPub.shutdown();
+		// pointCloudPub.shutdown();
 		patchShutdown = true;
 
 		ROS_WARN("shutdown after imagesub");
@@ -486,7 +486,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::lock_guard<std::mutex> featureMutexGuard(featureMutex);
 
 	clock_t estimatorUpdateTime = clock();
-	ROS_WARN("depthEstimators size before predict %d",int(depthEstimators.size()));
+	// ROS_WARN("depthEstimators size before predict %d",int(depthEstimators.size()));
 
 	clock_t timeCheck = clock();
 
@@ -522,7 +522,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// 	std::cout << "c cptx " << (*itpp).x << " cpty " << (*itpp).y << std::endl;
 		// }
 		// cv::Mat Gk = cv::findHomography(kPts, pPts, cv::RANSAC, 5.0, inliersAffinek, 2000, 0.99);//calculate homography using RANSAC
-		cv::Mat Gk = cv::findHomography(pPts,kPts,0);//calculate homography using RANSAC
+		// cv::Mat Gk = cv::findHomography(pPts,kPts,0);//calculate homography using RANSAC
 
 		// cv::Mat inliersAffine;
 		// for (std::vector<cv::Point2f>::iterator itpp = cPts.begin(); itpp != cPts.end(); itpp++)
@@ -538,17 +538,18 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// 	std::cout << "a cptx " << (*itpp).x << " cpty " << (*itpp).y << std::endl;
 		// }
 
-		Eigen::Matrix<float,3,3> Gkf,Gf;
+		// Eigen::Matrix<float,3,3> Gkf,Gf;
+		Eigen::Matrix<float,3,3> Gf;
 		for (int ii = 0; ii < 9; ii++)
 		{
-			Gkf(ii/3,ii%3) = Gk.at<double>(ii/3,ii%3);
+			// Gkf(ii/3,ii%3) = Gk.at<double>(ii/3,ii%3);
 			Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
 		}
-
-		if (!Gk.empty())
-		{
-			GkfLast += kT*(Gkf - GkfLast);
-		}
+		//
+		// if (!Gk.empty())
+		// {
+		// 	GkfLast += kT*(Gkf - GkfLast);
+		// }
 
 		if (!G.empty())
 		{
@@ -557,16 +558,16 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 		for (int ii = 0; ii < 9; ii++)
 		{
-			Gk.at<double>(ii/3,ii%3) = GkfLast(ii/3,ii%3);
+			// Gk.at<double>(ii/3,ii%3) = GkfLast(ii/3,ii%3);
 			G.at<double>(ii/3,ii%3) = GfLast(ii/3,ii%3);
 		}
 
-		cv::invert(G,GI,cv::DECOMP_SVD);
+		// cv::invert(G,GI,cv::DECOMP_SVD);
 
-		std::cout << "\n Gp \n" << G << std::endl << std::endl;
+		// std::cout << "\n Gp \n" << G << std::endl << std::endl;
 		// std::cout << "\n Gk \n" << Gk << std::endl << std::endl;
 		// std::cout << "\n GpfLast \n" << GfLast << std::endl << std::endl;
-		std::cout << "\n GI \n" << GI << std::endl << std::endl;
+		// std::cout << "\n GI \n" << GI << std::endl << std::endl;
 		// std::cout << "\n GkfLast \n" << GkfLast << std::endl << std::endl;
 		// std::cout << "\n depthEstimators.size() " << depthEstimators.size() << std::endl << std::endl;
 		// std::cout << "\n imageWidth " << imageWidth << " imageHeight " << imageHeight << std::endl << std::endl;
@@ -580,8 +581,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		std::vector<cv::Point2f>::iterator itkPred = kPtsInPred.begin();
 		assert(depthEstimators.size() > 0);
 		cv::Mat drawImage = image.clone();
-		int patchSize = 150+2*Gshift;
-		int checkSize = 170+2*Gshift;
+		int patchSize = 50+2*Gshift;
+		int checkSize = 75+2*Gshift;
 		int resultSize = checkSize - patchSize + 1;
 		int blurSize = 3;
 		cv::Mat ppatch(patchSize,patchSize,CV_8UC1);
@@ -663,7 +664,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// 	imagePub.publish(out_msg.toImageMsg());
 		// }
 
-		ROS_WARN("perspective time %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
+		// ROS_WARN("perspective time %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 		timeCheck = clock();
 
 		// ros::shutdown();
@@ -674,8 +675,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// int itppIdx = 0;
 		bool isFirstPt = true;
 		cv::Rect ppatchRectP,ppatchRectC,ppatchRectCLocal,checkRect;
-		std::vector<cv::Point2f> ppatchPtsP(2),ppatchPtsC(2);
+		std::vector<cv::Point2f> ppatchPtsP(3),ppatchPtsC(3);
 		ppatchPtsP.at(1) = cv::Point2f(patchSize,patchSize);//width and height
+		ppatchPtsP.at(2) = cv::Point2f((patchSize-1.0)/2.0,(patchSize-1.0)/2.0);//width and height
 		cv::Mat ppatchWarp(patchSize,patchSize,CV_8UC1);
 		for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 		{
@@ -683,8 +685,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 			// if (!T.empty() && int(inliersAffine.at<uchar>(ii)))
 			// if (!G.empty() && !Gk.empty() && (acos(qkcHat(0))*2.0 < 30.0*3.1415/180.0))
 			if (!G.empty() && (acos(qkcHat(0))*2.0 < 30.0*3.1415/180.0)
-										 && (((*itpp).x-checkSize+patchSize-1) > 0) && (((*itpp).x+checkSize-patchSize+1) < imageWidth)
-		                 && (((*itpp).y-checkSize+patchSize-1) > 0) && (((*itpp).y+checkSize-patchSize+1) < imageHeight))
+										 && (((*itpp).x-checkSize-Gshift) > 0) && (((*itpp).x+checkSize+Gshift) < imageWidth)
+		                 && (((*itpp).y-checkSize-Gshift) > 0) && (((*itpp).y+checkSize+Gshift) < imageHeight))
 			{
 				// float sigzsig = sqrtf((*itDP)->depthEstimatorEKF.P(2,2))/(1.0/(*itDP)->depthEstimatorEKF.xHat(2) + sqrtf((*itDP)->depthEstimatorEKF.P(2,2)));
 				// int checkSize = checkSizeMag*tanh(std::max(4.0*(sigzsig-0.5),0.5))+checkSizeMin;
@@ -709,22 +711,26 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 				ppatchPtsP.at(0) = cv::Point2f((*itpp).x,(*itpp).y);//center
 				cv::perspectiveTransform(ppatchPtsP,ppatchPtsC,G);
 
-				std::cout << "\n cx " << ppatchPtsC.at(0).x << " cy " << ppatchPtsC.at(0).y
-				          << " width " << ppatchPtsC.at(1).x << " height " << ppatchPtsC.at(1).y << std::endl;
+				// std::cout << "\n cx " << ppatchPtsC.at(0).x << " cy " << ppatchPtsC.at(0).y
+				//           << " width " << ppatchPtsC.at(1).x << " height " << ppatchPtsC.at(1).y << std::endl;
 
 				//transform the patch
 				cv::warpPerspective(ppatch.clone(),ppatchWarp,G,ppatch.size(),cv::INTER_LINEAR,cv::BORDER_CONSTANT,cv::Scalar(255,255,255));
 				// std::cout << "\n cx2 " << ppatchPtsC.at(0).x + (ppatchWarp.cols-1)/2  << " cy2 " << ppatchPtsC.at(0).y + (ppatchWarp.rows-1)/2
 				// 					<< " width2 " << ppatchWarp.cols << " height2 " << ppatchWarp.rows << std::endl;
 
-				ppatchRectCLocal.x = Gshift;
-				ppatchRectCLocal.y = ppatchRectCLocal.x;
-				ppatchRectCLocal.width = std::min(ppatchPtsC.at(1).x,ppatchPtsC.at(1).y)-Gshift;
-				ppatchRectCLocal.height = ppatchRectCLocal.width;
+				cv::Point2f patchCenterC(ppatchPtsC.at(0));
+				cv::Point2f patchCenterCLocal(ppatchPtsC.at(2));
+				float patchSizeC = std::min(ppatchPtsC.at(1).x,ppatchPtsC.at(1).y)-2*Gshift;
+
+				ppatchRectCLocal.x = std::round(patchCenterCLocal.x-(patchSizeC-1)/2);
+				ppatchRectCLocal.y = std::round(patchCenterCLocal.y-(patchSizeC-1)/2);
+				ppatchRectCLocal.width = std::round(patchSizeC);
+				ppatchRectCLocal.height = std::round(patchSizeC);
 				// ppatchRectCLocal.width = ppatchPtsC.at(1).x - Gshift;
 				// ppatchRectCLocal.height = ppatchPtsC.at(1).x - Gshift;
 				cv::Mat reducedWarp = ppatchWarp(ppatchRectCLocal).clone();
-				std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
+				// std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
 
 				//get the maximum square for the search region and perform template patch
 				// bool maxFound = false;
@@ -734,7 +740,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 				// ppatchRectC.width = ppatchRectCLocal.width;
 				// ppatchRectC.height = ppatchRectCLocal.height;
 
-				std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
+				// std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
 				// std::cout << "\n ppatchRectC \n" << ppatchRectC << std::endl;
 				// ppatchRectCLocal.x = 0;
 				// ppatchRectCLocal.y = 0;
@@ -795,39 +801,40 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 				// ppatch = ppatchWarp(ppatchRectCLocal);
 
 				// checkRect = cv::Rect(std::round(ppatchRectC.x)+(ppatchRectC.width-1)/2-(checkSize-1)/2,std::round(ppatchRectC.y)+(ppatchRectC.height-1)/2-(checkSize-1)/2,checkSize,checkSize);
-				checkRect = cv::Rect(std::round(ppatchPtsC.at(0).x-(checkSize-1)/2.0),std::round(ppatchPtsC.at(0).y-(checkSize-1)/2.0),checkSize,checkSize);
+				checkRect = cv::Rect(std::round(patchCenterC.x-(checkSize-1)/2.0),std::round(patchCenterC.y-(checkSize-1)/2.0),checkSize,checkSize);
 				cpatch = image(checkRect).clone();
 				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
-				cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
+				// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
+				cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCOEFF_NORMED);
 				cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
 				cv::minMaxLoc(tmresultBlur,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
 
-				if (isFirstPt)
-				{
-					cv_bridge::CvImage out_msg;
-					out_msg.header.stamp = t; // Same timestamp and tf frame as input image
-					out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-					{
-						cv::circle(cpatch,cv::Point2f((ppatchRectCLocal.width-1)/2.0+maxResultPt.x,(ppatchRectCLocal.height-1)/2.0+maxResultPt.y),5,cv::Scalar(255,255,255),-1);
-						out_msg.image = cpatch; // Your cv::Mat
-						std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-						imagePub.publish(out_msg.toImageMsg());
-					}
-					cv_bridge::CvImage out_msg2;
-					out_msg2.header.stamp = t; // Same timestamp and tf frame as input image
-					out_msg2.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-					cv::Rect blendCenter(std::round(maxResultPt.x),
-					                     std::round(maxResultPt.y),
-															 ppatchRectCLocal.width,ppatchRectCLocal.height);
-					cv::Mat reducedWarpBlend;
-					cv::addWeighted(cpatch(blendCenter),0.6,reducedWarp,0.4,20.0,reducedWarpBlend);
-					out_msg2.image = reducedWarpBlend; // Your cv::Mat
-					{
-						std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-						imagePub2.publish(out_msg2.toImageMsg());
-					}
-					isFirstPt = false;
-				}
+				// if (isFirstPt)
+				// {
+				// 	cv_bridge::CvImage out_msg;
+				// 	out_msg.header.stamp = t; // Same timestamp and tf frame as input image
+				// 	out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+				// 	{
+				// 		cv::circle(cpatch,cv::Point2f((ppatchRectCLocal.width-1)/2.0+maxResultPt.x,(ppatchRectCLocal.height-1)/2.0+maxResultPt.y),5,cv::Scalar(255,255,255),-1);
+				// 		out_msg.image = cpatch; // Your cv::Mat
+				// 		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+				// 		imagePub.publish(out_msg.toImageMsg());
+				// 	}
+				// 	cv_bridge::CvImage out_msg2;
+				// 	out_msg2.header.stamp = t; // Same timestamp and tf frame as input image
+				// 	out_msg2.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+				// 	cv::Rect blendCenter(std::round(maxResultPt.x),
+				// 	                     std::round(maxResultPt.y),
+				// 											 ppatchRectCLocal.width,ppatchRectCLocal.height);
+				// 	cv::Mat reducedWarpBlend;
+				// 	cv::addWeighted(cpatch(blendCenter),0.6,reducedWarp,0.4,20.0,reducedWarpBlend);
+				// 	out_msg2.image = reducedWarpBlend; // Your cv::Mat
+				// 	{
+				// 		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+				// 		imagePub2.publish(out_msg2.toImageMsg());
+				// 	}
+				// 	isFirstPt = false;
+				// }
 
 				// std::cout << "\n ppatch \n" << ppatch << std::endl;
 				// std::cout << "\n cpatch \n" << cpatch << std::endl;
@@ -841,7 +848,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 				//get the points
 				*itDPPred = *itDP;
-				*itcPred = cv::Point2f(ppatchPtsC.at(0).x-(checkSize-1)/2.0+(ppatchRectCLocal.width-1)/2.0+maxResultPt.x,ppatchPtsC.at(0).y-(checkSize-1)/2.0+(ppatchRectCLocal.height-1)/2.0+maxResultPt.y);
+				*itcPred = cv::Point2f(checkRect.x+(ppatchRectCLocal.width-1)/2.0+maxResultPt.x,checkRect.y+(ppatchRectCLocal.height-1)/2.0+maxResultPt.y);
 				// *itcPred = cv::Point2f(std::round(ppatchRectC.x)+(ppatchRectC.width-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round(ppatchRectC.y)+(ppatchRectC.height-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
 				// *itcPPred = cv::Point2f(std::round((*itpp).x)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round((*itpp).y)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
 				// *itcPPred = cv::Point2f(std::round(pPtsRectCPtsP.at(0).x+pPtsRecSearchtlDiff.x+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.x),std::round(pPtsRectCPtsP.at(0).y+pPtsRecSearchtlDiff.y+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.y));
@@ -910,8 +917,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		estimatorUpdateTime = clock();
 		//update the estimtators using the estimted points
 		update(kPtsInPred,cPtsInPred,vc,wc,t,dt);
-		ROS_WARN("time for update call %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
-		estimatorUpdateTime = clock();
+		ROS_WARN("time for estimator update call %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
+		// estimatorUpdateTime = clock();
 	}
 	cPtsInPred.clear();
 	kPtsInPred.clear();

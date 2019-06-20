@@ -39,11 +39,11 @@ struct PatchEstimator
 	std::string cameraName;
 	image_transport::ImageTransport it;
 	image_transport::Subscriber imageSub;
-	image_transport::Publisher imagePub,imagePub2;
+	// image_transport::Publisher imagePub,imagePub2;
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd;
-  ros::Subscriber odomSub,roiSub;
-	ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
+  ros::Subscriber odomSub;
+	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
 	Eigen::Vector3f tkcHat;
 	Eigen::Vector3f nkHat;
 	Eigen::Vector4f qkcHat;
