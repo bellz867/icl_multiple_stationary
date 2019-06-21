@@ -84,16 +84,25 @@ Eigen::Vector3f DepthEstimatorEKF::update(Eigen::Vector2f m)
 	//measurement update
 	Eigen::Vector2f meas(mx,my);
 	Eigen::Vector2f measHat(xHat(0),xHat(1));
-	Eigen::Matrix2f argK = H*P*HT + R;
-	float argKdet = argK(0,0)*argK(1,1) - argK(0,1)*argK(1,0);
+	// Eigen::Matrix2f argK = H*P*HT + R;
+	// float argKdet = argK(0,0)*argK(1,1) - argK(0,1)*argK(1,0);
+	// Eigen::Matrix2f argKI;
+	// argKI(0,0) = argK(1,1)/argKdet;
+	// argKI(0,1) = -argK(0,1)/argKdet;
+	// argKI(1,0) = -argK(1,0)/argKdet;
+	// argKI(1,1) = argK(0,0)/argKdet;
+	// Eigen::Matrix<float,3,2> K = P*HT*argKI;
+	// xHat += K*(meas - measHat);
+	// P = (Eigen::Matrix3f::Identity() - K*H)*P;
+	float argKdet = P(0,0)*P(1,1) - P(0,1)*P(1,0);
 	Eigen::Matrix2f argKI;
-	argKI(0,0) = argK(1,1)/argKdet;
-	argKI(0,1) = -argK(0,1)/argKdet;
-	argKI(1,0) = -argK(1,0)/argKdet;
-	argKI(1,1) = argK(0,0)/argKdet;
-	Eigen::Matrix<float,3,2> K = P*HT*argKI;
+	argKI(0,0) = P(1,1)/argKdet;
+	argKI(0,1) = -P(0,1)/argKdet;
+	argKI(1,0) = -P(1,0)/argKdet;
+	argKI(1,1) = P(0,0)/argKdet;
+	Eigen::Matrix<float,3,2> K = P.block(0,0,3,2)*argKI;
 	xHat += K*(meas - measHat);
-	P = (Eigen::Matrix3f::Identity() - K*H)*P;
+	P -= (K*H*P);
 
 	if (xHat(2) > 1.0/zmin)
 	{

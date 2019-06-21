@@ -94,6 +94,8 @@ struct Keyframe
 	int numberFeaturesPerPartRow;
 	int numberFeaturesPerPartCol;
 	int partitionSide;
+	int patchSizeBase;
+	int checkSizeBase;
 
   Keyframe();
 

@@ -31,6 +31,8 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<int>("partitionSide", partitionSide, 1);
 	nhp.param<bool>("saveExp", saveExp, false);
 	nhp.param<std::string>("expName", expName, "exp");
+	nhp.param<int>("patchSizeBase", patchSizeBase, 10);
+	nhp.param<int>("checkSizeBase", checkSizeBase, 20);
 
 	keyInd = keyIndInit;
 
@@ -142,7 +144,9 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 				}
 			}
 
-			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,expName);
+			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,
+				                            imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,
+																		expName,patchSizeBase,checkSizeBase);
 			patchs.push_back(newPatch);
 			patchIndMax = patchInd;
 			patchInd++;

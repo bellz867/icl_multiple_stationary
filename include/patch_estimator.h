@@ -40,6 +40,7 @@ struct PatchEstimator
 	image_transport::ImageTransport it;
 	image_transport::Subscriber imageSub;
 	// image_transport::Publisher imagePub,imagePub2;
+	image_transport::Publisher imagePub2;
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd;
   ros::Subscriber odomSub;
@@ -73,6 +74,7 @@ struct PatchEstimator
 	std::vector<DataSave*> data;
 	ros::Time tStart;
 	Eigen::Matrix<float,3,3> GfLast,GkfLast;
+	int patchSizeBase,checkSizeBase;
 
 
 	~PatchEstimator();
@@ -82,7 +84,7 @@ struct PatchEstimator
 	PatchEstimator(int imageWidth, int imageHeight, int minFeaturesDanger, int minFeaturesBad, int keyInd, int patchInd, cv::Mat& image,
 		             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
 								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd,
-								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit);
+								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit);
 
 	void markerOdomCB(const nav_msgs::Odometry::ConstPtr& msg);
 
