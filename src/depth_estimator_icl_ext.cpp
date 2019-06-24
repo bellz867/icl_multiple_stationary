@@ -26,7 +26,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 {
   // std::cout << "\n hi4 \n";
 
-  float kzk = 10.0;
+  float kxi = 50.0;
+  float kX = 10.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
   Eigen::Vector3f uc = xHat.segment(0,3);
@@ -70,7 +71,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   Eigen::Vector3f rho = (uc*ucT - Eigen::Matrix3f::Identity())*v;
   float xixi = xiT*xi;
   float xirho = xiT*rho;
-  float kxixiTilde = 1.5*kzk*(xirho - xixi*dcHat);
+  float kxixiTilde = kxi*(xirho - xixi*dcHat);
   float ucukc = ucT*ukc;
   float ucRuk = ucT*Rkc*ukc;
   Eigen::RowVector2f psiu(ucukc,ucRuk);
@@ -78,7 +79,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   Eigen::Matrix<float,2,3> xipsiuT = xipsiu.transpose();
   Eigen::Matrix2f xpxp = xipsiuT*xipsiu;
   Eigen::Vector2f xprho = xipsiuT*rho;
-  Eigen::Vector2f kxpxpTilde = 1.5*kzk*(xprho - xpxp*Eigen::Vector2f(dkcHat,dkHat));
+  Eigen::Vector2f kxpxpTilde = kxi*(xprho - xpxp*Eigen::Vector2f(dkcHat,dkHat));
 
 
   // std::cout << "\n hi8 \n";
@@ -99,7 +100,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n hi9 \n";
 
-  if ((1.0-fabsf(ucT*ukc) < 0.1))
+  if ((1.0-fabsf(ucT*ukc) < 0.4))
   {
     zetaBuff.clear();
     uvBuff.clear();
@@ -128,6 +129,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     uvInt = Eigen::Vector2f::Zero();
     std::cout << "\n pkc clear\n";
   }
+
+  std::cout << "\n" << "dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat;
 
   // std::cout << "\n hi10 \n";
 
@@ -182,14 +185,15 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     float yu = Yx*Ux+Yy*Uy;
     float dk = yu/yy;
 
-    std::cout << "\n (yu/yy)  " << (yu/yy) << std::endl;
-    std::cout << "\n yy " << yy << std::endl;
-    std::cout << "\n yu " << yu << std::endl;
-    std::cout << "\n Y.norm() " << Y.norm() << std::endl;
-    std::cout << "\n U.norm() " << U.norm() << std::endl;
+    std::cout << ", yusum/yysum " << (yusum/yysum) <<  ", (yu/yy)  " << (yu/yy) << ", Y.norm() " << Y.norm() << ", U.norm() " << U.norm() << ", zeta(0)*(yu/yy) " << zeta(0)*(yu/yy)<< ", fabsf(dcHat-zeta(0)*(yu/yy))/dcHat " << fabsf(dcHat-zeta(0)*(yu/yy))/dcHat << std::endl;
+    // std::cout << "\n yu " << yu << std::endl;
+    // std::cout << "\n Y.norm() " << Y.norm() << std::endl;
+    // std::cout << "\n U.norm() " << U.norm() << std::endl;
+    // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.05) && (Y.norm() > 0.05);
+    bool measgood = (U.norm() > 0.15) && (Y.norm() > 0.15);
+    bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
 
@@ -198,6 +202,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n hi13 \n";
 
     //check the ys
+    // if (measgood && (numSaved < 50) && disAgree)
     if (measgood && (numSaved < 50))
     {
       if ((dk > zmin) && (dk < zmax))
@@ -220,6 +225,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       dtBuff.clear();
       uvInt = Eigen::Vector2f::Zero();
     }
+  }
+  else
+  {
+    std::cout << "\n";
   }
 
   // std::cout << "\n hi14 \n";
@@ -250,9 +259,9 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n YcYc*Eigen::Vector2f(dcHat,dkcHat) \n" << YcYc*Eigen::Vector2f(dcHat,dkcHat) << std::endl;
     // std::cout << "\n ddTil0 " << ddTil(0) << " ddTil1 " << ddTil(1) << std::endl;
 
-    dcHat += (kzk*ddTil(0)*dt);
-    dkcHat += (kzk*ddTil(1)*dt);
-    dkHat += (kzk*(dkMed-dkHat)*dt);
+    dcHat += (kX*ddTil(0)*dt);
+    dkcHat += (kX*ddTil(1)*dt);
+    dkHat += (kX*(dkMed-dkHat)*dt);
 
     // dcHat += (kzk*(zeta(0)*dkHat-dcHat)*dt);
     // dkcHat += (kzk*(zeta(1)*dkHat-dkcHat)*dt);

@@ -12,13 +12,14 @@ void VectorDerivativeEstimator::initialize()
 	Q = Eigen::Matrix<float,6,6>::Zero();
 
 	// feature variance
-	R = 0.0001*Eigen::Matrix3f::Identity();//measurment covariance
+	float rr = 0.00001;
+	R = rr*Eigen::Matrix3f::Identity();//measurment covariance
 	P.block(0,0,3,3) = R;//covariance
-	Q.block(0,0,3,3) = 10.0*R;//process covariance
+	Q.block(0,0,3,3) =  0.1*Eigen::Matrix3f::Identity();//process covariance
 
 	// flow variance
-	P.block(3,3,3,3) = 1000.0*R;//covariance
-	Q.block(3,3,3,3) = 1000.0*R;//process covariance
+	P.block(3,3,3,3) = 5.0*Eigen::Matrix3f::Identity();//covariance
+	Q.block(3,3,3,3) = Eigen::Matrix3f::Identity();//process covariance
 
 	//process jacobian
 	F = Eigen::Matrix<float,6,6>::Identity();
@@ -61,11 +62,13 @@ Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMe
 	// std::cout << "\n argK \n" << argK <<std::endl;
 	// Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(argK, Eigen::ComputeThinU | Eigen::ComputeThinV);
 	// Eigen::Matrix2f argKI = svdargK.solve(Eigen::Matrix2f::Identity());
-	Eigen::Matrix3f argK = H*P*HT + R;
+	// Eigen::Matrix3f argK = H*P*HT + R;
+	Eigen::Matrix3f argK = P.block(0,0,3,3) + R;
 	Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(argK, Eigen::ComputeThinU | Eigen::ComputeThinV);
 	Eigen::Matrix3f argKI = svdargK.solve(Eigen::Matrix3f::Identity());
 	// std::cout << "\n argKI \n" << argKI <<std::endl;
-	Eigen::Matrix<float,6,3> K = P*HT*argKI;
+	// Eigen::Matrix<float,6,3> K = P*HT*argKI;
+	Eigen::Matrix<float,6,3> K = P.block(0,0,6,3)*argKI;
 	// std::cout << "\n K \n" << K <<std::endl;
 
 	// std::cout << "\n z \n" << z <<std::endl;
@@ -79,7 +82,8 @@ Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMe
 
 	// std::cout << std::endl << "----------------" << std::endl;
 	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
-	P = (Eigen::Matrix<float,6,6>::Identity() - K*H)*P;
+	// P = (Eigen::Matrix<float,6,6>::Identity() - K*H)*P;
+	P -= (K*H*P);
 
 	return xHat;
 }

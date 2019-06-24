@@ -94,12 +94,12 @@ Eigen::Vector3f DepthEstimatorEKF::update(Eigen::Vector2f m)
 	// Eigen::Matrix<float,3,2> K = P*HT*argKI;
 	// xHat += K*(meas - measHat);
 	// P = (Eigen::Matrix3f::Identity() - K*H)*P;
-	float argKdet = P(0,0)*P(1,1) - P(0,1)*P(1,0);
+	float argKdet = (P(0,0)+R(0,0))*(P(1,1)+R(1,1)) - (P(0,1)+R(0,1))*(P(1,0)+R(1,0));
 	Eigen::Matrix2f argKI;
-	argKI(0,0) = P(1,1)/argKdet;
-	argKI(0,1) = -P(0,1)/argKdet;
-	argKI(1,0) = -P(1,0)/argKdet;
-	argKI(1,1) = P(0,0)/argKdet;
+	argKI(0,0) = (P(1,1)+R(1,1))/argKdet;
+	argKI(0,1) = -(P(0,1)+R(0,1))/argKdet;
+	argKI(1,0) = -(P(1,0)+R(1,0))/argKdet;
+	argKI(1,1) = (P(0,0)+R(0,0))/argKdet;
 	Eigen::Matrix<float,3,2> K = P.block(0,0,3,2)*argKI;
 	xHat += K*(meas - measHat);
 	P -= (K*H*P);
