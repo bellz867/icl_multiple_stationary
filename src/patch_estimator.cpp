@@ -105,6 +105,12 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	camMat.at<float>(1,1) = fy;
 	camMat.at<float>(1,2) = cy;
 	camMat.at<float>(2,2) = 1.0;
+	camMatD = cv::Mat::zeros(3,3,CV_64F);
+	camMatD.at<double>(0,0) = fx;
+	camMatD.at<double>(0,2) = cx;
+	camMatD.at<double>(1,1) = fy;
+	camMatD.at<double>(1,2) = cy;
+	camMatD.at<double>(2,2) = 1.0;
 
 	camMatf = Eigen::Matrix3f::Zero();
 	camMatf(0,0) = fx;
@@ -112,6 +118,8 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	camMatf(1,1) = fy;
 	camMatf(1,2) = cy;
 	camMatf(2,2) = 1.0;
+
+	Gkcum = cv::Mat::eye(3,3,CV_64F);
 
 	Eigen::JacobiSVD<Eigen::MatrixXf> svdcamMatf(camMatf, Eigen::ComputeThinU | Eigen::ComputeThinV);
 	camMatIf = svdcamMatf.solve(Eigen::Matrix3f::Identity());
@@ -531,7 +539,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// 	std::cout << "b cptx " << (*itpp).x << " cpty " << (*itpp).y << std::endl;
 		// }
 		// cv::Mat G = cv::estimateAffine2D(pPts, cPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
-		cv::Mat G = cv::findHomography(pPts, cPts, cv::RANSAC, 3.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(pPts, cPts, cv::RANSAC, 1.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(pPts, cPts, cv::LMEDS, 4.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(pPts, cPts, 0);//calculate homography using RANSAC
 		// std::cout << std::endl;
@@ -565,9 +573,13 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 			G.at<double>(ii/3,ii%3) = GfLast(ii/3,ii%3);
 		}
 
+		Gkcum *= G.clone();
+		Gkcum /= Gkcum.at<double>(2,2);
+
 		// cv::invert(G,GI,cv::DECOMP_SVD);
 
 		std::cout << "\n Gp \n" << G << std::endl << std::endl;
+		std::cout << "\n Gkcum \n" << Gkcum << std::endl << std::endl;
 		// std::cout << "\n Gk \n" << Gk << std::endl << std::endl;
 		// std::cout << "\n GpfLast \n" << GfLast << std::endl << std::endl;
 		// std::cout << "\n GI \n" << GI << std::endl << std::endl;
@@ -961,10 +973,20 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 		assert(cPts.size()>0);
 
 		cv::Mat inliersG;
-		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 3.0, inliersG, 2000, 0.99);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 1.0, inliersG, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
+		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,3.0,0.99);
+		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
+		cv::Mat E = camMatD.t()*F*camMatD;
+		cv::Mat R1,R2,tt;
+		cv::decomposeEssentialMat(E,R1,R2,tt);
 
 		std::cout << "\n G \n" << G << std::endl << std::endl;
+		std::cout << "\n F \n" << F << std::endl << std::endl;
+		std::cout << "\n E \n" << E << std::endl << std::endl;
+		std::cout << "\n R1 \n" << R1 << std::endl << std::endl;
+		std::cout << "\n R2 \n" << R2 << std::endl << std::endl;
+		std::cout << "\n tt \n" << tt << std::endl << std::endl;
 
 		ROS_WARN("time for homog %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
@@ -980,7 +1002,7 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 			{
 				//find the solutions
 				std::vector<cv::Mat> RkcH,tkcH,nkH;//holds the rotations, translations and normal vetors from decompose homography
-				int numberHomogSols = cv::decomposeHomographyMat(G, camMat, RkcH, tkcH, nkH);// Decompose homography
+				int numberHomogSols = cv::decomposeHomographyMat(Gkcum, camMatD, RkcH, tkcH, nkH);// Decompose homography
 
 				//check positive depth constraint on the inliers to find the solutions
 				std::vector<Eigen::Vector3f> nks;
@@ -1036,7 +1058,7 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 						nks.push_back(nkj);
 						tkcs.push_back(tkcj);
 						qkcs.push_back(qkcj);
-						if (tkcj.norm() > 0.001)
+						if ((tkcj.norm() > 0.001) && (pkcHat.norm() > 0.001))
 						{
 							errors.push_back((qkcHat - qkcj).norm()+(pkcHat-tkcj).norm());
 						}
@@ -1161,7 +1183,11 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 			}
 
 			dkcHat += kd*(dkcMed - dkcHat);
-			pkcHat += kp*(tkcHat*(dkcHat/tkcHat.norm()) - pkcHat);
+
+			if (tkcHat.norm() > 0.001)
+			{
+				pkcHat += kp*(tkcHat*(dkcHat/tkcHat.norm()) - pkcHat);
+			}
 		}
 
 		ROS_WARN("dkcHat %2.1f",dkcHat);

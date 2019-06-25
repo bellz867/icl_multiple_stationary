@@ -61,7 +61,7 @@ struct PatchEstimator
 	ros::Time tLast;
 	float pTau,qTau,tTau,nTau,dTau;
 	nav_msgs::Odometry keyOdom,imageOdom;
-	cv::Mat camMat;
+	cv::Mat camMat,camMatD;
 	Eigen::Matrix3f camMatf,camMatIf;
 	bool firstOdomImageCB;
 	bool dkEstimated;
@@ -74,6 +74,7 @@ struct PatchEstimator
 	std::vector<DataSave*> data;
 	ros::Time tStart;
 	Eigen::Matrix<float,3,3> GfLast,GkfLast;
+	cv::Mat Gkcum;
 	int patchSizeBase,checkSizeBase;
 
 
