@@ -30,6 +30,8 @@
 #include <helper_functions.h>
 #include <data_save.h>
 
+#include <icl_multiple_stationary/PoseDelta.h>
+
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
@@ -44,6 +46,7 @@ struct PatchEstimator
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd;
   ros::Subscriber odomSub;
+	ros::Publisher poseDeltaPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
 	Eigen::Vector3f tkcHat;
 	Eigen::Vector3f nkHat;
@@ -59,7 +62,7 @@ struct PatchEstimator
 	std::deque<nav_msgs::Odometry> markerOdomSync;
 	std::mutex odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex;
 	ros::Time tLast;
-	float pTau,qTau,tTau,nTau,dTau;
+	float pTau,qTau,tTau,nTau,dTau,GTau;
 	nav_msgs::Odometry keyOdom,imageOdom;
 	cv::Mat camMat,camMatD;
 	Eigen::Matrix3f camMatf,camMatIf;
@@ -84,7 +87,7 @@ struct PatchEstimator
 
 	PatchEstimator(int imageWidth, int imageHeight, int minFeaturesDanger, int minFeaturesBad, int keyInd, int patchInd, cv::Mat& image,
 		             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
-								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd,
+								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd, float fG,
 								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit);
 
 	void markerOdomCB(const nav_msgs::Odometry::ConstPtr& msg);

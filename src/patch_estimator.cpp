@@ -75,7 +75,7 @@ PatchEstimator::PatchEstimator() : it(nh)
 PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minFeaturesDangerInit, int minFeaturesBadInit, int keyIndInit,
 															 int patchIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
 															 float fyInit, float cxInit, float cyInit, float zminInit, float zmaxInit, ros::Time t, float fq, float fp,
-															 float ft, float fn, float fd, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
+															 float ft, float fn, float fd, float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
 														   int patchSizeBaseInit,int checkSizeBaseInit) : it(nh)
 {
 	imageWidth = imageWidthInit;
@@ -145,6 +145,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	tTau = 1.0/(2.0*M_PI*ft);
 	nTau = 1.0/(2.0*M_PI*fn);
 	dTau = 1.0/(2.0*M_PI*fd);
+	GTau = 1.0/(2.0*M_PI*fG);
 
 	keyOdom = imageOdom;
 	kimage = image.clone();
@@ -168,6 +169,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 
 	// imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
 	// imagePub = it.advertise(cameraName+"/test_image",1);
+	poseDeltaPub = nh.advertise<icl_multiple_stationary::PoseDelta>(cameraName+"/pose_delta",10);
 	imagePub2 = it.advertise(cameraName+"/test_image2",1);
 	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &PatchEstimator::imageCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom", 100, &PatchEstimator::odomCB,this);
@@ -331,46 +333,64 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
 	qkc /= qkc.norm();
 
+	icl_multiple_stationary::PoseDelta poseDeltaMsg;
+	poseDeltaMsg.header.stamp = t;
+	poseDeltaMsg.pose.position.x = pcw(0);
+	poseDeltaMsg.pose.position.y = pcw(1);
+	poseDeltaMsg.pose.position.z = pcw(2);
+	poseDeltaMsg.pose.orientation.w = qcw(0);
+	poseDeltaMsg.pose.orientation.x = qcw(1);
+	poseDeltaMsg.pose.orientation.y = qcw(2);
+	poseDeltaMsg.pose.orientation.z = qcw(3);
+	poseDeltaMsg.poseHat.position.x = pcwHat(0);
+	poseDeltaMsg.poseHat.position.y = pcwHat(1);
+	poseDeltaMsg.poseHat.position.z = pcwHat(2);
+	poseDeltaMsg.poseHat.orientation.w = qcwHat(0);
+	poseDeltaMsg.poseHat.orientation.x = qcwHat(1);
+	poseDeltaMsg.poseHat.orientation.y = qcwHat(2);
+	poseDeltaMsg.poseHat.orientation.z = qcwHat(3);
+	poseDeltaPub.publish(poseDeltaMsg);
+
 	// std::cout << "\n pkc \n" << pkc << std::endl;
 	// std::cout << "\n qkc \n" << qkc << std::endl;
 
-	// build and publish odom message
-	nav_msgs::Odometry odomMsg;
-	odomMsg.header.stamp = t;
-	odomMsg.header.frame_id = "world";
-	odomMsg.child_frame_id = "cameraHat";
-	odomMsg.pose.pose.position.x = pcwHat(0);
-	odomMsg.pose.pose.position.y = pcwHat(1);
-	odomMsg.pose.pose.position.z = pcwHat(2);
-	odomMsg.pose.pose.orientation.w = qcwHat(0);
-	odomMsg.pose.pose.orientation.x = qcwHat(1);
-	odomMsg.pose.pose.orientation.y = qcwHat(2);
-	odomMsg.pose.pose.orientation.z = qcwHat(3);
-	odomMsg.twist.twist.linear.x = vc(0);
-	odomMsg.twist.twist.linear.y = vc(1);
-	odomMsg.twist.twist.linear.z = vc(2);
-	odomMsg.twist.twist.angular.x = wc(0);
-	odomMsg.twist.twist.angular.y = wc(1);
-	odomMsg.twist.twist.angular.z = wc(2);
-	// odomPub.publish(odomMsg);
-
-	nav_msgs::Odometry odomDelayedMsg;
-	odomDelayedMsg.header.stamp = t;
-	odomDelayedMsg.header.frame_id = "world";
-	odomDelayedMsg.child_frame_id = "camera";
-	odomDelayedMsg.pose.pose.position.x = pcw(0);
-	odomDelayedMsg.pose.pose.position.y = pcw(1);
-	odomDelayedMsg.pose.pose.position.z = pcw(2);
-	odomDelayedMsg.pose.pose.orientation.w = qcw(0);
-	odomDelayedMsg.pose.pose.orientation.x = qcw(1);
-	odomDelayedMsg.pose.pose.orientation.y = qcw(2);
-	odomDelayedMsg.pose.pose.orientation.z = qcw(3);
-	odomDelayedMsg.twist.twist.linear.x = vc(0);
-	odomDelayedMsg.twist.twist.linear.y = vc(1);
-	odomDelayedMsg.twist.twist.linear.z = vc(2);
-	odomDelayedMsg.twist.twist.angular.x = wc(0);
-	odomDelayedMsg.twist.twist.angular.y = wc(1);
-	odomDelayedMsg.twist.twist.angular.z = wc(2);
+	// // build and publish odom message
+	// nav_msgs::Odometry odomMsg;
+	// odomMsg.header.stamp = t;
+	// odomMsg.header.frame_id = "world";
+	// odomMsg.child_frame_id = "cameraHat";
+	// odomMsg.pose.pose.position.x = pcwHat(0);
+	// odomMsg.pose.pose.position.y = pcwHat(1);
+	// odomMsg.pose.pose.position.z = pcwHat(2);
+	// odomMsg.pose.pose.orientation.w = qcwHat(0);
+	// odomMsg.pose.pose.orientation.x = qcwHat(1);
+	// odomMsg.pose.pose.orientation.y = qcwHat(2);
+	// odomMsg.pose.pose.orientation.z = qcwHat(3);
+	// odomMsg.twist.twist.linear.x = vc(0);
+	// odomMsg.twist.twist.linear.y = vc(1);
+	// odomMsg.twist.twist.linear.z = vc(2);
+	// odomMsg.twist.twist.angular.x = wc(0);
+	// odomMsg.twist.twist.angular.y = wc(1);
+	// odomMsg.twist.twist.angular.z = wc(2);
+	// // odomPub.publish(odomMsg);
+	//
+	// nav_msgs::Odometry odomDelayedMsg;
+	// odomDelayedMsg.header.stamp = t;
+	// odomDelayedMsg.header.frame_id = "world";
+	// odomDelayedMsg.child_frame_id = "camera";
+	// odomDelayedMsg.pose.pose.position.x = pcw(0);
+	// odomDelayedMsg.pose.pose.position.y = pcw(1);
+	// odomDelayedMsg.pose.pose.position.z = pcw(2);
+	// odomDelayedMsg.pose.pose.orientation.w = qcw(0);
+	// odomDelayedMsg.pose.pose.orientation.x = qcw(1);
+	// odomDelayedMsg.pose.pose.orientation.y = qcw(2);
+	// odomDelayedMsg.pose.pose.orientation.z = qcw(3);
+	// odomDelayedMsg.twist.twist.linear.x = vc(0);
+	// odomDelayedMsg.twist.twist.linear.y = vc(1);
+	// odomDelayedMsg.twist.twist.linear.z = vc(2);
+	// odomDelayedMsg.twist.twist.angular.x = wc(0);
+	// odomDelayedMsg.twist.twist.angular.y = wc(1);
+	// odomDelayedMsg.twist.twist.angular.z = wc(2);
 	// odomDelayedPub.publish(odomDelayedMsg);
 
 	// if (depthEstimators.size() > 0)
@@ -520,7 +540,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 	try
 	{
-		float kT = 0.03/(1.0/(2.0*M_PI*2.0)+ 0.03);
+		float kT = 0.03/(GTau + 0.03);
+
 		// cv::Mat inliersAffinek;
 		// // cv::Mat T = cv::estimateAffine2D(pPts, cPts, inliersAffinek, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
 		// // cv::Mat T = cv::estimateAffinePartial2D(pPts, cPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
@@ -976,17 +997,41 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 1.0, inliersG, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,3.0,0.99);
-		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
-		cv::Mat E = camMatD.t()*F*camMatD;
-		cv::Mat R1,R2,tt;
-		cv::decomposeEssentialMat(E,R1,R2,tt);
+		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
+		// cv::Mat E = camMatD.t()*F*camMatD;
+		// cv::Mat R1,R2,tt;
+		// cv::decomposeEssentialMat(E,R1,R2,tt);
 
 		std::cout << "\n G \n" << G << std::endl << std::endl;
-		std::cout << "\n F \n" << F << std::endl << std::endl;
-		std::cout << "\n E \n" << E << std::endl << std::endl;
-		std::cout << "\n R1 \n" << R1 << std::endl << std::endl;
-		std::cout << "\n R2 \n" << R2 << std::endl << std::endl;
-		std::cout << "\n tt \n" << tt << std::endl << std::endl;
+
+		float kT = 0.03/(GTau + 0.03);
+		Eigen::Matrix<float,3,3> Gf;
+		for (int ii = 0; ii < 9; ii++)
+		{
+			Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
+		}
+
+		if (!G.empty())
+		{
+			GkfLast += kT*(Gf - GkfLast);
+		}
+
+		GkfLast *= (1.0/GkfLast(2,2));
+		//
+		// for (int ii = 0; ii < 9; ii++)
+		// {
+		// 	G.at<double>(ii/3,ii%3) = GkfLast(ii/3,ii%3);
+		// }
+		//
+		// std::cout << "\n G \n" << G << std::endl << std::endl;
+		//
+		// Gkcum += 0.1*kT*(G.clone()-Gkcum.clone());
+		// Gkcum *= (1.0/Gkcum.at<double>(2,2));
+		// std::cout << "\n F \n" << F << std::endl << std::endl;
+		// std::cout << "\n E \n" << E << std::endl << std::endl;
+		// std::cout << "\n R1 \n" << R1 << std::endl << std::endl;
+		// std::cout << "\n R2 \n" << R2 << std::endl << std::endl;
+		// std::cout << "\n tt \n" << tt << std::endl << std::endl;
 
 		ROS_WARN("time for homog %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();

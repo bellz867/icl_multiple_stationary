@@ -25,7 +25,7 @@
     <param name="numberFeaturesPerPartRow" value="4"/>
     <param name="numberFeaturesPerPartCol" value="4"/>
     <param name="patchSizeBase" value="50"/>
-    <param name="checkSizeBase" value="60"/>
+    <param name="checkSizeBase" value="70"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>
@@ -37,6 +37,16 @@
     <param name="ft" value="10.0"/>
     <param name="fn" value="0.5"/>
     <param name="fd" value="50.0"/>
+    <param name="fG" value="15.0"/>
+
+    <param name="pfix" value="0.105638"/>
+    <param name="pfiy" value="0.0702751"/>
+    <param name="pfiz" value="0.0414916"/>
+
+    <param name="qfiw" value="0.722352"/>
+    <param name="qfix" value="-0.691162"/>
+    <param name="qfiy" value="0.0217651"/>
+    <param name="qfiz" value="0.00289808"/>
 
     <!-- integration window -->
     <param name="tau" value="3.0"/>

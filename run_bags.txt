@@ -1,0 +1,4 @@
+roscore
+rosbag play -r 0.25 2019-06-04-18-13-04.bag
+rosrun rviz rviz
+roslaunch icl_multiple_stationary exp.launch

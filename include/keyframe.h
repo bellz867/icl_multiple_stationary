@@ -68,7 +68,7 @@ struct Keyframe
 	// std::vector<int> activePatchs;
 	int patchRadius;
 	float fx,fy,cx,cy;
-	float fq,fp,ft,fn,fd;
+	float fq,fp,ft,fn,fd,fG;
 	float zmin,zmax;
 	float tau;
 
@@ -96,6 +96,9 @@ struct Keyframe
 	int partitionSide;
 	int patchSizeBase;
 	int checkSizeBase;
+
+	Eigen::Vector3f pfi;
+	Eigen::Vector4f qfi;
 
   Keyframe();
 

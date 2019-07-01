@@ -1,4 +1,5 @@
 #include <mutex>
+#include <deque>
 
 #include <ros/ros.h>
 #include <ros/console.h>
@@ -10,15 +11,18 @@
 #include <Eigen/Geometry>
 
 #include <helper_functions.h>
+#include <icl_multiple_stationary/PoseDelta.h>
 
 struct OdomEstimator
 {
 	ros::NodeHandle nh;
-  ros::Publisher odomPub,camPosePub;
-  ros::Subscriber velSub;
+  ros::Publisher camOdomPub,bodyOdomPub,camPosePub;
+  ros::Subscriber velSub,poseDeltaSub;
   std::string bodyName;
 	std::string cameraName;
 	ros::Time tVelLast;//last time
+	std::mutex poseDeltaMutex;
+	std::deque<icl_multiple_stationary::PoseDelta::ConstPtr> poseDeltas;
 
 	bool firstVel;
 	Eigen::Vector3f pcwHat;
@@ -36,4 +40,6 @@ struct OdomEstimator
   OdomEstimator();
 
 	void velCB(const nav_msgs::Odometry::ConstPtr& msg);
+
+	void poseDeltaCB(const icl_multiple_stationary::PoseDelta::ConstPtr& msg);
 };

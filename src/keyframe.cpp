@@ -15,6 +15,7 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<float>("ft", ft, 1.0);
 	nhp.param<float>("fn", fn, 1.0);
 	nhp.param<float>("fd", fd, 1.0);
+	nhp.param<float>("fG", fG, 1.0);
 	nhp.param<float>("zmin", zmin, 1.0);
 	nhp.param<float>("zmax", zmax, 1.0);
 	nhp.param<float>("tau", tau, 1.0);
@@ -33,6 +34,21 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<std::string>("expName", expName, "exp");
 	nhp.param<int>("patchSizeBase", patchSizeBase, 10);
 	nhp.param<int>("checkSizeBase", checkSizeBase, 20);
+
+
+	float pfix,pfiy,pfiz,qfiw,qfix,qfiy,qfiz;
+	nhp.param<float>("pfix", pfix, 0.0);
+	nhp.param<float>("pfiy", pfiy, 0.0);
+	nhp.param<float>("pfiz", pfiz, 0.0);
+	nhp.param<float>("qfiw", qfiw, 1.0);
+	nhp.param<float>("qfix", qfix, 0.0);
+	nhp.param<float>("qfiy", qfiy, 0.0);
+	nhp.param<float>("qfiz", qfiz, 0.0);
+
+	pfi = Eigen::Vector3f(pfix,pfiy,pfiz);
+
+	qfi << qfiw,qfix,qfiy,qfiz;
+	qfi /= qfi.norm();
 
 	keyInd = keyIndInit;
 
@@ -145,7 +161,7 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 			}
 
 			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,
-				                            imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,cameraName,tau,saveExp,
+				                            imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
 																		expName,patchSizeBase,checkSizeBase);
 			patchs.push_back(newPatch);
 			patchIndMax = patchInd;
@@ -297,6 +313,10 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		map->is_dense = true;
 		map->points.clear();
 
+		Eigen::Vector3f pcwHat(imageOdom.pose.pose.position.x,imageOdom.pose.pose.position.y,imageOdom.pose.pose.position.z);
+		Eigen::Vector4f qcwHat(imageOdom.pose.pose.orientation.w,imageOdom.pose.pose.orientation.x,imageOdom.pose.pose.orientation.y,imageOdom.pose.pose.orientation.z);
+		qcwHat /= qcwHat.norm();
+
 		//check if any remaining patches are shutdown, if so delete
 		std::vector<cv::Point2f> pts;
 		std::vector<PatchEstimator*> patchsIn;
@@ -322,8 +342,13 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 						// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
 						// uint8_t colori = kimage.at<uint8_t>(kPti.y,kPti.x);
 
-						Eigen::Vector3f pciHatICLExt = uci*((*itD)->dcHatICLExt);
-						Eigen::Vector3f pciHatEKF = mci*((*itD)->zcHatEKF);
+						Eigen::Vector3f pciHatICLExt = pcwHat + rotatevec(uci*((*itD)->dcHatICLExt),qcwHat);
+						Eigen::Vector3f pciHatEKF = pcwHat + rotatevec(mci*((*itD)->zcHatEKF),qcwHat);
+
+						Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+						qcwInit /= qcwInit.norm();
+						Eigen::Vector3f pbiHatICLExt = rotatevec(pciHatICLExt-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+						Eigen::Vector3f pbiHatEKF = rotatevec(pciHatEKF-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
 
 						// std::cout << "\n pciHatICLExt \n" << pciHatICLExt << std::endl;
 
@@ -338,17 +363,17 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 						// pciHatICLExt = pcwHat + rotatevec(pciHatICLExt,qcwHat);
 						// pciHatEKF = pcwHat + rotatevec(pciHatEKF,qcwHat);
 
-						ptHat.x = pciHatICLExt(0);
-						ptHat.y = pciHatICLExt(1);
-						ptHat.z = pciHatICLExt(2);
+						ptHat.x = pbiHatICLExt(0);
+						ptHat.y = pbiHatICLExt(1);
+						ptHat.z = pbiHatICLExt(2);
 						ptHat.r = 0;
 						ptHat.g = 200;
 						ptHat.b = 0;
 						map->points.push_back(ptHat);
 
-						ptHat.x = pciHatEKF(0);
-						ptHat.y = pciHatEKF(1);
-						ptHat.z = pciHatEKF(2);
+						ptHat.x = pbiHatEKF(0);
+						ptHat.y = pbiHatEKF(1);
+						ptHat.z = pbiHatEKF(2);
 						ptHat.r = 0;
 						ptHat.g = 0;
 						ptHat.b = 255;
