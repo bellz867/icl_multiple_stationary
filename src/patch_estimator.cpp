@@ -170,9 +170,11 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	// imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
 	// imagePub = it.advertise(cameraName+"/test_image",1);
 	poseDeltaPub = nh.advertise<icl_multiple_stationary::PoseDelta>(cameraName+"/pose_delta",10);
-	imagePub2 = it.advertise(cameraName+"/test_image2",1);
+	roiPub = nh.advertise<icl_multiple_stationary::ROI>(cameraName+"/"+patchInd+"/ROI",10);
+	// imagePub2 = it.advertise(cameraName+"/test_image2",1);
 	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &PatchEstimator::imageCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom", 100, &PatchEstimator::odomCB,this);
+	roiSub = nh.subscribe(cameraName+"/"+patchInd+"/ROI",100, &PatchEstimator::roiCB,this);
 	// odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
 	// odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
 	// pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
@@ -186,6 +188,112 @@ void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
 	}
 	std::lock_guard<std::mutex> odomMutexGuard(odomMutex);
 	odomSync.push_back(*msg);
+}
+
+//roi CB
+void PatchEstimator::roiCB(const icl_multiple_stationary::ROI::ConstPtr& msg)
+{
+	mono_icl_slam::Roi roimsg;
+	ros::Time t = msg->header.stamp;
+	bool patchShutdownroi = bool(msg->patchShutdown);
+
+	use the normal and estimate the distance elsewhere
+
+	//estimate the plane using the points
+	if (!patchShutdownroi)
+	{
+		roiMutex.lock();
+		Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
+		Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
+		std::vector<Eigen::Vector3f> pics(depthEstimators.size());
+		const int numberPts = depthEstimators.size();
+
+		int minx,maxx,miny,maxy;
+		bool firstPt = true;
+		for (std::vector<DepthEstimator*>::iterator it = depthEstimators.begin() ; it != depthEstimators.end(); it++)
+		{
+
+			//get the points after update
+			Eigen::Vector3f mci = (*it)->mc;
+			Eigen::Vector3f uci = mci/mci.norm();
+			cv::Point2f pti(fx*mci(0)+cx,fy*mci(1)+cy);
+
+			// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
+			// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
+			// uint8_t colori = kimage.at<uint8_t>(kPti.y,kPti.x);
+
+			if (firstPt)
+			{
+				minx = pti.x;
+				maxx = pti.x;
+				miny = pti.y;
+				maxy = pti.y;
+				firstPt = false;
+			}
+			else
+			{
+
+			}
+
+			Eigen::Vector3f pciHatICLExt = pcwHat + rotatevec(uci*((*itD)->dcHatICLExt),qcwHat);
+			Eigen::Vector3f pciHatEKF = pcwHat + rotatevec(mci*((*itD)->zcHatEKF),qcwHat);
+
+			Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+			qcwInit /= qcwInit.norm();
+			Eigen::Vector3f pbiHatICLExt = rotatevec(pciHatICLExt-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+			Eigen::Vector3f pbiHatEKF = rotatevec(pciHatEKF-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+		}
+		roiMutex.unlock();
+
+
+
+		//get the estimated point for each pixel in the roi
+		std::vector<geometry_msgs::Point32> wallPts;
+		std::vector<uint8_t> wallColors;
+		int cols = maxx-minx;
+		int rows = maxy-miny;
+		int coltl = minx;
+		int rowtl = miny;
+		bool notABadPatch = true;
+		int plotInd = 0;
+		while ((plotInd < rows*cols))
+		{
+			int rowj = rowtl + plotInd/cols;
+			int colj = coltl + plotInd%cols;
+
+			uint8_t colorj = kgray.at<uint8_t>(rowj,colj);
+			wallColors.push_back(colorj);
+			float mxj = (colj - cx)/fx;
+			float myj = (rowj - cy)/fy;
+			Eigen::Vector3f mkj(mxj,myj,1.0);
+			float nkmk = nkT*mkj;
+			Eigen::Vector3f pjk = mkj*dk/nkmk;
+
+			//rotate the point into the world frame
+			Eigen::Vector3f pjw = pkw + rotatevec(pjk,qkw);
+
+			geometry_msgs::Point32 pjwMsg;
+			pjwMsg.x = pjw(0);
+			pjwMsg.y = pjw(1);
+			pjwMsg.z = pjw(2);
+			wallPts.push_back(pjwMsg);
+			plotInd++;
+		}
+
+		//publish if any features
+		if (notABadPatch && (wallPts.size() > 0))
+		{
+			mono_icl_slam::Wall wallMsg;
+			wallMsg.header.stamp = t;
+			wallMsg.wallPts = wallPts;
+			wallMsg.keyInd = keyInd;
+			wallMsg.patchInd = patchInd;
+			wallMsg.colors = wallColors;
+			wallMsg.rows = rows;
+			wallMsg.cols = cols;
+			wallPub.publish(wallMsg);
+		}
+	}
 }
 
 //image callback

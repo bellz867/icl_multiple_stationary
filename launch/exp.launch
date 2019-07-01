@@ -8,4 +8,7 @@
   <!-- keyframe estimator -->
   <include file="$(find icl_multiple_stationary)/launch/estimator_main.launch"/>
 
+  <!-- wall mapper -->
+  <include file="$(find icl_multiple_stationary)/launch/wall_mapper.launch"/>
+
 </launch>

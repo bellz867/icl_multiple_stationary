@@ -31,6 +31,8 @@
 #include <data_save.h>
 
 #include <icl_multiple_stationary/PoseDelta.h>
+#include <icl_multiple_stationary/ROI.h>
+#include <icl_multiple_stationary/Wall.h>
 
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
@@ -42,11 +44,11 @@ struct PatchEstimator
 	image_transport::ImageTransport it;
 	image_transport::Subscriber imageSub;
 	// image_transport::Publisher imagePub,imagePub2;
-	image_transport::Publisher imagePub2;
+	// image_transport::Publisher imagePub2;
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd;
-  ros::Subscriber odomSub;
-	ros::Publisher poseDeltaPub;
+  ros::Subscriber odomSub,roiSub;
+	ros::Publisher poseDeltaPub,roiPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
 	Eigen::Vector3f tkcHat;
 	Eigen::Vector3f nkHat;

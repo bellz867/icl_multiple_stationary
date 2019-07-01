@@ -50,11 +50,11 @@ include_directories(
 )
 
 add_executable(estimator_main_node src/keyframe.cpp src/depth_estimator.cpp src/depth_estimator_ekf.cpp src/depth_estimator_icl_ext.cpp src/vector_derivative_estimator.cpp src/patch_estimator.cpp src/data_save.cpp src/image_receiver.cpp src/helper_functions.cpp src/estimator_main.cpp)
-#add_executable(wall_mapper_node src/keyframe_planes.cpp src/wall_mapper.cpp src/wall_mapper_main.cpp)
+add_executable(icl_wall_mapper_node src/keyframe_planes.cpp src/wall_mapper.cpp src/wall_mapper_main.cpp)
 add_executable(odom_main_node src/odom_estimator.cpp src/odom_estimator_main.cpp src/helper_functions.cpp)
 
 add_dependencies(estimator_main_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-#add_dependencies(wall_mapper_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(icl_wall_mapper_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(odom_main_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(estimator_main_node
@@ -62,10 +62,10 @@ target_link_libraries(estimator_main_node
   ${OpenCV_LIBRARIES}
 )
 
-#target_link_libraries(wall_mapper_node
-#  ${catkin_LIBRARIES}
-#  ${OpenCV_LIBRARIES}
-#)
+target_link_libraries(icl_wall_mapper_node
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
 
 target_link_libraries(odom_main_node
   ${catkin_LIBRARIES}
