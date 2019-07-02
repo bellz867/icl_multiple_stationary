@@ -4,14 +4,13 @@
   <!-- velocity estimator node -->
   <node pkg="icl_multiple_stationary" type="icl_wall_mapper_node" name="icl_wall_mapper_node" output="screen" >
 
-	  <!-- optflow camera -->
 	  <param name="cameraName" value="camera"/>
     <param name="width" value="300"/>
     <param name="height" value="300"/>
     <param name="minarea" value="0.1"/>
     <param name="maxarea" value="2.25"/>
-    <param name="minheight" value="0.25"/>
-    <param name="maxheight" value="0.75"/>
+    <param name="minheight" value="-3.0"/>
+    <param name="maxheight" value="3.0"/>
 
   </node>
 </launch>

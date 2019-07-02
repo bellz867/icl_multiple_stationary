@@ -40,12 +40,15 @@ struct Keyframe
 {
 	ros::NodeHandle nh;
 	image_transport::ImageTransport it;
-  image_transport::Publisher imageOutputPub,keyPub;
+  // image_transport::Publisher imageOutputPub,keyPub;
+	image_transport::Publisher imageOutputPub;
 	image_transport::Subscriber imageSub;
 	// cv::Mat kgray,pgray;
 	cv::Mat kgray;
-  ros::Publisher featurePub,wallPub,poseDeltaPub,keyInfoPub,odomPub,pointCloudPub;
-  ros::Subscriber outputSub,odomSub;
+  // ros::Publisher featurePub,wallPub,poseDeltaPub,keyInfoPub,odomPub,pointCloudPub;
+	ros::Publisher pointCloudPub;
+  // ros::Subscriber outputSub,odomSub;
+	ros::Subscriber odomSub;
   std::string cameraName;//body name and camera name
 	// cv::Mat tlmask,trmask,blmask,brmask;
 	std::vector<cv::Mat> masks;

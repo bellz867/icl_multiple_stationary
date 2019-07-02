@@ -31,7 +31,7 @@
 #include <data_save.h>
 
 #include <icl_multiple_stationary/PoseDelta.h>
-#include <icl_multiple_stationary/ROI.h>
+#include <icl_multiple_stationary/Roi.h>
 #include <icl_multiple_stationary/Wall.h>
 
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
@@ -48,7 +48,7 @@ struct PatchEstimator
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd;
   ros::Subscriber odomSub,roiSub;
-	ros::Publisher poseDeltaPub,roiPub;
+	ros::Publisher poseDeltaPub,roiPub,wallPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
 	Eigen::Vector3f tkcHat;
 	Eigen::Vector3f nkHat;
@@ -81,7 +81,8 @@ struct PatchEstimator
 	Eigen::Matrix<float,3,3> GfLast,GkfLast;
 	cv::Mat Gkcum;
 	int patchSizeBase,checkSizeBase;
-
+	Eigen::Vector3f pfi;
+	Eigen::Vector4f qfi;
 
 	~PatchEstimator();
 
@@ -90,17 +91,20 @@ struct PatchEstimator
 	PatchEstimator(int imageWidth, int imageHeight, int minFeaturesDanger, int minFeaturesBad, int keyInd, int patchInd, cv::Mat& image,
 		             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
 								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd, float fG,
-								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit);
+								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit,
+							   Eigen::Vector3f pfiInit, Eigen::Vector4f qfiInit);
 
 	void markerOdomCB(const nav_msgs::Odometry::ConstPtr& msg);
 
 	void odomCB(const nav_msgs::Odometry::ConstPtr& msg);
 
+	void roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg);
+
 	void imageCB(const sensor_msgs::Image::ConstPtr& msg);
 
-	void match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t);
+	float match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t);
 
-	void update(std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc,
+	float update(std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc,
 		          Eigen::Vector3f wc, ros::Time t, float dt);
 };
 

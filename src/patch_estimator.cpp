@@ -76,7 +76,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 															 int patchIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
 															 float fyInit, float cxInit, float cyInit, float zminInit, float zmaxInit, ros::Time t, float fq, float fp,
 															 float ft, float fn, float fd, float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
-														   int patchSizeBaseInit,int checkSizeBaseInit) : it(nh)
+														   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pfiInit, Eigen::Vector4f qfiInit) : it(nh)
 {
 	imageWidth = imageWidthInit;
 	imageHeight = imageHeightInit;
@@ -86,6 +86,8 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	patchInd = patchIndInit;
 	patchSizeBase = patchSizeBaseInit;
 	checkSizeBase = checkSizeBaseInit;
+	pfi = pfiInit;
+	qfi = qfiInit;
 
 	patchShutdown = false;
 	firstOdomImageCB = true;
@@ -170,11 +172,13 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	// imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
 	// imagePub = it.advertise(cameraName+"/test_image",1);
 	poseDeltaPub = nh.advertise<icl_multiple_stationary::PoseDelta>(cameraName+"/pose_delta",10);
-	roiPub = nh.advertise<icl_multiple_stationary::ROI>(cameraName+"/"+patchInd+"/ROI",10);
+	roiPub = nh.advertise<icl_multiple_stationary::Roi>(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",1);
+	wallPub = nh.advertise<icl_multiple_stationary::Wall>("/wall_points",1);
 	// imagePub2 = it.advertise(cameraName+"/test_image2",1);
 	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &PatchEstimator::imageCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom", 100, &PatchEstimator::odomCB,this);
-	roiSub = nh.subscribe(cameraName+"/"+patchInd+"/ROI",100, &PatchEstimator::roiCB,this);
+	roiSub = nh.subscribe(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",1, &PatchEstimator::roiCB,this);
+
 	// odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
 	// odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
 	// pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
@@ -191,99 +195,153 @@ void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
 }
 
 //roi CB
-void PatchEstimator::roiCB(const icl_multiple_stationary::ROI::ConstPtr& msg)
+void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 {
-	mono_icl_slam::Roi roimsg;
 	ros::Time t = msg->header.stamp;
-	bool patchShutdownroi = bool(msg->patchShutdown);
+	Eigen::Vector3f pcw(msg->odom.pose.pose.position.x,msg->odom.pose.pose.position.y,msg->odom.pose.pose.position.z);
+	Eigen::Vector4f qcw(msg->odom.pose.pose.orientation.w,msg->odom.pose.pose.orientation.x,msg->odom.pose.pose.orientation.y,msg->odom.pose.pose.orientation.z);
+	qcw /= qcw.norm();
 
-	use the normal and estimate the distance elsewhere
+	//estimate the plane using the points by normalizing by the z element of the normal
+	roiMutex.lock();
+	// Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
+	// Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
+	int numberPts = int(depthEstimators.size());
+	Eigen::MatrixXf XY1 = Eigen::MatrixXf::Ones(numberPts,3);
+	Eigen::MatrixXf XY1T = Eigen::MatrixXf::Ones(3,numberPts);
+	Eigen::VectorXf NZ = Eigen::VectorXf::Zero(numberPts);
+	// Eigen::Matrix<float,numberPts,3> XZ1 = Eigen::Matrix<float,numberPts,3>::Ones();
+	// Eigen::Matrix<float,3,numberPts> XZ1T = Eigen::Matrix<float,3,numberPts>::Ones();
+	// Eigen::Matrix<float,numberPts,1> NY = Eigen::Matrix<float,numberPts,1>::Zeros();
+	// Eigen::Matrix<float,numberPts,3> YZ1 = Eigen::Matrix<float,numberPts,3>::Ones();
+	// Eigen::Matrix<float,3,numberPts> YZ1T = Eigen::Matrix<float,3,numberPts>::Ones();
+	// Eigen::Matrix<float,numberPts,1> NX = Eigen::Matrix<float,numberPts,1>::Zeros();
 
-	//estimate the plane using the points
-	if (!patchShutdownroi)
+	int minx,maxx,miny,maxy;
+	bool firstPt = true;
+	int itIdx = 0;
+	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 	{
-		roiMutex.lock();
-		Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
-		Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
-		std::vector<Eigen::Vector3f> pics(depthEstimators.size());
-		const int numberPts = depthEstimators.size();
+		//add each point
+		Eigen::Vector3f mic = (*itD)->mc;
+		Eigen::Vector3f uic = mic/mic.norm();
+		Eigen::Vector3f pic = uic*((*itD)->dcHatICLExt);
+		XY1(itIdx,0) = pic(0);
+		XY1(itIdx,1) = pic(1);
+		XY1T(0,itIdx) = pic(0);
+		XY1T(1,itIdx) = pic(1);
+		NZ(itIdx) = -pic(2);
+		// XZ1(itIdx,0) = pic(0);
+		// XZ1(itIdx,1) = pic(2);
+		// XZ1T(0,itIdx) = pic(0);
+		// XZ1T(1,itIdx) = pic(2);
+		// NY(itIdx) = -pic(1);
+		// YZ1(itIdx,0) = pic(1);
+		// YZ1(itIdx,1) = pic(2);
+		// YZ1T(0,itIdx) = pic(1);
+		// YZ1T(1,itIdx) = pic(2);
+		// NX(itIdx) = -pic(0);
+		itIdx++;
 
-		int minx,maxx,miny,maxy;
-		bool firstPt = true;
-		for (std::vector<DepthEstimator*>::iterator it = depthEstimators.begin() ; it != depthEstimators.end(); it++)
+		cv::Point2f ptic(fx*mic(0)+cx,fy*mic(1)+cy);
+
+		// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
+		// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
+		// uint8_t colori = kimage.at<uint8_t>(kPti.y,kPti.x);
+		if (firstPt)
 		{
-
-			//get the points after update
-			Eigen::Vector3f mci = (*it)->mc;
-			Eigen::Vector3f uci = mci/mci.norm();
-			cv::Point2f pti(fx*mci(0)+cx,fy*mci(1)+cy);
-
-			// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
-			// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
-			// uint8_t colori = kimage.at<uint8_t>(kPti.y,kPti.x);
-
-			if (firstPt)
-			{
-				minx = pti.x;
-				maxx = pti.x;
-				miny = pti.y;
-				maxy = pti.y;
-				firstPt = false;
-			}
-			else
-			{
-
-			}
-
-			Eigen::Vector3f pciHatICLExt = pcwHat + rotatevec(uci*((*itD)->dcHatICLExt),qcwHat);
-			Eigen::Vector3f pciHatEKF = pcwHat + rotatevec(mci*((*itD)->zcHatEKF),qcwHat);
-
-			Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-			qcwInit /= qcwInit.norm();
-			Eigen::Vector3f pbiHatICLExt = rotatevec(pciHatICLExt-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
-			Eigen::Vector3f pbiHatEKF = rotatevec(pciHatEKF-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+			minx = ptic.x;
+			maxx = ptic.x;
+			miny = ptic.y;
+			maxy = ptic.y;
+			firstPt = false;
 		}
+		else
+		{
+			if (minx > ptic.x)
+			{
+				minx = ptic.x;
+			}
+			if (maxx < ptic.x)
+			{
+				maxx = ptic.x;
+			}
+			if (miny > ptic.y)
+			{
+				miny = ptic.y;
+			}
+			if (maxy < ptic.y)
+			{
+				maxy = ptic.y;
+			}
+		}
+	}
+
+	int cols = maxx-minx;
+	int rows = maxy-miny;
+	int coltl = minx;
+	int rowtl = miny;
+
+	try
+	{
+		cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
 		roiMutex.unlock();
 
+		Eigen::Matrix3f XYXY = XY1T*XY1;
+		Eigen::Vector3f XYNZ = XY1T*NZ;
+		float XYXYdet = float(XYXY.determinant());
+		// Eigen::Matrix3f XZXZ = XZ1T*XZ1;
+		// float XZXZdet = float(XZXZ.determinant());
+		// Eigen::Matrix3f YZYZ = YZ1T*YZ1;
+		// float YZYZdet = float(YZYZ.determinant());
 
-
-		//get the estimated point for each pixel in the roi
-		std::vector<geometry_msgs::Point32> wallPts;
-		std::vector<uint8_t> wallColors;
-		int cols = maxx-minx;
-		int rows = maxy-miny;
-		int coltl = minx;
-		int rowtl = miny;
-		bool notABadPatch = true;
-		int plotInd = 0;
-		while ((plotInd < rows*cols))
+		if (XYXYdet > 0.001)
 		{
-			int rowj = rowtl + plotInd/cols;
-			int colj = coltl + plotInd%cols;
+			Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXY(XYXY, Eigen::ComputeThinU | Eigen::ComputeThinV);
+			Eigen::Vector3f dnz = svdXYXY.solve(XYNZ);
+			Eigen::Vector3f nc(dnz(0),dnz(1),1.0);
+			nc /= nc.norm();
+			float nx = nc(0);
+			float ny = nc(1);
+			float nz = nc(2);
+			float dc = -dnz(2)*nz;
 
-			uint8_t colorj = kgray.at<uint8_t>(rowj,colj);
-			wallColors.push_back(colorj);
-			float mxj = (colj - cx)/fx;
-			float myj = (rowj - cy)/fy;
-			Eigen::Vector3f mkj(mxj,myj,1.0);
-			float nkmk = nkT*mkj;
-			Eigen::Vector3f pjk = mkj*dk/nkmk;
+			//get the estimated point for each pixel in the roi
+			int plotInd = 0;
+			std::vector<geometry_msgs::Point32> wallPts(cols*rows);
+			std::vector<uint8_t> wallColors(cols*rows);
+			std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
+			std::vector<uint8_t>::iterator colIt = wallColors.begin();
+			for (cv::MatIterator_<uchar> itI = roiimage.begin<uchar>(); itI != roiimage.end<uchar>(); itI++)
+			{
+				int rowj = rowtl + plotInd/cols;
+				int colj = coltl + plotInd%cols;
 
-			//rotate the point into the world frame
-			Eigen::Vector3f pjw = pkw + rotatevec(pjk,qkw);
+				*colIt = uint8_t(*itI);
+				float mxj = (colj - cx)/fx;
+				float myj = (rowj - cy)/fy;
+				float zjc = dc/(nx*mxj+ny*myj+nz);
+				Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
 
-			geometry_msgs::Point32 pjwMsg;
-			pjwMsg.x = pjw(0);
-			pjwMsg.y = pjw(1);
-			pjwMsg.z = pjw(2);
-			wallPts.push_back(pjwMsg);
-			plotInd++;
-		}
+				//rotate the point into the world frame
+				Eigen::Vector3f pjw = pcw + rotatevec(pjc,qcw);
 
-		//publish if any features
-		if (notABadPatch && (wallPts.size() > 0))
-		{
-			mono_icl_slam::Wall wallMsg;
+				Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+				qcwInit /= qcwInit.norm();
+				pjw = rotatevec(pjw-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+
+				geometry_msgs::Point32 pjwMsg;
+				pjwMsg.x = pjw(0);
+				pjwMsg.y = pjw(1);
+				pjwMsg.z = pjw(2);
+				*ptIt = pjwMsg;
+				plotInd++;
+				ptIt++;
+				colIt++;
+			}
+
+			//publish the features
+			icl_multiple_stationary::Wall wallMsg;
 			wallMsg.header.stamp = t;
 			wallMsg.wallPts = wallPts;
 			wallMsg.keyInd = keyInd;
@@ -291,9 +349,18 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::ROI::ConstPtr& msg)
 			wallMsg.colors = wallColors;
 			wallMsg.rows = rows;
 			wallMsg.cols = cols;
+
+			roiMutex.lock();
 			wallPub.publish(wallMsg);
+			roiMutex.unlock();
 		}
 	}
+	catch (cv::Exception e)
+	{
+		ROS_ERROR("wall points failed");
+		roiMutex.unlock();
+	}
+
 }
 
 //image callback
@@ -393,71 +460,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	std::cout << "\n dt " << dt << std::endl;
 
 	// find the features
-	match(image,dt,vc,wc,t);
-
-	// pckHat += (rotatevec(vc,qckHat)*dt);
-	// qckHat += (0.5*B(qckHat)*wc*dt);
-	// qckHat /= qckHat.norm();
-	// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
-	// qkcHat = getqInv(qckHat);
-	// qkcHat /= qkcHat.norm();
-	pkcHat += ((-vc-getss(wc)*pkcHat)*dt);
-	qkcHat += (-0.5*B(qkcHat)*wc*dt);
-	qkcHat /= qkcHat.norm();
-	pckHat = rotatevec(-pkcHat,getqInv(qkcHat));
-	qckHat = getqInv(qkcHat);
-	qckHat /= qckHat.norm();
-
-	// std::cout << "\n dt \n" << dt << std::endl;
-	// std::cout << "\n vc \n" << vc << std::endl;
-	// std::cout << "\n wc \n" << wc << std::endl;
-	// std::cout << "\n pkcHat \n" << pkcHat << std::endl;
-	// std::cout << "\n qkcHat \n" << qkcHat << std::endl;
-
-	// ros::shutdown();
-
-	ROS_WARN("get match time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
-	processTime = clock();
-
-	pimage = image.clone();
-
-	//send the pose estimate to the odom
-	// Eigen::Vector4f qckHat = getqInv(qkcHat);
-	// qckHat /= qckHat.norm();
-	// Eigen::Vector3f pckHat = rotatevec(-pkcHat,qckHat);
-
-	// std::cout << "\n pckHat \n" << pckHat << std::endl;
-	// std::cout << "\n qckHat \n" << qckHat << std::endl;
-
-	Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
-	Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
-
-	Eigen::Vector4f qcwHat = getqMat(qkw)*qckHat;
-	qcwHat /= qcwHat.norm();
-
-	Eigen::Vector3f pcwHat = rotatevec(pckHat,qkw)+pkw;
-
-	Eigen::Vector3f pkc = rotatevec(pkw-pcw,getqInv(qcw));
-	Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
-	qkc /= qkc.norm();
-
-	icl_multiple_stationary::PoseDelta poseDeltaMsg;
-	poseDeltaMsg.header.stamp = t;
-	poseDeltaMsg.pose.position.x = pcw(0);
-	poseDeltaMsg.pose.position.y = pcw(1);
-	poseDeltaMsg.pose.position.z = pcw(2);
-	poseDeltaMsg.pose.orientation.w = qcw(0);
-	poseDeltaMsg.pose.orientation.x = qcw(1);
-	poseDeltaMsg.pose.orientation.y = qcw(2);
-	poseDeltaMsg.pose.orientation.z = qcw(3);
-	poseDeltaMsg.poseHat.position.x = pcwHat(0);
-	poseDeltaMsg.poseHat.position.y = pcwHat(1);
-	poseDeltaMsg.poseHat.position.z = pcwHat(2);
-	poseDeltaMsg.poseHat.orientation.w = qcwHat(0);
-	poseDeltaMsg.poseHat.orientation.x = qcwHat(1);
-	poseDeltaMsg.poseHat.orientation.y = qcwHat(2);
-	poseDeltaMsg.poseHat.orientation.z = qcwHat(3);
-	poseDeltaPub.publish(poseDeltaMsg);
+	float inlierRatio = match(image,dt,vc,wc,t);
 
 	// std::cout << "\n pkc \n" << pkc << std::endl;
 	// std::cout << "\n qkc \n" << qkc << std::endl;
@@ -597,15 +600,18 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	if (depthEstimators.size() <= minFeaturesBad)
 	{
-		for (std::vector<DepthEstimator*>::iterator it = depthEstimators.begin() ; it != depthEstimators.end(); it++)
+		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
-			delete *it;
+			delete *itD;
 		}
 		depthEstimators.clear();
 		// imagePub.shutdown();
-		imagePub2.shutdown();
+		// imagePub2.shutdown();
 		imageSub.shutdown();
 		odomSub.shutdown();
+		roiSub.shutdown();
+		roiPub.shutdown();
+
 		// odomPub.shutdown();
 		// odomDelayedPub.shutdown();
 		// pointCloudPub.shutdown();
@@ -613,12 +619,83 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 		ROS_WARN("shutdown after imagesub");
 	}
+	else
+	{
+		// pckHat += (rotatevec(vc,qckHat)*dt);
+		// qckHat += (0.5*B(qckHat)*wc*dt);
+		// qckHat /= qckHat.norm();
+		// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
+		// qkcHat = getqInv(qckHat);
+		// qkcHat /= qkcHat.norm();
+		pkcHat += ((-vc-getss(wc)*pkcHat)*dt);
+		qkcHat += (-0.5*B(qkcHat)*wc*dt);
+		qkcHat /= qkcHat.norm();
+		pckHat = rotatevec(-pkcHat,getqInv(qkcHat));
+		qckHat = getqInv(qkcHat);
+		qckHat /= qckHat.norm();
+
+		// std::cout << "\n dt \n" << dt << std::endl;
+		// std::cout << "\n vc \n" << vc << std::endl;
+		// std::cout << "\n wc \n" << wc << std::endl;
+		// std::cout << "\n pkcHat \n" << pkcHat << std::endl;
+		// std::cout << "\n qkcHat \n" << qkcHat << std::endl;
+
+		// ros::shutdown();
+
+		ROS_WARN("get match time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+		processTime = clock();
+
+		pimage = image.clone();
+
+		//send the pose estimate to the odom
+		// Eigen::Vector4f qckHat = getqInv(qkcHat);
+		// qckHat /= qckHat.norm();
+		// Eigen::Vector3f pckHat = rotatevec(-pkcHat,qckHat);
+
+		// std::cout << "\n pckHat \n" << pckHat << std::endl;
+		// std::cout << "\n qckHat \n" << qckHat << std::endl;
+
+		Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
+		Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
+
+		Eigen::Vector4f qcwHat = getqMat(qkw)*qckHat;
+		qcwHat /= qcwHat.norm();
+
+		Eigen::Vector3f pcwHat = rotatevec(pckHat,qkw)+pkw;
+
+		Eigen::Vector3f pkc = rotatevec(pkw-pcw,getqInv(qcw));
+		Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
+		qkc /= qkc.norm();
+
+		icl_multiple_stationary::PoseDelta poseDeltaMsg;
+		poseDeltaMsg.header.stamp = t;
+		poseDeltaMsg.pose.position.x = pcw(0);
+		poseDeltaMsg.pose.position.y = pcw(1);
+		poseDeltaMsg.pose.position.z = pcw(2);
+		poseDeltaMsg.pose.orientation.w = qcw(0);
+		poseDeltaMsg.pose.orientation.x = qcw(1);
+		poseDeltaMsg.pose.orientation.y = qcw(2);
+		poseDeltaMsg.pose.orientation.z = qcw(3);
+		poseDeltaMsg.poseHat.position.x = pcwHat(0);
+		poseDeltaMsg.poseHat.position.y = pcwHat(1);
+		poseDeltaMsg.poseHat.position.z = pcwHat(2);
+		poseDeltaMsg.poseHat.orientation.w = qcwHat(0);
+		poseDeltaMsg.poseHat.orientation.x = qcwHat(1);
+		poseDeltaMsg.poseHat.orientation.y = qcwHat(2);
+		poseDeltaMsg.poseHat.orientation.z = qcwHat(3);
+		poseDeltaPub.publish(poseDeltaMsg);
+
+		icl_multiple_stationary::Roi roiMsg;
+		roiMsg.header.stamp = t;
+		roiMsg.odom = imageOdom;
+		roiPub.publish(roiMsg);
+	}
 
 	ROS_WARN("IMAGE STOP cb time %2.4f",float(clock()-callbackTime)/CLOCKS_PER_SEC);
 }
 
 //finds the features in the previous image in the new image and matches the features
-void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t)
+float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t)
 {
 	std::lock_guard<std::mutex> featureMutexGuard(featureMutex);
 
@@ -635,11 +712,11 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::vector<cv::Point2f>::iterator itc = cPts.begin();
 	std::vector<cv::Point2f>::iterator itk = kPts.begin();
 	cv::Mat GI;
-	for (std::vector<DepthEstimator*>::iterator it = depthEstimators.begin() ; it != depthEstimators.end(); it++)
+	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 	{
-		*itk = cv::Point2f((*it)->ptk(0),(*it)->ptk(1));
-	  *itp = cv::Point2f(fx*((*it)->mc(0))+cx,fy*((*it)->mc(1))+cy);
-	  mcc = (*it)->predict(vc,wc,dt);
+		*itk = cv::Point2f((*itD)->ptk(0),(*itD)->ptk(1));
+	  *itp = cv::Point2f(fx*((*itD)->mc(0))+cx,fy*((*itD)->mc(1))+cy);
+	  mcc = (*itD)->predict(vc,wc,dt);
 	  *itc = cv::Point2f(fx*mcc(0)+cx,fy*mcc(1)+cy);
 		itk++;
 		itp++;
@@ -668,7 +745,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// 	std::cout << "b cptx " << (*itpp).x << " cpty " << (*itpp).y << std::endl;
 		// }
 		// cv::Mat G = cv::estimateAffine2D(pPts, cPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
-		cv::Mat G = cv::findHomography(pPts, cPts, cv::RANSAC, 1.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(pPts, cPts, cv::RANSAC, 0.1, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(pPts, cPts, cv::LMEDS, 4.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(pPts, cPts, 0);//calculate homography using RANSAC
 		// std::cout << std::endl;
@@ -1058,23 +1135,26 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	estimatorUpdateTime = clock();
 
 	// find the points using either approximated flow or looking for the board
+	float inlierRatio = 0.0;
   //use optical flow to find the features
 	if (depthEstimators.size() > minFeaturesBad)
 	{
 		// cv::perspectiveTransform(cPtPsInPred,cPtsInPred,GI);
 		estimatorUpdateTime = clock();
 		//update the estimtators using the estimted points
-		update(kPtsInPred,cPtsInPred,vc,wc,t,dt);
+		inlierRatio = update(kPtsInPred,cPtsInPred,vc,wc,t,dt);
 		ROS_WARN("time for estimator update call %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
 		// estimatorUpdateTime = clock();
 	}
 	cPtsInPred.clear();
 	kPtsInPred.clear();
 	// cPtPsInPred.clear();
+	return inlierRatio;
 }
 
-void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t, float dt)
+float PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t, float dt)
 {
+	float inlierRatio = 0.0;
 	// //predict the orientation and position
 	// pkcHat += (-vc*dt);
 	// qkcHat += (-0.5*B(qkcHat)*wc*dt);
@@ -1102,7 +1182,7 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 		assert(cPts.size()>0);
 
 		cv::Mat inliersG;
-		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 1.0, inliersG, 2000, 0.99);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 0.1, inliersG, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,3.0,0.99);
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
@@ -1299,23 +1379,30 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 		}
 		std::vector<cv::Point2f>::iterator itkc = kPtsC.begin();
 		float betakc = 0.2;
-		for (std::vector<DepthEstimator*>::iterator it = depthEstimators.begin() ; it != depthEstimators.end(); it++)
+		cv::MatIterator_<uchar> itIn = inliersG.begin<uchar>();
+		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			if (!G.empty())
 			{
 				(*itc).x = betakc*(*itkc).x + (1.0-betakc)*(*itc).x;
 				(*itc).y = betakc*(*itkc).y + (1.0-betakc)*(*itc).y;
 			}
-			float dkcHati = (*it)->update(H,Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),nkHatT,tkcHat,RkcHat,vc,wc,t,pkcHat,qkcHat);
+			float dkcHati = (*itD)->update(H,Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),nkHatT,tkcHat,RkcHat,vc,wc,t,pkcHat,qkcHat);
 			dkcs.push_back(dkcHati);
-			depthEstimatorsInHomog.push_back(*it);
-			// itIn++;
+			depthEstimatorsInHomog.push_back(*itD);
+			if (bool(*itIn))
+			{
+				inlierRatio += 1.0;
+			}
+
+			itIn++;
 			itc++;
 			itkc++;
 			// std::cout << "\n ii " << ii << " stop\n";
 		}
 		depthEstimators = depthEstimatorsInHomog;
 		depthEstimatorsInHomog.clear();
+		inlierRatio /= depthEstimators.size();
 
 		ROS_WARN("time for estimators %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
@@ -1361,5 +1448,5 @@ void PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poin
 	std::cout << "\n wc \n" << wc << std::endl;
 
 
-
+	return inlierRatio;
 }

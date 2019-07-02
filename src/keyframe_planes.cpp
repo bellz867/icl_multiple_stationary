@@ -15,10 +15,10 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
   keyInd = keyIndInit;
 
   //if the patch satisfies the conditions then add the plane
-  if (checkPatch(planePointsInit, rows, cols))
-  {
-    return;
-  }
+  // if (checkPatch(planePointsInit, rows, cols))
+  // {
+  //   return;
+  // }
 
   planesInd.push_back(planeIndInit);
   std::vector<pcl::PointXYZRGB> planePoints;
@@ -92,11 +92,11 @@ bool KeyframePlanes::checkPatch(std::vector<geometry_msgs::Point32>& planePoints
 
 void KeyframePlanes::addplane(int planeInd, std::vector<geometry_msgs::Point32>& planePointsInit, std::vector<uint8_t>& planeColorsInit, int rows, int cols)
 {
-  //if the patch satisfies the conditions then add the plane
-  if (checkPatch(planePointsInit, rows, cols))
-  {
-    return;
-  }
+  // //if the patch satisfies the conditions then add the plane
+  // if (checkPatch(planePointsInit, rows, cols))
+  // {
+  //   return;
+  // }
 
   // std::cout << "\n keyInd " << keyInd << " planeInd " << planeInd << " entered add plane planePointsInit size " << planePointsInit.size() << std::endl;
   planesInd.push_back(planeInd);
@@ -121,13 +121,13 @@ void KeyframePlanes::addplane(int planeInd, std::vector<geometry_msgs::Point32>&
 
 void KeyframePlanes::update(int planeIndInd, std::vector<geometry_msgs::Point32>& planePointsInit, std::vector<uint8_t>& planeColorsInit, int rows, int cols)
 {
-  //if the patch satisfies the conditions then add the plane
-  if (checkPatch(planePointsInit, rows, cols))
-  {
-    planesPoints.erase(planesPoints.begin()+planeIndInd);
-    planesInd.erase(planesInd.begin()+planeIndInd);
-    return;
-  }
+  // //if the patch satisfies the conditions then add the plane
+  // if (checkPatch(planePointsInit, rows, cols))
+  // {
+  //   planesPoints.erase(planesPoints.begin()+planeIndInd);
+  //   planesInd.erase(planesInd.begin()+planeIndInd);
+  //   return;
+  // }
 
   // std::cout << "\n keyInd " << keyInd << " planeInd " << planesInd.at(planeIndInd) << " entered " << std::endl;
   std::vector<pcl::PointXYZRGB> planePoints;

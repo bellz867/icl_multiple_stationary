@@ -183,7 +183,7 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
 
 	// std::cout << "\n wall 1 1 \n";
-	map->header.frame_id = "map";
+	map->header.frame_id = "world";
 
 	// std::cout << "\n wall 1 2 \n";
 	map->height = 1;

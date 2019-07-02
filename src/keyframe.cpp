@@ -101,8 +101,8 @@ void Keyframe::startup()
 
 	// keyPub = it.advertise("/keyframe_"+std::to_string(keyInd)+"/key_image",1);
 	imageOutputPub = it.advertise(cameraName+"/features",1);
-	odomPub = nh.advertise<nav_msgs::Odometry>("/keyframe_"+std::to_string(keyInd)+"/odom",1);
-	pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
+	// odomPub = nh.advertise<nav_msgs::Odometry>("/keyframe_"+std::to_string(keyInd)+"/odom",1);
+	pointCloudPub = nh.advertise<PointCloud> ("key_map", 1);
 
 	std::cout << "\n keyframe " << keyInd << " started \n";
 
@@ -162,7 +162,7 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 
 			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,
 				                            imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
-																		expName,patchSizeBase,checkSizeBase);
+																		expName,patchSizeBase,checkSizeBase,pfi,qfi);
 			patchs.push_back(newPatch);
 			patchIndMax = patchInd;
 			patchInd++;
@@ -436,9 +436,9 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		pubMutex.lock();
 		imageSub.shutdown();
 		odomSub.shutdown();
-		odomPub.shutdown();
+		// odomPub.shutdown();
 		imageOutputPub.shutdown();
-		pointCloudPub.shutdown();
+		// pointCloudPub.shutdown();
 		pubMutex.unlock();
 	}
 
