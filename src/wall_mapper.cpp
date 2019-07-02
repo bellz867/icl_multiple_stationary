@@ -12,7 +12,7 @@ WallMapper::WallMapper() : it(nh)
 	nhp.param<float>("minheight", minheight, 0.25);
 	nhp.param<float>("maxheight", maxheight, 25.0);
 
-	wallSub = nh.subscribe("/wall_points",25,&WallMapper::wallCB,this);
+	wallSub = nh.subscribe("/wall_points",100,&WallMapper::wallCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom",1,&WallMapper::odomCB,this);
 	// wallPub = it.advertise("wall_image",1);
 	pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
