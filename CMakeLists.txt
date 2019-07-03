@@ -36,6 +36,7 @@ generate_messages(
   std_msgs
   geometry_msgs
   nav_msgs
+  sensor_msgs
 )
 
 catkin_package(

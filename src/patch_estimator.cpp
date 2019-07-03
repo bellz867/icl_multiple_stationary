@@ -181,7 +181,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 
 	// odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
 	// odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
-	// pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
+	pointCloudPub = nh.advertise<PointCloud> ("patch_map", 1);
 }
 
 void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
@@ -197,6 +197,7 @@ void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
 //roi CB
 void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 {
+	clock_t processTime = clock();
 	ros::Time t = msg->header.stamp;
 	Eigen::Vector3f pcw(msg->odom.pose.pose.position.x,msg->odom.pose.pose.position.y,msg->odom.pose.pose.position.z);
 	Eigen::Vector4f qcw(msg->odom.pose.pose.orientation.w,msg->odom.pose.pose.orientation.x,msg->odom.pose.pose.orientation.y,msg->odom.pose.pose.orientation.z);
@@ -282,10 +283,12 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	int coltl = minx;
 	int rowtl = miny;
 
+
 	try
 	{
 		cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
 		roiMutex.unlock();
+
 
 		Eigen::Matrix3f XYXY = XY1T*XY1;
 		Eigen::Vector3f XYNZ = XY1T*NZ;
@@ -306,53 +309,159 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 			float nz = nc(2);
 			float dc = -dnz(2)*nz;
 
+			ROS_WARN("roi get normal time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+			processTime = clock();
+
 			//get the estimated point for each pixel in the roi
 			int plotInd = 0;
+			// PointCloudRGB::Ptr map(new PointCloudRGB);
+			// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
+			// map->header.frame_id = "world";
+			// map->height = rows;
+			// map->width = cols;
+			// map->is_dense = true;
+			// map->points.clear();
+			// map->points.resize(rows*cols);
+
 			std::vector<geometry_msgs::Point32> wallPts(cols*rows);
 			std::vector<uint8_t> wallColors(cols*rows);
 			std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
 			std::vector<uint8_t>::iterator colIt = wallColors.begin();
+			PointCloudRGB cloud;
+			cloud.height = 1;
+			cloud.width = cols*rows;
+			cloud.is_dense = true;
+			cloud.resize(cols*rows);
+			PointCloudRGB::iterator cloudIt = cloud.begin();
+			pcl::PointXYZRGB ptxyz;
+			Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+			qcwInit /= qcwInit.norm();
+			Eigen::Vector3f pcwInit = rotatevec(pcw,getqInv(qcwInit));
+			Eigen::Vector4f qcwcwInit = getqMat(getqInv(qcwInit))*qcw;
+			qcwcwInit /= qcwcwInit.norm();
+			Eigen::Vector3f pfiInit = rotatevec(rotatevec(pfi,getqInv(qfi)),getqInv(qcwcwInit));
+			Eigen::Vector3f pcwInitfiInit = pcwInit - pfiInit;
+
+			// Eigen::Matrix4f qcwcwInitMat = getqMat(qcwcwInit);
+			// Eigen::Matrix<float,4,3> qcwcwInitMatR = qcwcwInitMat.block(0,1,4,3);
+			Eigen::Vector4f qcwcwInitI = getqInv(qcwcwInit);
+
+			int rowj = 0;
+			int colj = 0;
+
+			// *colIt = uint8_t(*itI);
+			float mxj = 0;
+			float myj = 0;
+			// Eigen::Vector4f pjw4(0.0,0.0,0.0,0.0);
+			// Eigen::Vector3f pjwc(0.0,0.0,0.0);
+			// Eigen::Matrix4f qjw4M;
+			float xc = pcwInitfiInit(0);
+			float yc = pcwInitfiInit(1);
+			float zc = pcwInitfiInit(2);
+			float qw = qcwcwInit(0);
+			float qx = qcwcwInit(1);
+			float qy = qcwcwInit(2);
+			float qz = qcwcwInit(3);
+			float qwI = qcwcwInitI(0);
+			float qxI = qcwcwInitI(1);
+			float qyI = qcwcwInitI(2);
+			float qzI = qcwcwInitI(3);
+			float xjc = 0;
+			float yjc = 0;
+			float zjc = 0;
+			float wjw = 0;
+			float xjw = 0;
+			float yjw = 0;
+			float zjw = 0;
+			// Eigen::Vector3f pjw(0.0,0.0,0.0);
 			for (cv::MatIterator_<uchar> itI = roiimage.begin<uchar>(); itI != roiimage.end<uchar>(); itI++)
 			{
-				int rowj = rowtl + plotInd/cols;
-				int colj = coltl + plotInd%cols;
+				rowj = rowtl + plotInd/cols;
+				colj = coltl + plotInd%cols;
 
-				*colIt = uint8_t(*itI);
-				float mxj = (colj - cx)/fx;
-				float myj = (rowj - cy)/fy;
-				float zjc = dc/(nx*mxj+ny*myj+nz);
-				Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
+				// *colIt = uint8_t(*itI);
+				mxj = (colj - cx)/fx;
+				myj = (rowj - cy)/fy;
+				zjc = dc/(nx*mxj+ny*myj+nz);
+				xjc = zjc*mxj;
+				yjc = zjc*myj;
+				// Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
+
+				// //rotate the point into the world frame
+				// Eigen::Vector3f pjw = pcw + rotatevec(pjc,qcw);
+				//
+				// Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+				// qcwInit /= qcwInit.norm();
+				// pjw = rotatevec(pjw-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
 
 				//rotate the point into the world frame
-				Eigen::Vector3f pjw = pcw + rotatevec(pjc,qcw);
+				// pjw4 = getqMat(qcwcwInitMatR*pjwc)*qcwcwInitI;
 
-				Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-				qcwInit /= qcwInit.norm();
-				pjw = rotatevec(pjw-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+				wjw = -qx*xjc-qy*yjc-qz*zjc;
+				xjw = qw*xjc-qz*yjc+qy*zjc;
+				yjw = qz*xjc+qw*yjc-qx*zjc;
+				zjw = -qy*xjc+qx*yjc+qw*zjc;
 
-				geometry_msgs::Point32 pjwMsg;
-				pjwMsg.x = pjw(0);
-				pjwMsg.y = pjw(1);
-				pjwMsg.z = pjw(2);
-				*ptIt = pjwMsg;
+				ptxyz.x = xc+xjw*qwI+wjw*qxI-zjw*qyI+yjw*qzI;
+				ptxyz.y = yc+yjw*qwI+zjw*qxI+wjw*qyI-xjw*qzI;
+				ptxyz.z = zc+zjw*qwI-yjw*qxI+xjw*qyI+wjw*qzI;
+				ptxyz.r = *itI;
+				ptxyz.g = *itI;
+				ptxyz.b = *itI;
+				*cloudIt = ptxyz;
+				cloudIt++;
+
+				// geometry_msgs::Point32 pjwMsg;
+				// pjwMsg.x = pjw(0);
+				// pjwMsg.y = pjw(1);
+				// pjwMsg.z = pjw(2);
+				// *ptIt = pjwMsg;
 				plotInd++;
-				ptIt++;
-				colIt++;
+				// ptIt++;
+				// colIt++;
 			}
 
+			ROS_WARN("roi get points time %2.4f, plotInd %d",float(clock()-processTime)/CLOCKS_PER_SEC,plotInd);
+			processTime = clock();
+
+			// map->points = cloud;
 			//publish the features
 			icl_multiple_stationary::Wall wallMsg;
+
+			PointCloudRGB::Ptr map(new PointCloudRGB);
+			pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
+
+			// std::cout << "\n wall 1 1 \n";
+			map->header.frame_id = "world";
+
+			// std::cout << "\n wall 1 2 \n";
+			map->height = 1;
+			map->is_dense = true;
+			map->points.clear();
+			*map += cloud;
+			map->width = map->points.size();
+
+			ROS_WARN("patch map->width %d",int(map->width));
+			// std::cout << "\n wall 3 \n";
+
+
+			// sensor_msgs::PointCloud2 cloudMsg;
 			wallMsg.header.stamp = t;
-			wallMsg.wallPts = wallPts;
+			// wallMsg.wallPts = wallPts;
+			pcl::toROSMsg(cloud, wallMsg.cloud);
 			wallMsg.keyInd = keyInd;
 			wallMsg.patchInd = patchInd;
-			wallMsg.colors = wallColors;
-			wallMsg.rows = rows;
-			wallMsg.cols = cols;
+			// wallMsg.colors = wallColors;
+			// wallMsg.rows = rows;
+			// wallMsg.cols = cols;
 
 			roiMutex.lock();
 			wallPub.publish(wallMsg);
+			pointCloudPub.publish(map);
 			roiMutex.unlock();
+
+			ROS_WARN("roi send time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+			processTime = clock();
 		}
 	}
 	catch (cv::Exception e)
@@ -366,7 +475,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 //image callback
 void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 {
-	ROS_WARN("IMAGE START");
+	ROS_WARN("\n\n ************** IMAGE START ************** \n\n");
 	if (patchShutdown)
 	{
 		return;
@@ -374,7 +483,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	clock_t callbackTime = clock();
 	clock_t processTime = clock();
-	std::cout << std::endl;
+	// std::cout << std::endl;
 
 	// sync the times to find the closest
 	ros::Time t = msg->header.stamp;
@@ -386,7 +495,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 		// std::cout << "\n t key " << t << std::endl;
 
-		std::cout << "\n numMatch " << numMatch << std::endl;
+		// std::cout << "\n numMatch " << numMatch << std::endl;
 		if (numMatch > 0)
 		{
 			// std::cout << "\n recent dt \n" << (odomSync.at(numMatch-1).header.stamp - t).toSec() << std::endl;
@@ -399,7 +508,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			int minTimeInd = std::distance(timeDiff.begin(),std::min_element(timeDiff.begin(),timeDiff.end()));
 			imageOdom = odomSync.at(minTimeInd);
 
-			std::cout << "\n odomSync size " << odomSync.size() << std::endl;
+			// std::cout << "\n odomSync size " << odomSync.size() << std::endl;
 			if ((odomSync.size() > 1) && (minTimeInd < odomSync.size()-1))
 			{
 				for (int ii = 0; ii <= minTimeInd; ii++)
@@ -408,7 +517,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 				}
 			}
 
-			std::cout << "\n odomSync size " << odomSync.size() << std::endl;
+			// std::cout << "\n odomSync size " << odomSync.size() << std::endl;
 			if (firstOdomImageCB)
 			{
 				firstOdomImageCB = false;
@@ -582,8 +691,8 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	// 	pointCloudPub.publish(map);
 	// }
 
-	ROS_WARN("get circle time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
-	processTime = clock();
+	// ROS_WARN("get circle time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+	// processTime = clock();
 
 	// // publish key image
 	// cv_bridge::CvImage out_msg;
@@ -784,8 +893,8 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 
 		// cv::invert(G,GI,cv::DECOMP_SVD);
 
-		std::cout << "\n Gp \n" << G << std::endl << std::endl;
-		std::cout << "\n Gkcum \n" << Gkcum << std::endl << std::endl;
+		// std::cout << "\n Gp \n" << G << std::endl << std::endl;
+		// std::cout << "\n Gkcum \n" << Gkcum << std::endl << std::endl;
 		// std::cout << "\n Gk \n" << Gk << std::endl << std::endl;
 		// std::cout << "\n GpfLast \n" << GfLast << std::endl << std::endl;
 		// std::cout << "\n GI \n" << GI << std::endl << std::endl;
@@ -1190,7 +1299,7 @@ float PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poi
 		// cv::Mat R1,R2,tt;
 		// cv::decomposeEssentialMat(E,R1,R2,tt);
 
-		std::cout << "\n G \n" << G << std::endl << std::endl;
+		// std::cout << "\n G \n" << G << std::endl << std::endl;
 
 		float kT = 0.03/(GTau + 0.03);
 		Eigen::Matrix<float,3,3> Gf;
@@ -1302,14 +1411,14 @@ float PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poi
 					}
 				}
 
-				ROS_WARN("keyframe %d patch %d errors size %d",keyInd,patchInd,int(errors.size()));
+				// ROS_WARN("keyframe %d patch %d errors size %d",keyInd,patchInd,int(errors.size()));
 
 				int minqkcsErrorInd = std::distance(errors.begin(),std::min_element(errors.begin(),errors.end()));
 				qkc = qkcs.at(minqkcsErrorInd);
 				nk = nks.at(minqkcsErrorInd);
 				tkc = tkcs.at(minqkcsErrorInd);
 
-				ROS_WARN("keyframe %d patch %d selected best",keyInd,patchInd);
+				// ROS_WARN("keyframe %d patch %d selected best",keyInd,patchInd);
 			}
 			catch (cv::Exception e)
 			{
@@ -1430,7 +1539,7 @@ float PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poi
 			}
 		}
 
-		ROS_WARN("dkcHat %2.1f",dkcHat);
+		// ROS_WARN("dkcHat %2.1f",dkcHat);
 	}
 	catch (cv::Exception e)
 	{
@@ -1438,14 +1547,14 @@ float PatchEstimator::update(std::vector<cv::Point2f>& kPts, std::vector<cv::Poi
 	}
 	//
 	// std::cout << "\n after update \n";
-	std::cout << "\n tkcHat \n" << tkcHat << std::endl;
-	std::cout << "\n qkcHat \n" << qkcHat << std::endl;
-	std::cout << "\n rotation \n" << 2.0*acos(qkcHat(0))*180/3.14 << std::endl;
-	std::cout << "\n pkcHat \n" << pkcHat << std::endl;
+	// std::cout << "\n tkcHat \n" << tkcHat << std::endl;
+	// std::cout << "\n qkcHat \n" << qkcHat << std::endl;
+	// std::cout << "\n rotation \n" << 2.0*acos(qkcHat(0))*180/3.14 << std::endl;
+	// std::cout << "\n pkcHat \n" << pkcHat << std::endl;
 	// std::cout << "\n dkHat " << dkHat << std::endl;
-	std::cout << "\n dkcHat " << dkcHat << std::endl;
-	std::cout << "\n vc \n" << vc << std::endl;
-	std::cout << "\n wc \n" << wc << std::endl;
+	// std::cout << "\n dkcHat " << dkcHat << std::endl;
+	// std::cout << "\n vc \n" << vc << std::endl;
+	// std::cout << "\n wc \n" << wc << std::endl;
 
 
 	return inlierRatio;

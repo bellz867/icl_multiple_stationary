@@ -1,7 +1,4 @@
 Header header
-geometry_msgs/Point32[] wallPts
-uint8[] colors
+sensor_msgs/PointCloud2 cloud
 uint16 keyInd
 uint16 patchInd
-uint16 rows
-uint16 cols

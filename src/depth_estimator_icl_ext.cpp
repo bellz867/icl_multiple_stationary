@@ -130,7 +130,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     std::cout << "\n pkc clear\n";
   }
 
-  std::cout << "\n" << "dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat;
+  // std::cout << "\n" << "dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat;
 
   // std::cout << "\n hi10 \n";
 
@@ -185,7 +185,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     float yu = Yx*Ux+Yy*Uy;
     float dk = yu/yy;
 
-    std::cout << ", yusum/yysum " << (yusum/yysum) <<  ", (yu/yy)  " << (yu/yy) << ", Y.norm() " << Y.norm() << ", U.norm() " << U.norm() << ", zeta(0)*(yu/yy) " << zeta(0)*(yu/yy)<< ", fabsf(dcHat-zeta(0)*(yu/yy))/dcHat " << fabsf(dcHat-zeta(0)*(yu/yy))/dcHat << std::endl;
+    // std::cout << ", yusum/yysum " << (yusum/yysum) <<  ", (yu/yy)  " << (yu/yy) << ", Y.norm() " << Y.norm() << ", U.norm() " << U.norm() << ", zeta(0)*(yu/yy) " << zeta(0)*(yu/yy)<< ", fabsf(dcHat-zeta(0)*(yu/yy))/dcHat " << fabsf(dcHat-zeta(0)*(yu/yy))/dcHat << std::endl;
     // std::cout << "\n yu " << yu << std::endl;
     // std::cout << "\n Y.norm() " << Y.norm() << std::endl;
     // std::cout << "\n U.norm() " << U.norm() << std::endl;
@@ -228,7 +228,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   }
   else
   {
-    std::cout << "\n";
+    // std::cout << "\n";
   }
 
   // std::cout << "\n hi14 \n";

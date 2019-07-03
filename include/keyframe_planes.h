@@ -16,7 +16,7 @@
 // #include <Eigen/Dense>
 // #include <Eigen/Geometry>
 //
-// typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
+typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
 // typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
 struct KeyframePlanes
@@ -24,12 +24,12 @@ struct KeyframePlanes
   int keyInd;
   float minarea,maxarea,minheight,maxheight;
   std::vector<int> planesInd;
-  std::vector<std::vector<pcl::PointXYZRGB>> planesPoints;
+  std::vector<PointCloudRGB> planes;
   KeyframePlanes();
-  KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInt, int planeIndInit, std::vector<geometry_msgs::Point32>& planePointsInit, std::vector<uint8_t>& planeColorsInit, int rows, int cols);
-  bool checkPatch(std::vector<geometry_msgs::Point32>& planePointsInit, int rows, int cols);
-  void addplane(int planeInd, std::vector<geometry_msgs::Point32>& planePointsInit, std::vector<uint8_t>& planeColorsInit, int rows, int cols);
-  void update(int planeIndInd, std::vector<geometry_msgs::Point32>& planePointsInit, std::vector<uint8_t>& planeColorsInit, int rows, int cols);
+  KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInt, int planeIndInit, PointCloudRGB& cloud);
+  // bool checkPatch(std::vector<geometry_msgs::Point32>& planePointsInit);
+  void addplane(int planeInd, PointCloudRGB& cloud);
+  void update(int planeIndInd, PointCloudRGB& cloud);
 };
 
 #endif

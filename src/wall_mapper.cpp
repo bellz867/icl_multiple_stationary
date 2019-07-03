@@ -115,12 +115,10 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	}
 
 	ros::Time t = msg->header.stamp;
-	std::vector<geometry_msgs::Point32> wallPtsMsg = msg->wallPts;
-	std::vector<uint8_t> wallColorsMsg = msg->colors;
+	PointCloudRGB cloud;
+	pcl::fromROSMsg(msg->cloud,cloud);
 	int keyInd = int(msg->keyInd);
 	int patchInd = int(msg->patchInd);
-	int rows = int(msg->rows);
-	int cols = int(msg->cols);
 
 	// std::cout << "\n keyInd " << keyInd << " patchInd " << patchInd << " keyframePlanes.size() " << keyframePlanes.size() << std::endl;
 
@@ -163,16 +161,16 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	{
 		if(patchOnWall)
 		{
-			keyframePlanes.at(keyIndInd)->update(patchIndInd,wallPtsMsg,wallColorsMsg,rows,cols);
+			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud);
 		}
 		else
 		{
-			keyframePlanes.at(keyIndInd)->addplane(patchInd,wallPtsMsg,wallColorsMsg,rows,cols);
+			keyframePlanes.at(keyIndInd)->addplane(patchInd,cloud);
 		}
 	}
 	else
 	{
-		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,wallPtsMsg,wallColorsMsg,rows,cols);
+		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud);
 		keyframePlanes.push_back(newKeyframePlanes);
 	}
 
@@ -196,17 +194,19 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	for (int i = 0; i < keyframePlanes.size(); i++)
 	{
 		//for each plane in that key
-		for (int j = 0; j < keyframePlanes.at(i)->planesPoints.size(); j++)
+		for (int j = 0; j < keyframePlanes.at(i)->planes.size(); j++)
 		{
-			//for each point on that plane
-			for (int k = 0; k < keyframePlanes.at(i)->planesPoints.at(j).size(); k++)
-			{
-				map->points.push_back(keyframePlanes.at(i)->planesPoints.at(j).at(k));
-			}
+			*map += keyframePlanes.at(i)->planes.at(j);
+			// //for each point on that plane
+			// for (int k = 0; k < keyframePlanes.at(i)->planesPoints.at(j).size(); k++)
+			// {
+			// 	*map += keyframePlanes.at(i)->planesPoints.at(j).at(k));
+			// }
 		}
 	}
 	map->width = map->points.size();
 
+	ROS_WARN("wall map->width %d",int(map->width));
 	// std::cout << "\n wall 3 \n";
 	pointCloudPub.publish(map);
 

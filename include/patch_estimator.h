@@ -12,6 +12,7 @@
 #include <geometry_msgs/Point32.h>
 #include <nav_msgs/Odometry.h>
 
+#include <sensor_msgs/PointCloud2.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
@@ -48,7 +49,7 @@ struct PatchEstimator
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd;
   ros::Subscriber odomSub,roiSub;
-	ros::Publisher poseDeltaPub,roiPub,wallPub;
+	ros::Publisher poseDeltaPub,roiPub,wallPub,pointCloudPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
 	Eigen::Vector3f tkcHat;
 	Eigen::Vector3f nkHat;
