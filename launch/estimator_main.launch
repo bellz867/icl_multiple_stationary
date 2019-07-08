@@ -39,14 +39,14 @@
     <param name="fd" value="50.0"/>
     <param name="fG" value="15.0"/>
 
-    <param name="pfix" value="0.105638"/>
-    <param name="pfiy" value="0.0702751"/>
-    <param name="pfiz" value="0.0414916"/>
+    <param name="pcbx" value="0.105638"/>
+    <param name="pcby" value="0.0702751"/>
+    <param name="pcbz" value="0.0414916"/>
 
-    <param name="qfiw" value="0.722352"/>
-    <param name="qfix" value="-0.691162"/>
-    <param name="qfiy" value="0.0217651"/>
-    <param name="qfiz" value="0.00289808"/>
+    <param name="qcbw" value="0.722352"/>
+    <param name="qcbx" value="-0.691162"/>
+    <param name="qcby" value="0.0217651"/>
+    <param name="qcbz" value="0.00289808"/>
 
     <!-- integration window -->
     <param name="tau" value="3.0"/>

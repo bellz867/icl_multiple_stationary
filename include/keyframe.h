@@ -100,8 +100,8 @@ struct Keyframe
 	int patchSizeBase;
 	int checkSizeBase;
 
-	Eigen::Vector3f pfi;
-	Eigen::Vector4f qfi;
+	Eigen::Vector3f pcb;
+	Eigen::Vector4f qcb;
 
   Keyframe();
 

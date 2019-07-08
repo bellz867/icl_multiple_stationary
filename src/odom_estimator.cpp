@@ -7,29 +7,29 @@ OdomEstimator::OdomEstimator()
 	nhp.param<std::string>("bodyName", bodyName, "turtle");
 	nhp.param<std::string>("cameraName", cameraName, "camera");
 
-	float pfix,pfiy,pfiz,qfiw,qfix,qfiy,qfiz,qmew,qmex,qmey,qmez;
-	nhp.param<float>("pfix", pfix, 0.0);
-	nhp.param<float>("pfiy", pfiy, 0.0);
-	nhp.param<float>("pfiz", pfiz, 0.0);
-	nhp.param<float>("qfiw", qfiw, 1.0);
-	nhp.param<float>("qfix", qfix, 0.0);
-	nhp.param<float>("qfiy", qfiy, 0.0);
-	nhp.param<float>("qfiz", qfiz, 0.0);
+	float pcbx,pcby,pcbz,qcbw,qcbx,qcby,qcbz,qmew,qmex,qmey,qmez;
+	nhp.param<float>("pcbx", pcbx, 0.0);
+	nhp.param<float>("pcby", pcby, 0.0);
+	nhp.param<float>("pcbz", pcbz, 0.0);
+	nhp.param<float>("qcbw", qcbw, 1.0);
+	nhp.param<float>("qcbx", qcbx, 0.0);
+	nhp.param<float>("qcby", qcby, 0.0);
+	nhp.param<float>("qcbz", qcbz, 0.0);
 
-	pfi = Eigen::Vector3f(pfix,pfiy,pfiz);
+	pcb = Eigen::Vector3f(pcbx,pcby,pcbz);
 
-	qfi << qfiw,qfix,qfiy,qfiz;
-	qfi /= qfi.norm();
+	qcb << qcbw,qcbx,qcby,qcbz;
+	qcb /= qcb.norm();
 
-	float fpi,fqi,fvi,fwi;
-	nhp.param<float>("fpi", fpi, 1.0);
-	nhp.param<float>("fqi", fqi, 1.0);
-	nhp.param<float>("fvi", fvi, 1.0);
-	nhp.param<float>("fwi", fwi, 1.0);
-	piTau = 1.0/(2.0*M_PI*fqi);
-	qiTau = 1.0/(2.0*M_PI*fqi);
-	viTau = 1.0/(2.0*M_PI*fvi);
-	wiTau = 1.0/(2.0*M_PI*fwi);
+	float fp,fq,fv,fw;
+	nhp.param<float>("fp", fp, 1.0);
+	nhp.param<float>("fq", fq, 1.0);
+	nhp.param<float>("fv", fv, 1.0);
+	nhp.param<float>("fw", fw, 1.0);
+	pTau = 1.0/(2.0*M_PI*fq);
+	qTau = 1.0/(2.0*M_PI*fq);
+	vTau = 1.0/(2.0*M_PI*fv);
+	wTau = 1.0/(2.0*M_PI*fw);
 
 	//publisher
   camOdomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odom",1);
@@ -64,11 +64,11 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	//velocity is of turtlebot in body frame of turtlebot x forward, y to left, z up
 	// odom pose is in ENU, odom twist is in body
 	ros::Time t = msg->header.stamp;
-	Eigen::Vector3f vi(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
-	Eigen::Vector3f wi(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
+	Eigen::Vector3f vb(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
+	Eigen::Vector3f wb(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
 
-	Eigen::Vector3f vc = rotatevec((vi+getss(wi)*pfi),getqInv(qfi));
-	Eigen::Vector3f wc = rotatevec(wi,getqInv(qfi));
+	Eigen::Vector3f vc = rotatevec((vb+getss(wb)*pcb),getqInv(qcb));
+	Eigen::Vector3f wc = rotatevec(wb,getqInv(qcb));
 
 	if (firstVel)
 	{
@@ -82,23 +82,21 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	tVelLast = t;
 
 	// get the low pass gains
-	float kvi = dt/(viTau+dt);
-	float kwi = dt/(wiTau+dt);
+	float kp = dt/(pTau + dt);
+	float kq = dt/(qTau + dt);
+	float kv = dt/(vTau+dt);
+	float kw = dt/(wTau+dt);
 
 	// get the linear velocuty in world
 	Eigen::Vector3f vcHatRot = rotatevec(vcHat,qcwHat);
-
-	// get the low pass gains
-	float kpi = dt/(piTau + dt);
-	float kqi = dt/(qiTau + dt);
 
 	// predict the estimates forward
 	// pcwHat += (dt*vcHatRot + kp*(Eigen::Vector3f(0.0,pcw(1)-pcwHat(1),0.0)));
 	pcwHat += (dt*vcHatRot);
 	qcwHat += (dt*0.5*B(qcwHat)*wcHat);
 
-	vcHat += kvi*(vc-vcHat);
-	wcHat += kwi*(wc-wcHat);
+	vcHat += kv*(vc-vcHat);
+	wcHat += kw*(wc-wcHat);
 
 	poseDeltaMutex.lock();
 	// get the pose from each keyframe and average all together to get estimate
@@ -154,8 +152,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		}
 
 		// new estimate is the weighted average
-		pcwHat += dt*kpi/numMeas*pcwTildeSum;
-		qcwHat += dt*kqi/numMeas*qcwTildeSum;
+		pcwHat += dt*kp/numMeas*pcwTildeSum;
+		qcwHat += dt*kq/numMeas*qcwTildeSum;
 	}
 
 	poseDeltasRemove.clear();
@@ -163,8 +161,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float qcwHatNorm = qcwHat.norm();
 	Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
 	qcwInit /= qcwInit.norm();
-	Eigen::Vector3f pbwHat = rotatevec(pcwHat-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
-	Eigen::Vector4f qbwHat = getqMat(getqMat(getqInv(qcwInit))*qcwHat/qcwHatNorm)*getqInv(qfi);
+	Eigen::Vector3f pbwHat = rotatevec(pcwHat-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
+	Eigen::Vector4f qbwHat = getqMat(getqMat(getqInv(qcwInit))*qcwHat/qcwHatNorm)*getqInv(qcb);
 	qbwHat /= qbwHat.norm();
 
 	// build and publish odom message for camera

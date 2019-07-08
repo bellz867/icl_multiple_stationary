@@ -29,13 +29,13 @@ struct OdomEstimator
 	Eigen::Vector4f qcwHat;
 	Eigen::Vector3f vcHat;
 	Eigen::Vector3f wcHat;
-	Eigen::Vector3f pfi;
-	Eigen::Vector4f qfi;
+	Eigen::Vector3f pcb;
+	Eigen::Vector4f qcb;
 
-	float piTau;
-	float qiTau;
-	float viTau;
-	float wiTau;
+	float pTau;
+	float qTau;
+	float vTau;
+	float wTau;
 
   OdomEstimator();
 

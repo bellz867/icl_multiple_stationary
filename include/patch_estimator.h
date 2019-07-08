@@ -82,8 +82,8 @@ struct PatchEstimator
 	Eigen::Matrix<float,3,3> GfLast,GkfLast;
 	cv::Mat Gkcum;
 	int patchSizeBase,checkSizeBase;
-	Eigen::Vector3f pfi;
-	Eigen::Vector4f qfi;
+	Eigen::Vector3f pcb;
+	Eigen::Vector4f qcb;
 
 	~PatchEstimator();
 
@@ -93,7 +93,7 @@ struct PatchEstimator
 		             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
 								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd, float fG,
 								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit,
-							   Eigen::Vector3f pfiInit, Eigen::Vector4f qfiInit);
+							   Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit);
 
 	void markerOdomCB(const nav_msgs::Odometry::ConstPtr& msg);
 

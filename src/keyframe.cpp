@@ -36,19 +36,19 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<int>("checkSizeBase", checkSizeBase, 20);
 
 
-	float pfix,pfiy,pfiz,qfiw,qfix,qfiy,qfiz;
-	nhp.param<float>("pfix", pfix, 0.0);
-	nhp.param<float>("pfiy", pfiy, 0.0);
-	nhp.param<float>("pfiz", pfiz, 0.0);
-	nhp.param<float>("qfiw", qfiw, 1.0);
-	nhp.param<float>("qfix", qfix, 0.0);
-	nhp.param<float>("qfiy", qfiy, 0.0);
-	nhp.param<float>("qfiz", qfiz, 0.0);
+	float pcbx,pcby,pcbz,qcbw,qcbx,qcby,qcbz;
+	nhp.param<float>("pcbx", pcbx, 0.0);
+	nhp.param<float>("pcby", pcby, 0.0);
+	nhp.param<float>("pcbz", pcbz, 0.0);
+	nhp.param<float>("qcbw", qcbw, 1.0);
+	nhp.param<float>("qcbx", qcbx, 0.0);
+	nhp.param<float>("qcby", qcby, 0.0);
+	nhp.param<float>("qcbz", qcbz, 0.0);
 
-	pfi = Eigen::Vector3f(pfix,pfiy,pfiz);
+	pcb = Eigen::Vector3f(pcbx,pcby,pcbz);
 
-	qfi << qfiw,qfix,qfiy,qfiz;
-	qfi /= qfi.norm();
+	qcb << qcbw,qcbx,qcby,qcbz;
+	qcb /= qcb.norm();
 
 	keyInd = keyIndInit;
 
@@ -162,7 +162,7 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 
 			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,gray,
 				                            imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
-																		expName,patchSizeBase,checkSizeBase,pfi,qfi);
+																		expName,patchSizeBase,checkSizeBase,pcb,qcb);
 			patchs.push_back(newPatch);
 			patchIndMax = patchInd;
 			patchInd++;
@@ -330,25 +330,31 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 				{
 					//publish the image
 					pcl::PointXYZRGB pt,ptHat;
+					Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+					qcwInit /= qcwInit.norm();
+					Eigen::Vector4f qbwHat = getqMat(getqMat(getqInv(qcwInit))*qcwHat)*getqInv(qcb);
+					qbwHat /= qbwHat.norm();
+					Eigen::Vector3f pbwHat = rotatevec(pcwHat-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
 					for (std::vector<DepthEstimator*>::iterator itD = (*itP)->depthEstimators.begin(); itD != (*itP)->depthEstimators.end(); itD++)
 					{
 						//get the points after update
-						Eigen::Vector3f mci = (*itD)->mc;
-						Eigen::Vector3f uci = mci/mci.norm();
-						cv::Point2f cPti(fx*mci(0)+cx,fy*mci(1)+cy);
+						Eigen::Vector3f mic = (*itD)->mc;
+						Eigen::Vector3f uic = mic/mic.norm();
+						cv::Point2f cPti(fx*mic(0)+cx,fy*mic(1)+cy);
 						cv::circle(gray, cPti, 10, cv::Scalar(150, 150, 150), -1);
 
 						// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
 						// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
 						// uint8_t colori = kimage.at<uint8_t>(kPti.y,kPti.x);
 
-						Eigen::Vector3f pciHatICLExt = pcwHat + rotatevec(uci*((*itD)->dcHatICLExt),qcwHat);
-						Eigen::Vector3f pciHatEKF = pcwHat + rotatevec(mci*((*itD)->zcHatEKF),qcwHat);
+						// Eigen::Vector3f pciHatICLExt = pcwHat + rotatevec(uci*((*itD)->dcHatICLExt),qcwHat);
+						// Eigen::Vector3f pciHatEKF = pcwHat + rotatevec(mci*((*itD)->zcHatEKF),qcwHat);
 
-						Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-						qcwInit /= qcwInit.norm();
-						Eigen::Vector3f pbiHatICLExt = rotatevec(pciHatICLExt-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
-						Eigen::Vector3f pbiHatEKF = rotatevec(pciHatEKF-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+						Eigen::Vector3f picHatICLExtb = rotatevec(uic*((*itD)->dcHatICLExt),qcb);
+						Eigen::Vector3f picHatEKFb = rotatevec(mic*((*itD)->zcHatEKF),qcb);
+
+						Eigen::Vector3f pibHatICLExt = pbwHat+rotatevec(picHatICLExtb+pcb,qbwHat);
+						Eigen::Vector3f pibHatEKF = pbwHat+rotatevec(picHatEKFb+pcb,qbwHat);
 
 						// std::cout << "\n pciHatICLExt \n" << pciHatICLExt << std::endl;
 
@@ -363,20 +369,20 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 						// pciHatICLExt = pcwHat + rotatevec(pciHatICLExt,qcwHat);
 						// pciHatEKF = pcwHat + rotatevec(pciHatEKF,qcwHat);
 
-						ptHat.x = pbiHatICLExt(0);
-						ptHat.y = pbiHatICLExt(1);
-						ptHat.z = pbiHatICLExt(2);
+						ptHat.x = pibHatICLExt(0);
+						ptHat.y = pibHatICLExt(1);
+						ptHat.z = pibHatICLExt(2);
 						ptHat.r = 0;
-						ptHat.g = 200;
+						ptHat.g = 100;
 						ptHat.b = 0;
 						map->points.push_back(ptHat);
 
-						ptHat.x = pbiHatEKF(0);
-						ptHat.y = pbiHatEKF(1);
-						ptHat.z = pbiHatEKF(2);
+						ptHat.x = pibHatEKF(0);
+						ptHat.y = pibHatEKF(1);
+						ptHat.z = pibHatEKF(2);
 						ptHat.r = 0;
 						ptHat.g = 0;
-						ptHat.b = 255;
+						ptHat.b = 100;
 						map->points.push_back(ptHat);
 
 						// std::cout << "\n index " << ii << std::endl;

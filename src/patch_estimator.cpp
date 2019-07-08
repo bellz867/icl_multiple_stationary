@@ -76,7 +76,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 															 int patchIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
 															 float fyInit, float cxInit, float cyInit, float zminInit, float zmaxInit, ros::Time t, float fq, float fp,
 															 float ft, float fn, float fd, float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
-														   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pfiInit, Eigen::Vector4f qfiInit) : it(nh)
+														   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit) : it(nh)
 {
 	imageWidth = imageWidthInit;
 	imageHeight = imageHeightInit;
@@ -86,8 +86,8 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	patchInd = patchIndInit;
 	patchSizeBase = patchSizeBaseInit;
 	checkSizeBase = checkSizeBaseInit;
-	pfi = pfiInit;
-	qfi = qfiInit;
+	pcb = pcbInit;
+	qcb = qcbInit;
 
 	patchShutdown = false;
 	firstOdomImageCB = true;
@@ -208,9 +208,12 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	// Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 	// Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
 	int numberPts = int(depthEstimators.size());
-	Eigen::MatrixXf XY1 = Eigen::MatrixXf::Ones(numberPts,3);
-	Eigen::MatrixXf XY1T = Eigen::MatrixXf::Ones(3,numberPts);
-	Eigen::VectorXf NZ = Eigen::VectorXf::Zero(numberPts);
+	Eigen::MatrixXf XY1ICL = Eigen::MatrixXf::Ones(numberPts,3);
+	Eigen::MatrixXf XY1TICL = Eigen::MatrixXf::Ones(3,numberPts);
+	Eigen::VectorXf NZICL = Eigen::VectorXf::Zero(numberPts);
+	Eigen::MatrixXf XY1EKF = Eigen::MatrixXf::Ones(numberPts,3);
+	Eigen::MatrixXf XY1TEKF = Eigen::MatrixXf::Ones(3,numberPts);
+	Eigen::VectorXf NZEKF = Eigen::VectorXf::Zero(numberPts);
 	// Eigen::Matrix<float,numberPts,3> XZ1 = Eigen::Matrix<float,numberPts,3>::Ones();
 	// Eigen::Matrix<float,3,numberPts> XZ1T = Eigen::Matrix<float,3,numberPts>::Ones();
 	// Eigen::Matrix<float,numberPts,1> NY = Eigen::Matrix<float,numberPts,1>::Zeros();
@@ -226,12 +229,19 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 		//add each point
 		Eigen::Vector3f mic = (*itD)->mc;
 		Eigen::Vector3f uic = mic/mic.norm();
-		Eigen::Vector3f pic = uic*((*itD)->dcHatICLExt);
-		XY1(itIdx,0) = pic(0);
-		XY1(itIdx,1) = pic(1);
-		XY1T(0,itIdx) = pic(0);
-		XY1T(1,itIdx) = pic(1);
-		NZ(itIdx) = -pic(2);
+		Eigen::Vector3f picICL = uic*((*itD)->dcHatICLExt);
+		Eigen::Vector3f picEKF = mic*((*itD)->zcHatEKF);
+		XY1ICL(itIdx,0) = picICL(0);
+		XY1ICL(itIdx,1) = picICL(1);
+		XY1TICL(0,itIdx) = picICL(0);
+		XY1TICL(1,itIdx) = picICL(1);
+		NZICL(itIdx) = -picICL(2);
+
+		XY1EKF(itIdx,0) = picEKF(0);
+		XY1EKF(itIdx,1) = picEKF(1);
+		XY1TEKF(0,itIdx) = picEKF(0);
+		XY1TEKF(1,itIdx) = picEKF(1);
+		NZEKF(itIdx) = -picEKF(2);
 		// XZ1(itIdx,0) = pic(0);
 		// XZ1(itIdx,1) = pic(2);
 		// XZ1T(0,itIdx) = pic(0);
@@ -287,12 +297,19 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	try
 	{
 		cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
+		int reduceFactor = 10;
+		int colsReduce = std::round(cols/reduceFactor);
+		int rowsReduce = std::round(rows/reduceFactor);
+		cv::Mat roiimageReduce(cv::Size(colsReduce,rowsReduce),CV_8U);
+		cv::resize(roiimage,roiimageReduce,roiimageReduce.size(),fx,fy,cv::INTER_AREA);
 		roiMutex.unlock();
 
 
-		Eigen::Matrix3f XYXY = XY1T*XY1;
-		Eigen::Vector3f XYNZ = XY1T*NZ;
-		float XYXYdet = float(XYXY.determinant());
+		Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
+		Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
+		float XYXYdet = float(XYXYICL.determinant());
+		Eigen::Matrix3f XYXYEKF = XY1TEKF*XY1EKF;
+		Eigen::Vector3f XYNZEKF = XY1TEKF*NZEKF;
 		// Eigen::Matrix3f XZXZ = XZ1T*XZ1;
 		// float XZXZdet = float(XZXZ.determinant());
 		// Eigen::Matrix3f YZYZ = YZ1T*YZ1;
@@ -300,20 +317,30 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 
 		if (XYXYdet > 0.001)
 		{
-			Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXY(XYXY, Eigen::ComputeThinU | Eigen::ComputeThinV);
-			Eigen::Vector3f dnz = svdXYXY.solve(XYNZ);
-			Eigen::Vector3f nc(dnz(0),dnz(1),1.0);
-			nc /= nc.norm();
-			float nx = nc(0);
-			float ny = nc(1);
-			float nz = nc(2);
-			float dc = -dnz(2)*nz;
+			Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
+			Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
+			Eigen::Vector3f ncICL(dnzICL(0),dnzICL(1),1.0);
+			ncICL /= ncICL.norm();
+			float nxICL = ncICL(0);
+			float nyICL = ncICL(1);
+			float nzICL = ncICL(2);
+			float dcICL = -dnzICL(2)*nzICL;
+
+			Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYEKF(XYXYEKF, Eigen::ComputeThinU | Eigen::ComputeThinV);
+			Eigen::Vector3f dnzEKF = svdXYXYEKF.solve(XYNZEKF);
+			Eigen::Vector3f ncEKF(dnzEKF(0),dnzEKF(1),1.0);
+			ncEKF /= ncEKF.norm();
+			float nxEKF = ncEKF(0);
+			float nyEKF = ncEKF(1);
+			float nzEKF = ncEKF(2);
+			float dcEKF = -dnzEKF(2)*nzEKF;
 
 			ROS_WARN("roi get normal time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
 			processTime = clock();
 
 			//get the estimated point for each pixel in the roi
 			int plotInd = 0;
+
 			// PointCloudRGB::Ptr map(new PointCloudRGB);
 			// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
 			// map->header.frame_id = "world";
@@ -323,15 +350,15 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 			// map->points.clear();
 			// map->points.resize(rows*cols);
 
-			std::vector<geometry_msgs::Point32> wallPts(cols*rows);
-			std::vector<uint8_t> wallColors(cols*rows);
-			std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
-			std::vector<uint8_t>::iterator colIt = wallColors.begin();
+			// std::vector<geometry_msgs::Point32> wallPts(colsReduce*rowsReduce);
+			// std::vector<uint8_t> wallColors(colsReduce*rowsReduce);
+			// std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
+			// std::vector<uint8_t>::iterator colIt = wallColors.begin();
 			PointCloudRGB cloud;
 			cloud.height = 1;
-			cloud.width = cols*rows;
+			cloud.width = 2*colsReduce*rowsReduce;
 			cloud.is_dense = true;
-			cloud.resize(cols*rows);
+			cloud.resize(2*colsReduce*rowsReduce);
 			PointCloudRGB::iterator cloudIt = cloud.begin();
 			pcl::PointXYZRGB ptxyz;
 			Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
@@ -339,8 +366,8 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 			Eigen::Vector3f pcwInit = rotatevec(pcw,getqInv(qcwInit));
 			Eigen::Vector4f qcwcwInit = getqMat(getqInv(qcwInit))*qcw;
 			qcwcwInit /= qcwcwInit.norm();
-			Eigen::Vector3f pfiInit = rotatevec(rotatevec(pfi,getqInv(qfi)),getqInv(qcwcwInit));
-			Eigen::Vector3f pcwInitfiInit = pcwInit - pfiInit;
+			Eigen::Vector3f pcbInit = rotatevec(rotatevec(pcb,getqInv(qcb)),getqInv(qcwcwInit));
+			Eigen::Vector3f pcwInitcbInit = pcwInit + pcbInit;
 
 			// Eigen::Matrix4f qcwcwInitMat = getqMat(qcwcwInit);
 			// Eigen::Matrix<float,4,3> qcwcwInitMatR = qcwcwInitMat.block(0,1,4,3);
@@ -355,9 +382,9 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 			// Eigen::Vector4f pjw4(0.0,0.0,0.0,0.0);
 			// Eigen::Vector3f pjwc(0.0,0.0,0.0);
 			// Eigen::Matrix4f qjw4M;
-			float xc = pcwInitfiInit(0);
-			float yc = pcwInitfiInit(1);
-			float zc = pcwInitfiInit(2);
+			float xc = pcwInitcbInit(0);
+			float yc = pcwInitcbInit(1);
+			float zc = pcwInitcbInit(2);
 			float qw = qcwcwInit(0);
 			float qx = qcwcwInit(1);
 			float qy = qcwcwInit(2);
@@ -366,25 +393,36 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 			float qxI = qcwcwInitI(1);
 			float qyI = qcwcwInitI(2);
 			float qzI = qcwcwInitI(3);
-			float xjc = 0;
-			float yjc = 0;
-			float zjc = 0;
-			float wjw = 0;
-			float xjw = 0;
-			float yjw = 0;
-			float zjw = 0;
+			float xjcICL = 0;
+			float yjcICL = 0;
+			float zjcICL = 0;
+			float wjwICL = 0;
+			float xjwICL = 0;
+			float yjwICL = 0;
+			float zjwICL = 0;
+			float xjcEKF = 0;
+			float yjcEKF = 0;
+			float zjcEKF = 0;
+			float wjwEKF = 0;
+			float xjwEKF = 0;
+			float yjwEKF = 0;
+			float zjwEKF = 0;
 			// Eigen::Vector3f pjw(0.0,0.0,0.0);
-			for (cv::MatIterator_<uchar> itI = roiimage.begin<uchar>(); itI != roiimage.end<uchar>(); itI++)
+			for (cv::MatIterator_<uchar> itI = roiimageReduce.begin<uchar>(); itI != roiimageReduce.end<uchar>(); itI++)
 			{
-				rowj = rowtl + plotInd/cols;
-				colj = coltl + plotInd%cols;
+				rowj = rowtl + reduceFactor*(plotInd/colsReduce);
+				colj = coltl + reduceFactor*(plotInd%colsReduce);
 
 				// *colIt = uint8_t(*itI);
 				mxj = (colj - cx)/fx;
 				myj = (rowj - cy)/fy;
-				zjc = dc/(nx*mxj+ny*myj+nz);
-				xjc = zjc*mxj;
-				yjc = zjc*myj;
+				zjcICL = dcICL/(nxICL*mxj+nyICL*myj+nzICL);
+				xjcICL = zjcICL*mxj;
+				yjcICL = zjcICL*myj;
+
+				zjcEKF = dcEKF/(nxEKF*mxj+nyEKF*myj+nzEKF);
+				xjcEKF = zjcEKF*mxj;
+				yjcEKF = zjcEKF*myj;
 				// Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
 
 				// //rotate the point into the world frame
@@ -392,22 +430,36 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				//
 				// Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
 				// qcwInit /= qcwInit.norm();
-				// pjw = rotatevec(pjw-rotatevec(pfi,getqInv(qfi)),getqInv(qcwInit));
+				// pjw = rotatevec(pjw-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
 
 				//rotate the point into the world frame
 				// pjw4 = getqMat(qcwcwInitMatR*pjwc)*qcwcwInitI;
 
-				wjw = -qx*xjc-qy*yjc-qz*zjc;
-				xjw = qw*xjc-qz*yjc+qy*zjc;
-				yjw = qz*xjc+qw*yjc-qx*zjc;
-				zjw = -qy*xjc+qx*yjc+qw*zjc;
+				wjwICL = -qx*xjcICL-qy*yjcICL-qz*zjcICL;
+				xjwICL = qw*xjcICL-qz*yjcICL+qy*zjcICL;
+				yjwICL = qz*xjcICL+qw*yjcICL-qx*zjcICL;
+				zjwICL = -qy*xjcICL+qx*yjcICL+qw*zjcICL;
 
-				ptxyz.x = xc+xjw*qwI+wjw*qxI-zjw*qyI+yjw*qzI;
-				ptxyz.y = yc+yjw*qwI+zjw*qxI+wjw*qyI-xjw*qzI;
-				ptxyz.z = zc+zjw*qwI-yjw*qxI+xjw*qyI+wjw*qzI;
-				ptxyz.r = *itI;
-				ptxyz.g = *itI;
-				ptxyz.b = *itI;
+				wjwEKF = -qx*xjcEKF-qy*yjcEKF-qz*zjcEKF;
+				xjwEKF = qw*xjcEKF-qz*yjcEKF+qy*zjcEKF;
+				yjwEKF = qz*xjcEKF+qw*yjcEKF-qx*zjcEKF;
+				zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
+
+				ptxyz.x = xc+xjwICL*qwI+wjwICL*qxI-zjwICL*qyI+yjwICL*qzI;
+				ptxyz.y = yc+yjwICL*qwI+zjwICL*qxI+wjwICL*qyI-xjwICL*qzI;
+				ptxyz.z = zc+zjwICL*qwI-yjwICL*qxI+xjwICL*qyI+wjwICL*qzI;
+				ptxyz.r = (*itI);
+				ptxyz.g = std::min((*itI)+100,255);
+				ptxyz.b = (*itI);
+				*cloudIt = ptxyz;
+				cloudIt++;
+
+				ptxyz.x = xc+xjwEKF*qwI+wjwEKF*qxI-zjwEKF*qyI+yjwEKF*qzI;
+				ptxyz.y = yc+yjwEKF*qwI+zjwEKF*qxI+wjwEKF*qyI-xjwEKF*qzI;
+				ptxyz.z = zc+zjwEKF*qwI-yjwEKF*qxI+xjwEKF*qyI+wjwEKF*qzI;
+				ptxyz.r = (*itI);
+				ptxyz.g = (*itI);
+				ptxyz.b = std::min((*itI)+100,255);
 				*cloudIt = ptxyz;
 				cloudIt++;
 
@@ -709,6 +761,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	if (depthEstimators.size() <= minFeaturesBad)
 	{
+		std::cout << "\n hi8 \n";
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			delete *itD;
@@ -730,6 +783,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	}
 	else
 	{
+		std::cout << "\n hi9 \n";
 		// pckHat += (rotatevec(vc,qckHat)*dt);
 		// qckHat += (0.5*B(qckHat)*wc*dt);
 		// qckHat /= qckHat.norm();
@@ -813,6 +867,12 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 
 	clock_t timeCheck = clock();
 
+	int numberPts = int(depthEstimators.size());
+	Eigen::MatrixXf XY1ICL = Eigen::MatrixXf::Ones(numberPts,3);
+	Eigen::MatrixXf XY1TICL = Eigen::MatrixXf::Ones(3,numberPts);
+	Eigen::VectorXf NZICL = Eigen::VectorXf::Zero(numberPts);
+	int itIdx = 0;
+
 	//get the points from the previous image
 	std::vector<cv::Point2f> pPts(depthEstimators.size()),cPts(depthEstimators.size()),kPts(depthEstimators.size());
 	std::vector<cv::Point2f> kPtsInPred(depthEstimators.size()),cPtsInPred(depthEstimators.size());//,cPtPsInPred(depthEstimators.size());
@@ -827,9 +887,38 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 	  *itp = cv::Point2f(fx*((*itD)->mc(0))+cx,fy*((*itD)->mc(1))+cy);
 	  mcc = (*itD)->predict(vc,wc,dt);
 	  *itc = cv::Point2f(fx*mcc(0)+cx,fy*mcc(1)+cy);
+
+		//add each point
+		Eigen::Vector3f mic = (*itD)->mc;
+		Eigen::Vector3f uic = mic/mic.norm();
+		Eigen::Vector3f picICL = uic*((*itD)->dcHatICLExt);
+		XY1ICL(itIdx,0) = picICL(0);
+		XY1ICL(itIdx,1) = picICL(1);
+		XY1TICL(0,itIdx) = picICL(0);
+		XY1TICL(1,itIdx) = picICL(1);
+		NZICL(itIdx) = -picICL(2);
+		itIdx++;
+
 		itk++;
 		itp++;
 		itc++;
+	}
+
+	Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
+	Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
+	float XYXYdet = float(XYXYICL.determinant());
+	float nzHat = 1.0;
+	if (XYXYdet > 0.001)
+	{
+		Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
+		Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
+		Eigen::Vector3f ncICL(dnzICL(0),dnzICL(1),1.0);
+		ncICL /= ncICL.norm();
+		float nxICL = ncICL(0);
+		float nyICL = ncICL(1);
+		float nzICL = ncICL(2);
+		nzHat = nzICL;
+		float dcICL = -dnzICL(2)*nzICL;
 	}
 
 	try
@@ -1014,9 +1103,9 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 			// std::cout << "\n depthEstimators.size() inside " << depthEstimators.size() << std::endl;
 			// if (!T.empty() && int(inliersAffine.at<uchar>(ii)))
 			// if (!G.empty() && !Gk.empty() && (acos(qkcHat(0))*2.0 < 30.0*3.1415/180.0))
-			if (!G.empty() && (acos(qkcHat(0))*2.0 < 45.0*3.1415/180.0)
-										 && (((*itpp).x-checkSize-Gshift) > 0) && (((*itpp).x+checkSize+Gshift) < imageWidth)
-		                 && (((*itpp).y-checkSize-Gshift) > 0) && (((*itpp).y+checkSize+Gshift) < imageHeight))
+			if (!G.empty() && (acos(qkcHat(0))*2.0 < 20.0*3.1415/180.0) && (acos(nzHat) < 45.0*3.1415/180.0)
+										 && (((*itpp).x-checkSize-2*Gshift) > 0) && (((*itpp).x+checkSize+2*Gshift) < imageWidth)
+		                 && (((*itpp).y-checkSize-2*Gshift) > 0) && (((*itpp).y+checkSize+2*Gshift) < imageHeight))
 			// if (!G.empty() && (((*itpp).x-checkSize-Gshift) > 0) && (((*itpp).x+checkSize+Gshift) < imageWidth)
 		  //                && (((*itpp).y-checkSize-Gshift) > 0) && (((*itpp).y+checkSize+Gshift) < imageHeight))
 			{
@@ -1035,6 +1124,8 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 				ppatchRectP = cv::Rect(std::round((*itpp).x)-(patchSize-1)/2,std::round((*itpp).y)-(patchSize-1)/2,patchSize,patchSize);
 				ppatch = pimage(ppatchRectP).clone();//patch
 
+				std::cout << "\n hi1 \n";
+
 				//get the four corners that will be searched and transform into new image
 				// ppatchPtsP.at(0) = cv::Point2f(ppatchRectP.x,ppatchRectP.y);//tl
 				// ppatchPtsP.at(1) = cv::Point2f(ppatchRectP.x+patchSize,ppatchRectP.y);//tr
@@ -1042,6 +1133,8 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 				// ppatchPtsP.at(3) = cv::Point2f(ppatchRectP.x,ppatchRectP.y+patchSize);//bl
 				ppatchPtsP.at(0) = cv::Point2f((*itpp).x,(*itpp).y);//center
 				cv::perspectiveTransform(ppatchPtsP,ppatchPtsC,G);
+
+				std::cout << "\n hi2 \n";
 
 				// std::cout << "\n cx " << ppatchPtsC.at(0).x << " cy " << ppatchPtsC.at(0).y
 				//           << " width " << ppatchPtsC.at(1).x << " height " << ppatchPtsC.at(1).y << std::endl;
@@ -1051,17 +1144,27 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 				// std::cout << "\n cx2 " << ppatchPtsC.at(0).x + (ppatchWarp.cols-1)/2  << " cy2 " << ppatchPtsC.at(0).y + (ppatchWarp.rows-1)/2
 				// 					<< " width2 " << ppatchWarp.cols << " height2 " << ppatchWarp.rows << std::endl;
 
+				std::cout << "\n hi3 \n";
+
 				cv::Point2f patchCenterC(ppatchPtsC.at(0));
 				cv::Point2f patchCenterCLocal(ppatchPtsC.at(2));
 				float patchSizeC = std::min(ppatchPtsC.at(1).x,ppatchPtsC.at(1).y)-2*Gshift;
 
-				ppatchRectCLocal.x = std::round(patchCenterCLocal.x-(patchSizeC-1)/2);
-				ppatchRectCLocal.y = std::round(patchCenterCLocal.y-(patchSizeC-1)/2);
-				ppatchRectCLocal.width = std::round(patchSizeC);
-				ppatchRectCLocal.height = std::round(patchSizeC);
+				ppatchRectCLocal.x = std::max(0,int(std::round(patchCenterCLocal.x-(patchSizeC-1)/2)));
+				ppatchRectCLocal.y = std::max(0,int(std::round(patchCenterCLocal.y-(patchSizeC-1)/2)));
+				ppatchRectCLocal.width = std::min(ppatchWarp.cols,int(std::round(patchSizeC)));
+				ppatchRectCLocal.width = std::min(ppatchWarp.cols-ppatchRectCLocal.x,ppatchRectCLocal.width);
+				ppatchRectCLocal.height = std::min(ppatchWarp.rows,int(std::round(patchSizeC)));
+				ppatchRectCLocal.height = std::min(ppatchWarp.rows-ppatchRectCLocal.y,ppatchRectCLocal.height);
 				// ppatchRectCLocal.width = ppatchPtsC.at(1).x - Gshift;
 				// ppatchRectCLocal.height = ppatchPtsC.at(1).x - Gshift;
+				// std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
+				// std::cout << "\n ppatchWarp.cols " << ppatchWarp.cols << " ppatchWarp.rows " << ppatchWarp.rows << std::endl;
+
 				cv::Mat reducedWarp = ppatchWarp(ppatchRectCLocal).clone();
+
+				std::cout << "\n hi4 \n";
+
 				// cv::Mat reducedWarpSobel;
 				// cv::Sobel(reducedWarp.clone(),reducedWarpSobel,CV_32F,1,1,3,);
 				// std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
@@ -1137,11 +1240,14 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 				// checkRect = cv::Rect(std::round(ppatchRectC.x)+(ppatchRectC.width-1)/2-(checkSize-1)/2,std::round(ppatchRectC.y)+(ppatchRectC.height-1)/2-(checkSize-1)/2,checkSize,checkSize);
 				checkRect = cv::Rect(std::round(patchCenterC.x-(checkSize-1)/2.0),std::round(patchCenterC.y-(checkSize-1)/2.0),checkSize,checkSize);
 				cpatch = image(checkRect).clone();
+				std::cout << "\n hi5 \n";
 				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
 				// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
 				cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCOEFF_NORMED);
 				cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
 				cv::minMaxLoc(tmresultBlur,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
+
+				std::cout << "\n hi6 \n";
 
 				// if (isFirstPt)
 				// {
@@ -1248,6 +1354,7 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
   //use optical flow to find the features
 	if (depthEstimators.size() > minFeaturesBad)
 	{
+		std::cout << "\n hi7 \n";
 		// cv::perspectiveTransform(cPtPsInPred,cPtsInPred,GI);
 		estimatorUpdateTime = clock();
 		//update the estimtators using the estimted points
