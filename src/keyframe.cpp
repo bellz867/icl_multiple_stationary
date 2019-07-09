@@ -302,16 +302,16 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		//plot the points
 		// get all the points and draw them on the image
 		// std::cout << "\n wall 1 \n";
-		PointCloudRGB::Ptr map(new PointCloudRGB);
-		pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
+		// PointCloudRGB::Ptr map(new PointCloudRGB);
+		// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
 
 		// std::cout << "\n wall 1 1 \n";
-		map->header.frame_id = "world";
+		// map->header.frame_id = "world";
 
 		// std::cout << "\n wall 1 2 \n";
-		map->height = 1;
-		map->is_dense = true;
-		map->points.clear();
+		// map->height = 1;
+		// map->is_dense = true;
+		// map->points.clear();
 
 		Eigen::Vector3f pcwHat(imageOdom.pose.pose.position.x,imageOdom.pose.pose.position.y,imageOdom.pose.pose.position.z);
 		Eigen::Vector4f qcwHat(imageOdom.pose.pose.orientation.w,imageOdom.pose.pose.orientation.x,imageOdom.pose.pose.orientation.y,imageOdom.pose.pose.orientation.z);
@@ -326,22 +326,22 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			if (!(*itP)->patchShutdown)
 			{
 				patchsIn.push_back(*itP);
-				if ((*itP)->depthEstimators.size() > 0)
-				{
-					//publish the image
-					pcl::PointXYZRGB pt,ptHat;
-					Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-					qcwInit /= qcwInit.norm();
-					Eigen::Vector4f qbwHat = getqMat(getqMat(getqInv(qcwInit))*qcwHat)*getqInv(qcb);
-					qbwHat /= qbwHat.norm();
-					Eigen::Vector3f pbwHat = rotatevec(pcwHat-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
-					for (std::vector<DepthEstimator*>::iterator itD = (*itP)->depthEstimators.begin(); itD != (*itP)->depthEstimators.end(); itD++)
-					{
-						//get the points after update
-						Eigen::Vector3f mic = (*itD)->mc;
-						Eigen::Vector3f uic = mic/mic.norm();
-						cv::Point2f cPti(fx*mic(0)+cx,fy*mic(1)+cy);
-						cv::circle(gray, cPti, 10, cv::Scalar(150, 150, 150), -1);
+				// if ((*itP)->depthEstimators.size() > 0)
+				// {
+					// //publish the image
+					// pcl::PointXYZRGB pt,ptHat;
+					// Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+					// qcwInit /= qcwInit.norm();
+					// Eigen::Vector4f qbwHat = getqMat(getqMat(getqInv(qcwInit))*qcwHat)*getqInv(qcb);
+					// qbwHat /= qbwHat.norm();
+					// Eigen::Vector3f pbwHat = rotatevec(pcwHat-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
+					// for (std::vector<DepthEstimator*>::iterator itD = (*itP)->depthEstimators.begin(); itD != (*itP)->depthEstimators.end(); itD++)
+					// {
+					// 	//get the points after update
+					// 	Eigen::Vector3f mic = (*itD)->mc;
+					// 	Eigen::Vector3f uic = mic/mic.norm();
+					// 	cv::Point2f cPti(fx*mic(0)+cx,fy*mic(1)+cy);
+					// 	cv::circle(gray, cPti, 10, cv::Scalar(150, 150, 150), -1);
 
 						// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
 						// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
@@ -350,11 +350,11 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 						// Eigen::Vector3f pciHatICLExt = pcwHat + rotatevec(uci*((*itD)->dcHatICLExt),qcwHat);
 						// Eigen::Vector3f pciHatEKF = pcwHat + rotatevec(mci*((*itD)->zcHatEKF),qcwHat);
 
-						Eigen::Vector3f picHatICLExtb = rotatevec(uic*((*itD)->dcHatICLExt),qcb);
-						Eigen::Vector3f picHatEKFb = rotatevec(mic*((*itD)->zcHatEKF),qcb);
-
-						Eigen::Vector3f pibHatICLExt = pbwHat+rotatevec(picHatICLExtb+pcb,qbwHat);
-						Eigen::Vector3f pibHatEKF = pbwHat+rotatevec(picHatEKFb+pcb,qbwHat);
+						// Eigen::Vector3f picHatICLExtb = rotatevec(uic*((*itD)->dcHatICLExt),qcb);
+						// Eigen::Vector3f picHatEKFb = rotatevec(mic*((*itD)->zcHatEKF),qcb);
+						//
+						// Eigen::Vector3f pibHatICLExt = pbwHat+rotatevec(picHatICLExtb+pcb,qbwHat);
+						// Eigen::Vector3f pibHatEKF = pbwHat+rotatevec(picHatEKFb+pcb,qbwHat);
 
 						// std::cout << "\n pciHatICLExt \n" << pciHatICLExt << std::endl;
 
@@ -368,22 +368,22 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 						// //bring into world frame
 						// pciHatICLExt = pcwHat + rotatevec(pciHatICLExt,qcwHat);
 						// pciHatEKF = pcwHat + rotatevec(pciHatEKF,qcwHat);
-
-						ptHat.x = pibHatICLExt(0);
-						ptHat.y = pibHatICLExt(1);
-						ptHat.z = pibHatICLExt(2);
-						ptHat.r = 0;
-						ptHat.g = 100;
-						ptHat.b = 0;
-						map->points.push_back(ptHat);
-
-						ptHat.x = pibHatEKF(0);
-						ptHat.y = pibHatEKF(1);
-						ptHat.z = pibHatEKF(2);
-						ptHat.r = 0;
-						ptHat.g = 0;
-						ptHat.b = 100;
-						map->points.push_back(ptHat);
+						//
+						// ptHat.x = pibHatICLExt(0);
+						// ptHat.y = pibHatICLExt(1);
+						// ptHat.z = pibHatICLExt(2);
+						// ptHat.r = 0;
+						// ptHat.g = 100;
+						// ptHat.b = 0;
+						// map->points.push_back(ptHat);
+						//
+						// ptHat.x = pibHatEKF(0);
+						// ptHat.y = pibHatEKF(1);
+						// ptHat.z = pibHatEKF(2);
+						// ptHat.r = 0;
+						// ptHat.g = 0;
+						// ptHat.b = 100;
+						// map->points.push_back(ptHat);
 
 						// std::cout << "\n index " << ii << std::endl;
 						// std::cout << "\n dkHat " << depthEstimators.at(ii)->dkHat << std::endl;
@@ -391,8 +391,8 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 						// std::cout << "\n zcHatICLExt " << pciHatICLExt(2) << std::endl;
 						// std::cout << "\n zcHatEKF " << pciHatEKF(2) << std::endl;
 						// std::cout << "\n dk " << depthEstimators.at(ii)->pik.norm() << std::endl;
-					}
-				}
+					// }
+				// }
 			}
 			else
 			{
@@ -403,17 +403,17 @@ void Keyframe::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		patchs = patchsIn;
 		patchsIn.clear();
 
-		if (patchs.size() > 0)
-		{
-			map->width = map->points.size();
-			pointCloudPub.publish(map);
-			//publish lagged image and odom
-			cv_bridge::CvImage out_msg;
-			out_msg.header = msg->header; // Same timestamp and tf frame as input image
-			out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-			out_msg.image = gray; // Your cv::Mat
-			imageOutputPub.publish(out_msg.toImageMsg());
-		}
+		// if (patchs.size() > 0)
+		// {
+		// 	map->width = map->points.size();
+		// 	pointCloudPub.publish(map);
+		// 	//publish lagged image and odom
+		// 	cv_bridge::CvImage out_msg;
+		// 	out_msg.header = msg->header; // Same timestamp and tf frame as input image
+		// 	out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+		// 	out_msg.image = gray; // Your cv::Mat
+		// 	imageOutputPub.publish(out_msg.toImageMsg());
+		// }
 	}
 
 	keyframeInDanger = (float(patchs.size())/float(patchIndMax)) <= 0.4;
