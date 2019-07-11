@@ -8,6 +8,7 @@ DepthEstimatorICLExt::DepthEstimatorICLExt()
   firstzk = true;
   dkKnown = false;
   numSaved = 0;
+  numThrown = 0;
 }
 void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t)
 {
@@ -107,6 +108,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     tBuff.clear();
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
+    numThrown++;
     std::cout << "\n eig clear\n";
   }
 
@@ -117,6 +119,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     tBuff.clear();
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
+    numThrown++;
     std::cout << "\n v clear\n";
   }
 
@@ -127,6 +130,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     tBuff.clear();
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
+    // numThrown++;
     std::cout << "\n pkc clear\n";
   }
 
@@ -139,6 +143,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n tBuff.size() " << tBuff.size() << " uvBuff.size() " << uvBuff.size() << " zetaBuff.size() " << zetaBuff.size() << " dtBuff.size() " << dtBuff.size() << std::endl;
 
     bool timeGood = false;
+
+    float Dt = 0.0;
     while (!timeGood)
     {
       if (tBuff.size() > 2)
@@ -160,6 +166,12 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       {
         timeGood = true;
       }
+    }
+
+    bool enoughTime = false;
+    if ((tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() > (0.25*tau))
+    {
+      enoughTime = true;
     }
 
     // std::cout << "\n hi11 \n";
@@ -196,6 +208,17 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
+
+    // if (enoughTime && !measgood)
+    // {
+    //   zetaBuff.clear();
+    //   uvBuff.clear();
+    //   tBuff.clear();
+    //   dtBuff.clear();
+    //   uvInt = Eigen::Vector2f::Zero();
+    //   numThrown++;
+    // }
+
 
     bool dirGoodzBad = false;
 

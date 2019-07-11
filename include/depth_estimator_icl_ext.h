@@ -27,7 +27,7 @@ struct DepthEstimatorICLExt
   float tau;
   bool firstzk;
   bool dkKnown;
-  int numSaved;
+  int numSaved,numThrown;
   VectorDerivativeEstimator uDotEstimator;
 
   DepthEstimatorICLExt();

@@ -16,6 +16,7 @@ DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Tim
   lastt = t;
   zcHatEKF = zInit;
   dcHatICLExt = zInit;
+  dkHatICLExt = zInit;
   dkcHatICLExt = 0.0;
   startt = t;
 
@@ -58,6 +59,7 @@ float DepthEstimator::update(Eigen::Matrix3f H, Eigen::Vector3f mcMeas, Eigen::R
   // std::cout << "\n hi3 \n";
 
   Eigen::Vector3f dkdcdkcICLExt = depthEstimatorICLExt.update(uc,ukc,Rkc,v,w,pkc,t,dt);
+  dkHatICLExt = dkdcdkcICLExt(0);
   dcHatICLExt = dkdcdkcICLExt(1);
   dkcHatICLExt = dkdcdkcICLExt(2);
 
