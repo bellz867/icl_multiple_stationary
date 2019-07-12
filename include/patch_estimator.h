@@ -47,7 +47,7 @@ struct PatchEstimator
 	image_transport::Publisher imagePub;//,imagePub2;
 	// image_transport::Publisher imagePub2;
 	cv::Mat kimage,pimage;
-	int keyInd,patchInd;
+	int keyInd,patchInd,partitionInd;
   ros::Subscriber odomSub,roiSub;
 	ros::Publisher poseDeltaPub,roiPub,wallPub,pointCloudPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
@@ -89,7 +89,7 @@ struct PatchEstimator
 
 	PatchEstimator();
 
-	PatchEstimator(int imageWidth, int imageHeight, int minFeaturesDanger, int minFeaturesBad, int keyInd, int patchInd, cv::Mat& image,
+	PatchEstimator(int imageWidth, int imageHeight, int minFeaturesDanger, int minFeaturesBad, int keyInd, int patchInd,  int partitionInd, cv::Mat& image,
 		             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
 								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd, float fG,
 								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit,

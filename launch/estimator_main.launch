@@ -24,8 +24,8 @@
     <param name="partitionSide" value="1"/>
     <param name="numberFeaturesPerPartRow" value="4"/>
     <param name="numberFeaturesPerPartCol" value="4"/>
-    <param name="patchSizeBase" value="50"/>
-    <param name="checkSizeBase" value="64"/>
+    <param name="patchSizeBase" value="150"/>
+    <param name="checkSizeBase" value="200"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>

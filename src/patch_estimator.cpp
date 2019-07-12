@@ -73,7 +73,7 @@ PatchEstimator::PatchEstimator() : it(nh)
 {}
 
 PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minFeaturesDangerInit, int minFeaturesBadInit, int keyIndInit,
-															 int patchIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
+															 int patchIndInit, int partitionIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
 															 float fyInit, float cxInit, float cyInit, float zminInit, float zmaxInit, ros::Time t, float fq, float fp,
 															 float ft, float fn, float fd, float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
 														   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit) : it(nh)
@@ -84,6 +84,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	minFeaturesBad = minFeaturesBadInit;
 	keyInd = keyIndInit;
 	patchInd = patchIndInit;
+	partitionInd = partitionIndInit;
 	patchSizeBase = patchSizeBaseInit;
 	checkSizeBase = checkSizeBaseInit;
 	pcb = pcbInit;
@@ -951,10 +952,10 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 	float nDifAng = 180.0/3.1415*acos(float(nc.transpose()*nk));
 	float qAng = 180.0/3.1415*acos(qkcHat(0))*2.0;
 
-	std::cout << "\n XY1ICL \n" << XY1ICL << std::endl;
-	std::cout << "\n XY1ICLk \n" << XY1ICLk << std::endl;
-	std::cout << "\n NZICL \n" << NZICL << std::endl;
-	std::cout << "\n NZICLk \n" << NZICLk << std::endl;
+	// std::cout << "\n XY1ICL \n" << XY1ICL << std::endl;
+	// std::cout << "\n XY1ICLk \n" << XY1ICLk << std::endl;
+	// std::cout << "\n NZICL \n" << NZICL << std::endl;
+	// std::cout << "\n NZICLk \n" << NZICLk << std::endl;
 	std::cout << "\n ncx " << nc(0) << " ncy " << nc(1) << " ncz " << nc(2) << std::endl;
 	std::cout << "\n nkx " << nk(0) << " nky " << nk(1) << " nkz " << nk(2) << std::endl;
 	std::cout << "\n nkRotx " << nkRot(0) << " nkRoty " << nkRot(1) << " nkRotz " << nkRot(2) << std::endl;
@@ -1497,11 +1498,11 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		cv::Mat inliersG1;
 		cv::Mat G1 = cv::findHomography(kPts, cPts, cv::RANSAC, 0.5, inliersG1, 2000, 0.99);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
-		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,3.0,0.99);
+		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,0.5,0.99);
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
-		// cv::Mat E = camMatD.t()*F*camMatD;
-		// cv::Mat R1,R2,tt;
-		// cv::decomposeEssentialMat(E,R1,R2,tt);
+		cv::Mat E = camMatD.t()*F*camMatD;
+		cv::Mat R1,R2,tt;
+		cv::decomposeEssentialMat(E,R1,R2,tt);
 
 		// std::cout << "\n G \n" << G << std::endl << std::endl;
 
@@ -1566,7 +1567,7 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 
 		// estimate the homography
 		Eigen::Vector4f qkc = qkcHat;
-		Eigen::Vector3f nk = nkHat;
+		// Eigen::Vector3f nk(0.0,0.0,1.0);
 		Eigen::Vector3f tkc = tkcHat;
 
 		if (!G.empty())
@@ -1575,15 +1576,57 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 			{
 				//find the solutions
 				std::vector<cv::Mat> RkcH,tkcH,nkH;//holds the rotations, translations and normal vetors from decompose homography
-				int numberHomogSols = cv::decomposeHomographyMat(Gkcum, camMatD, RkcH, tkcH, nkH);// Decompose homography
+				int numberHomogSols = cv::decomposeHomographyMat(G, camMatD, RkcH, tkcH, nkH);// Decompose homography
 
 				//check positive depth constraint on the inliers to find the solutions
-				std::vector<Eigen::Vector3f> nks;
+				// std::vector<Eigen::Vector3f> nks;
 				std::vector<Eigen::Vector3f> tkcs;
 				std::vector<Eigen::Vector4f> qkcs;
 				std::vector<float> errors;
 
-				// ROS_WARN("keyframe %d patch %d numberHomogSols %d",keyInd,patchInd,numberHomogSols);
+				if (!F.empty())
+				{
+					Eigen::Matrix3f Rkc1,Rkc2;
+					for (int hh = 0; hh < 9; hh++)
+					{
+						Rkc1(hh/3,hh%3) = R1.at<double>(hh/3,hh%3);
+						Rkc2(hh/3,hh%3) = R2.at<double>(hh/3,hh%3);
+					}
+					Eigen::Quaternionf qkcq1(Rkc1);// convert to quaternion
+					Eigen::Quaternionf qkcq2(Rkc2);// convert to quaternion
+					Eigen::Vector4f qkc1(qkcq1.w(),qkcq1.x(),qkcq1.y(),qkcq1.z());
+					Eigen::Vector4f qkc2(qkcq2.w(),qkcq2.x(),qkcq2.y(),qkcq2.z());
+					qkc1 /= qkc1.norm();
+					qkc2 /= qkc2.norm();
+					Eigen::Vector3f tkct(tt.at<double>(0,0),tt.at<double>(1,0),tt.at<double>(2,0));
+
+					if ((qkcHat + qkc1).norm() < (qkcHat - qkc1).norm())
+					{
+						qkc1 *= -1.0;
+					}
+
+					if ((qkcHat + qkc2).norm() < (qkcHat - qkc2).norm())
+					{
+						qkc2 *= -1.0;
+					}
+
+					qkcs.push_back(qkc1);
+					qkcs.push_back(qkc2);
+					if ((tkct.norm() > 0.001) && (pkcHat.norm() > 0.001))
+					{
+						errors.push_back((qkcHat - qkc1).norm()+(pkcHat/pkcHat.norm()-tkct/tkct.norm()).norm());
+						errors.push_back((qkcHat - qkc2).norm()+(pkcHat/pkcHat.norm()-tkct/tkct.norm()).norm());
+						tkcs.push_back(tkct/tkct.norm());
+						tkcs.push_back(tkct/tkct.norm());
+					}
+					else
+					{
+						errors.push_back((qkcHat - qkc1).norm());
+						errors.push_back((qkcHat - qkc2).norm());
+						tkcs.push_back(Eigen::Vector3f::Zero());
+						tkcs.push_back(Eigen::Vector3f::Zero());
+					}
+				}
 
 				assert(numberHomogSols>0);
 				assert(RkcH.size()>0);
@@ -1628,16 +1671,18 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 						// std::cout << "\n tkcjx " << tkcj(0) << " tkcjy " << tkcj(1) << " tkcjz " << tkcj(2) << std::endl;
 						// std::cout << "\n nkjx " << nkj(0) << " nkjy " << nkj(1) << " nkjz " << nkj(2) << std::endl;
 
-						nks.push_back(nkj);
-						tkcs.push_back(tkcj);
+						// nks.push_back(nkj);
+
 						qkcs.push_back(qkcj);
 						if ((tkcj.norm() > 0.001) && (pkcHat.norm() > 0.001))
 						{
-							errors.push_back((qkcHat - qkcj).norm()+(pkcHat-tkcj).norm());
+							errors.push_back((qkcHat - qkcj).norm()+(pkcHat/pkcHat.norm()-tkcj/tkcj.norm()).norm());
+							tkcs.push_back(tkcj/tkcj.norm());
 						}
 						else
 						{
 							errors.push_back((qkcHat - qkcj).norm());
+							tkcs.push_back(Eigen::Vector3f::Zero());
 						}
 					}
 				}
@@ -1646,7 +1691,7 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 
 				int minqkcsErrorInd = std::distance(errors.begin(),std::min_element(errors.begin(),errors.end()));
 				qkc = qkcs.at(minqkcsErrorInd);
-				nk = nks.at(minqkcsErrorInd);
+				// nk = nks.at(minqkcsErrorInd);
 				tkc = tkcs.at(minqkcsErrorInd);
 
 				// ROS_WARN("keyframe %d patch %d selected best",keyInd,patchInd);
@@ -1673,17 +1718,17 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		Eigen::Matrix3f RkcHat = getqRot(qkcHat);
 		tkcHat += kt*(tkc - tkcHat);
 
-		float alphank = 0.75;
-		nk = (alphank*nk + (1.0-alphank)*(Eigen::Vector3f(0.0,0.0,1.0)));
-		nk /= nk.norm();
-		nkHat += kn*(nk - nkHat);
-		nkHat /= nkHat.norm();
+		// float alphank = 0.75;
+		// nk = (alphank*nk + (1.0-alphank)*(Eigen::Vector3f(0.0,0.0,1.0)));
+		// nk /= nk.norm();
+		// nkHat += kn*(nk - nkHat);
+		// nkHat /= nkHat.norm();
 
 		ROS_WARN("time for update tnq %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
 
-		Eigen::RowVector3f nkHatT = nkHat.transpose();
-		Eigen::Matrix3f H = RkcHat+tkcHat*nkHatT;
+		// Eigen::RowVector3f nkHatT = nkHat.transpose();
+		// Eigen::Matrix3f H = RkcHat+tkcHat*nkHatT;
 		// Eigen::Matrix3f Gf = Eigen::Matrix3f::Zero();
 		// for (int ii = 0; ii < 9; ii++)
 		// {
@@ -1722,12 +1767,12 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		cv::MatIterator_<uchar> itIn = inliersG.begin<uchar>();
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
-			if (!G.empty())
-			{
-				(*itc).x = betakc*(*itkc).x + (1.0-betakc)*(*itc).x;
-				(*itc).y = betakc*(*itkc).y + (1.0-betakc)*(*itc).y;
-			}
-			float dkcHati = (*itD)->update(H,Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),nkHatT,tkcHat,RkcHat,vc,wc,t,pkcHat,qkcHat);
+			// if (!G.empty())
+			// {
+			// 	(*itc).x = betakc*(*itkc).x + (1.0-betakc)*(*itc).x;
+			// 	(*itc).y = betakc*(*itkc).y + (1.0-betakc)*(*itc).y;
+			// }
+			float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkcHat,RkcHat,vc,wc,t,pkcHat,qkcHat);
 			dkcs.push_back(dkcHati);
 			depthEstimatorsInHomog.push_back(*itD);
 			if (bool(*itIn))
