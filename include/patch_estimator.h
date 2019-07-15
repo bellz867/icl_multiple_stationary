@@ -85,6 +85,7 @@ struct PatchEstimator
 	Eigen::Vector3f pcb;
 	Eigen::Vector4f qcb;
 	bool firstImage;
+	bool allPtsKnown;
 
 	~PatchEstimator();
 

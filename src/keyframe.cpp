@@ -35,7 +35,6 @@ Keyframe::Keyframe(int keyIndInit, cv::Mat& camMat, std::vector<cv::Mat>& masksI
 	nhp.param<int>("patchSizeBase", patchSizeBase, 10);
 	nhp.param<int>("checkSizeBase", checkSizeBase, 20);
 
-
 	float pcbx,pcby,pcbz,qcbw,qcbx,qcby,qcbz;
 	nhp.param<float>("pcbx", pcbx, 0.0);
 	nhp.param<float>("pcby", pcby, 0.0);

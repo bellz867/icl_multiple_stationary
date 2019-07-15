@@ -27,7 +27,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 {
   // std::cout << "\n hi4 \n";
 
-  float kxi = 50.0;
+  float kxi = 75.0;
   float kX = 10.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
@@ -87,7 +87,9 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n vx " << v(0) << " vy " << v(1) << " vz " << v(2) << std::endl;
   // std::cout << "\n tx " << tkc(0) << " ty " << tkc(1) << " tz " << tkc(2) << std::endl;
-  // std::cout << "\n ux " << ukc(0) << " uy " << ukc(1) << " uz " << ukc(2) << std::endl;
+  std::cout << "\n ux " << ukc(0) << " uy " << ukc(1) << " uz " << ukc(2) << std::endl;
+  std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
+
 
   dcHat += ((dcDot+kxixiTilde)*dt);
   dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
@@ -197,7 +199,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     float yu = Yx*Ux+Yy*Uy;
     float dk = yu/yy;
 
-    // std::cout << ", yusum/yysum " << (yusum/yysum) <<  ", (yu/yy)  " << (yu/yy) << ", Y.norm() " << Y.norm() << ", U.norm() " << U.norm() << ", zeta(0)*(yu/yy) " << zeta(0)*(yu/yy)<< ", fabsf(dcHat-zeta(0)*(yu/yy))/dcHat " << fabsf(dcHat-zeta(0)*(yu/yy))/dcHat << std::endl;
+    std::cout << ", yusum/yysum " << (yusum/yysum) <<  ", (yu/yy)  " << (yu/yy) << ", Y.norm() " << Y.norm() << ", U.norm() " << U.norm() << ", zeta(0)*(yu/yy) " << zeta(0)*(yu/yy)<< ", fabsf(dcHat-zeta(0)*(yu/yy))/dcHat " << fabsf(dcHat-zeta(0)*(yu/yy))/dcHat << std::endl;
     // std::cout << "\n yu " << yu << std::endl;
     // std::cout << "\n Y.norm() " << Y.norm() << std::endl;
     // std::cout << "\n U.norm() " << U.norm() << std::endl;
@@ -261,7 +263,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dkKnown = true;
     float dkMed = yusum/yysum;
 
-    // std::cout << "\n zkMed " << zkMed << std::endl;
+    std::cout << "\n dkMed " << dkMed << std::endl;
     // std::cout << "\n zkHat " << zkHat << std::endl;
 
     if (dkMed < zmin)
@@ -274,7 +276,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       dkMed = zmax;
     }
 
-
+    dkKnown = true;
 
     Eigen::Vector2f ddTil = (dkMed*YcT*Rkc*uk - YcYc*Eigen::Vector2f(dcHat,dkcHat));
 

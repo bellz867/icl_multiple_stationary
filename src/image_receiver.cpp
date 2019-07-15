@@ -13,27 +13,45 @@ ImageReceiver::ImageReceiver() : it(nh)
 	// Parameters
 	ros::NodeHandle nhp("~");
 	nhp.param<std::string>("cameraName", cameraName, "camera");
+	nhp.param<int>("patchRadius", patchRadius, 50);
 	nhp.param<float>("fq", fq, 1.0);
 	nhp.param<float>("fp", fp, 1.0);
 	nhp.param<float>("ft", ft, 1.0);
 	nhp.param<float>("fn", fn, 1.0);
 	nhp.param<float>("fd", fd, 1.0);
+	nhp.param<float>("fG", fG, 1.0);
 	nhp.param<float>("zmin", zmin, 1.0);
 	nhp.param<float>("zmax", zmax, 1.0);
-	nhp.param<int>("numberFeaturesToFindPerPart", numberFeaturesToFindPerPart, 100);
-	nhp.param<int>("minFeaturesDanger", minFeaturesDanger, 50);
+	nhp.param<float>("tau", tau, 1.0);
+	nhp.param<int>("minDistance", minDistance, 9);
+	nhp.param<int>("blockSize", blockSize, 3);
 	nhp.param<int>("minFeaturesBad", minFeaturesBad, 25);
-
+	nhp.param<int>("minFeaturesDanger", minFeaturesDanger, 50);
 	nhp.param<int>("partitionRows", partitionRows, 2);
 	nhp.param<int>("partitionCols", partitionCols, 2);
-
-	nhp.param<float>("image_roi_percent", image_roi_percent, 1.0);
-
-	float tau;
-	nhp.param<float>("tau", tau, 1.0);
-
+	nhp.param<int>("numberFeaturesToFindPerPart", numberFeaturesToFindPerPart, 1);
+	nhp.param<int>("numberFeaturesPerPartRow", numberFeaturesPerPartRow, 1);
+	nhp.param<int>("numberFeaturesPerPartCol", numberFeaturesPerPartCol, 1);
+	nhp.param<int>("partitionSide", partitionSide, 1);
 	nhp.param<bool>("saveExp", saveExp, false);
 	nhp.param<std::string>("expName", expName, "exp");
+	nhp.param<int>("patchSizeBase", patchSizeBase, 10);
+	nhp.param<int>("checkSizeBase", checkSizeBase, 20);
+
+
+	float pcbx,pcby,pcbz,qcbw,qcbx,qcby,qcbz;
+	nhp.param<float>("pcbx", pcbx, 0.0);
+	nhp.param<float>("pcby", pcby, 0.0);
+	nhp.param<float>("pcbz", pcbz, 0.0);
+	nhp.param<float>("qcbw", qcbw, 1.0);
+	nhp.param<float>("qcbx", qcbx, 0.0);
+	nhp.param<float>("qcby", qcby, 0.0);
+	nhp.param<float>("qcbz", qcbz, 0.0);
+
+	pcb = Eigen::Vector3f(pcbx,pcby,pcbz);
+
+	qcb << qcbw,qcbx,qcby,qcbz;
+	qcb /= qcb.norm();
 
 	keyInd = 0;
 
@@ -55,6 +73,11 @@ ImageReceiver::ImageReceiver() : it(nh)
 	imageSub = it.subscribe(cameraName+"/image_raw", 60, &ImageReceiver::imageCB,this);
 	keyframeSub = it.subscribe(cameraName+"/image_undistort", 60, &ImageReceiver::keyframeCB,this);
 	odomSub = nh.subscribe(cameraName+"/odom", 10, &ImageReceiver::odomCB,this);
+
+	fx = camMat.at<float>(0,0);
+	fy = camMat.at<float>(1,1);
+	cx = camMat.at<float>(0,2);
+	cy = camMat.at<float>(1,2);
 }
 
 void ImageReceiver::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
@@ -166,7 +189,12 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 	}
 
 	//check if a new frame is needed
-	bool addframe = false;
+	// bool addframe = false;
+	std::vector<bool> addKeytoPartition(partitionSide*partitionSide);
+	for (int ii = 0; ii < addKeytoPartition.size(); ii++)
+	{
+		addKeytoPartition.at(ii) = true;
+	}
 
 	//if an active keyframe then check if moved or rotated away a certain amount, if so add another key frame
 	if (keyframes.size() > 0)
@@ -187,19 +215,20 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		// }
 
 		//go through existing keyframes and determine if still active, if not delete
-		std::vector<Keyframe*> keyframesIn;
+		std::vector<PatchEstimator*> keyframesIn;
+
 		for (int ii = 0; ii < keyframes.size(); ii++)
 		{
 			bool keepframe = false;
 
-			if (keyframes.at(ii)->foundKeyImage)
+			if (!keyframes.at(ii)->firstImage)
 			{
 				// if (!addframe && (keyframes.size() < 2) && keyframes.at(ii)->keyframeInDanger)
 				// {
 				// 	addframe = true;
 				// }
 
-				if (!keyframes.at(ii)->keyframeShutdown)
+				if (!keyframes.at(ii)->patchShutdown)
 				{
 					keepframe = true;
 				}
@@ -212,6 +241,8 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 			if (keepframe)
 			{
 				keyframesIn.push_back(keyframes.at(ii));
+				std::cout << "\n keyframes.at(ii)->currentAvgPartition " << keyframes.at(ii)->currentAvgPartition << std::endl;
+				addKeytoPartition.at(keyframes.at(ii)->currentAvgPartition) = false;
 			}
 			else
 			{
@@ -221,23 +252,38 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		keyframes = keyframesIn;
 		keyframesIn.clear();
 	}
-	else
-	{
-		addframe = true;
-	}
+	// else
+	// {
+	// 	addframe = true;
+	// }
 
 	//ROS_WARN("match time %3.7f",float(clock()-processTime)/CLOCKS_PER_SEC);
 	clock_t keyTime = clock();
 
 	// add a new keyframe if needed
-	if (addframe)
+	for(int ii = 0; ii < addKeytoPartition.size(); ii++)
 	{
-		lastKeyOdom = imageOdom;
-		newKeyframe = new Keyframe(keyInd, camMat, masks, imageWidth, imageHeight);
-		keyframes.push_back(newKeyframe);
+		if (addKeytoPartition.at(ii))
+		{
+			lastKeyOdom = imageOdom;
+			newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionSide,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,ii,
+																		fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
+																		expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
+			keyframes.push_back(newKeyframe);
 
-		keyInd++;
+			keyInd++;
+		}
 	}
+	// if (addframe)
+	// {
+	// 	lastKeyOdom = imageOdom;
+	// 	newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionSide,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,0,
+	// 																fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
+	// 																expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
+	// 	keyframes.push_back(newKeyframe);
+	//
+	// 	keyInd++;
+	// }
 
 	// ROS_WARN("key time %3.7f",float(clock()-keyTime)/CLOCKS_PER_SEC);
 

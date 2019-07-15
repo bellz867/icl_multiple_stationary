@@ -18,7 +18,7 @@ void VectorDerivativeEstimator::initialize()
 	Q.block(0,0,3,3) =  0.1*Eigen::Matrix3f::Identity();//process covariance
 
 	// flow variance
-	P.block(3,3,3,3) = 5.0*Eigen::Matrix3f::Identity();//covariance
+	P.block(3,3,3,3) = Eigen::Matrix3f::Identity();//covariance
 	Q.block(3,3,3,3) = Eigen::Matrix3f::Identity();//process covariance
 
 	//process jacobian

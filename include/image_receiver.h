@@ -18,7 +18,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/video/tracking.hpp>
 
-#include <keyframe.h>
+#include <patch_estimator.h>
 
 struct ImageReceiver
 {
@@ -36,14 +36,11 @@ struct ImageReceiver
   bool gotCamParam;//indicate the camera intrinsic parameters are received
   std::string cameraName;//body name and camera name
 
-  float fq,fp,ft,fn,fd;
-  float zmin,zmax;
-
   bool saveExp;
   std::string expName;
 
-  Keyframe* newKeyframe;
-  std::vector<Keyframe*> keyframes;
+  PatchEstimator* newKeyframe;
+  std::vector<PatchEstimator*> keyframes;
   int keyInd;
   bool firstKey;
 
@@ -63,6 +60,25 @@ struct ImageReceiver
   int numberFeaturesToFindPerPart;
   int minFeaturesDanger;
   int minFeaturesBad;
+
+  // std::vector<int> activePatchs;
+  int patchRadius;
+  float fx,fy,cx,cy;
+  float fq,fp,ft,fn,fd,fG;
+  float zmin,zmax;
+  float tau;
+
+  int minDistance;
+  int blockSize;
+  int initialNumberFeatures;
+  int numberFeaturesPerPartRow;
+  int numberFeaturesPerPartCol;
+  int partitionSide;
+  int patchSizeBase;
+  int checkSizeBase;
+
+  Eigen::Vector3f pcb;
+  Eigen::Vector4f qcb;
 
   ImageReceiver();
 
