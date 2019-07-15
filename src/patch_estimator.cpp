@@ -72,14 +72,20 @@ PatchEstimator::~PatchEstimator()
 PatchEstimator::PatchEstimator() : it(nh)
 {}
 
-PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minFeaturesDangerInit, int minFeaturesBadInit, int keyIndInit,
-															 int patchIndInit, int partitionIndInit, cv::Mat& image, nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit,
-															 float fyInit, float cxInit, float cyInit, float zminInit, float zmaxInit, ros::Time t, float fq, float fp,
-															 float ft, float fn, float fd, float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
-														   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit) : it(nh)
+PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int partitionSideInit, int minDistanceInit, int minFeaturesDangerInit,
+															 int minFeaturesBadInit, int keyIndInit, int patchIndInit, int partitionIndInit, float fxInit, float fyInit,
+															 float cxInit, float cyInit, float zminInit, float zmaxInit, float fq, float fp, float ft, float fn, float fd,
+															 float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
+														   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit,
+															 int numberFeaturesPerPartColInit, int numberFeaturesPerPartRowInit) : it(nh)
 {
 	imageWidth = imageWidthInit;
 	imageHeight = imageHeightInit;
+	partitionSide = partitionSideInit;
+	minDistance = minDistanceInit;
+	numberFeaturesPerPartCol = numberFeaturesPerPartColInit;
+	numberFeaturesPerPartRow = numberFeaturesPerPartRowInit;
+
 	minFeaturesDanger = minFeaturesDangerInit;
 	minFeaturesBad = minFeaturesBadInit;
 	keyInd = keyIndInit;
@@ -150,12 +156,78 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 	dTau = 1.0/(2.0*M_PI*fd);
 	GTau = 1.0/(2.0*M_PI*fG);
 
+	// keyOdom = imageOdom;
+	// kimage = image.clone();
+	// pimage = image.clone();
+	// tLast = t;
+	// tStart = t;
+	// odomSync.push_back(imageOdom);
+
+	// std::cout << "\n patch \n";
+	// for (int ii = 0; ii < pts.size(); ii++)
+	// {
+	// 	newDepthEstimator = new DepthEstimator(ii,Eigen::Vector3f((pts.at(ii).x-cx)/fx,(pts.at(ii).y-cy)/fy,1.0),tLast,zmin,zmax,(zmin+zmax)/2.0,tau,fx,fy,cx,cy);
+	// 	depthEstimators.push_back(newDepthEstimator);
+	// 	std::cout << ii << " ptix " << pts.at(ii).x << " ptiy " << pts.at(ii).y << std::endl;
+	// 	std::cout << ii << " mcx " << depthEstimators.at(ii)->mc(0) << " mcy " << depthEstimators.at(ii)->mc(1) << std::endl;
+	// 	std::cout << ii << " mkx " << depthEstimators.at(ii)->mk(0) << " mky " << depthEstimators.at(ii)->mk(1) << std::endl;
+	// }
+
+	cameraName = cameraNameInit;
+
+	saveExp = saveExpInit;
+	expName = expNameInit;
+
+	// imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
+	// imagePub = it.advertise(cameraName+"/test_image",1);
+	// poseDeltaPub = nh.advertise<icl_multiple_stationary::PoseDelta>(cameraName+"/pose_delta",10);
+	// roiPub = nh.advertise<icl_multiple_stationary::Roi>(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",10);
+	// wallPub = nh.advertise<icl_multiple_stationary::Wall>("/wall_points",10);
+	// imagePub2 = it.advertise(cameraName+"/test_image2",1);
+	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &PatchEstimator::imageCB,this);
+	odomSub = nh.subscribe(cameraName+"/odom", 100, &PatchEstimator::odomCB,this);
+	// roiSub = nh.subscribe(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",10, &PatchEstimator::roiCB,this);
+
+	// odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
+	// odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
+	// pointCloudPub = nh.advertise<PointCloud> ("patch_map", 1);
+	firstImage = true;
+}
+
+void PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ros::Time t)
+{
+	imagePub = it.advertise(cameraName+"/test_image",1);
+	poseDeltaPub = nh.advertise<icl_multiple_stationary::PoseDelta>(cameraName+"/pose_delta",10);
+	roiPub = nh.advertise<icl_multiple_stationary::Roi>(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",10);
+	wallPub = nh.advertise<icl_multiple_stationary::Wall>("/wall_points",10);
+	roiSub = nh.subscribe(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",10, &PatchEstimator::roiCB,this);
+	pointCloudPub = nh.advertise<PointCloud> ("patch_map", 1);
+
 	keyOdom = imageOdom;
 	kimage = image.clone();
 	pimage = image.clone();
 	tLast = t;
 	tStart = t;
-	odomSync.push_back(imageOdom);
+
+	int partitionWidth = imageWidth/partitionSide;
+	int partitionHeight = imageHeight/partitionSide;
+
+	// get the center of each partition and place uniform spacing of points using minDistance
+	std::vector<cv::Point2f> pts;
+	int colc = partitionInd%partitionSide*partitionWidth + partitionWidth/2;
+	int rowc = partitionInd/partitionSide*partitionHeight + partitionHeight/2;
+	int coltl = colc - (numberFeaturesPerPartCol-1)*minDistance/2;
+	int rowtl = rowc - (numberFeaturesPerPartRow-1)*minDistance/2;
+
+	for (int jj = 0; jj < numberFeaturesPerPartRow; jj++)
+	{
+		int rowii = rowtl + jj*minDistance;
+		for (int hh = 0; hh < numberFeaturesPerPartCol; hh++)
+		{
+			int colii = coltl + hh*minDistance;
+			pts.push_back(cv::Point2f(colii,rowii));
+		}
+	}
 
 	std::cout << "\n patch \n";
 	for (int ii = 0; ii < pts.size(); ii++)
@@ -166,25 +238,6 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int minF
 		std::cout << ii << " mcx " << depthEstimators.at(ii)->mc(0) << " mcy " << depthEstimators.at(ii)->mc(1) << std::endl;
 		std::cout << ii << " mkx " << depthEstimators.at(ii)->mk(0) << " mky " << depthEstimators.at(ii)->mk(1) << std::endl;
 	}
-
-	cameraName = cameraNameInit;
-
-	saveExp = saveExpInit;
-	expName = expNameInit;
-
-	// imagePub = it.advertise(cameraName+"/tracking_key"+std::to_string(keyInd)+"_patch"+std::to_string(patchInd),1);
-	imagePub = it.advertise(cameraName+"/test_image",1);
-	poseDeltaPub = nh.advertise<icl_multiple_stationary::PoseDelta>(cameraName+"/pose_delta",10);
-	roiPub = nh.advertise<icl_multiple_stationary::Roi>(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",10);
-	wallPub = nh.advertise<icl_multiple_stationary::Wall>("/wall_points",10);
-	// imagePub2 = it.advertise(cameraName+"/test_image2",1);
-	imageSub = it.subscribe(cameraName+"/image_undistort", 100, &PatchEstimator::imageCB,this);
-	odomSub = nh.subscribe(cameraName+"/odom", 100, &PatchEstimator::odomCB,this);
-	roiSub = nh.subscribe(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",10, &PatchEstimator::roiCB,this);
-
-	// odomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomHat",1);
-	// odomDelayedPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odomDelayed", 1);
-	pointCloudPub = nh.advertise<PointCloud> ("patch_map", 1);
 }
 
 void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
@@ -609,6 +662,12 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	// ROS_WARN("get image time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
 	processTime = clock();
 
+	if (firstImage)
+	{
+		initialize(image,imageOdom,t);
+		firstImage = false;
+	}
+
 	// ROS_WARN("get checkerboard time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
 	// processTime = clock();
 
@@ -868,7 +927,7 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 	std::lock_guard<std::mutex> featureMutexGuard(featureMutex);
 
 	clock_t estimatorUpdateTime = clock();
-	// ROS_WARN("depthEstimators size before predict %d",int(depthEstimators.size()));
+	ROS_WARN("patch %d start",patchInd);
 
 	clock_t timeCheck = clock();
 
@@ -1187,7 +1246,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	float Dtly = 0.0;
 	for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 	{
-		std::cout << "\n\n\n --------- next start --------- \n";
+		// std::cout << "\n\n\n --------- next start --------- \n";
 		// get center point in new image, find the patch box around it, transform into previous image,
 		// check to ensure it fits in previous image
 		// if patch does fit, extract the patch then transform extracted patch back and perform search
@@ -1225,22 +1284,22 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 		ppatchBoundCornersP.at(5) = cv::Point2f(ppatchRectP.width/2.0,ppatchRectP.height/2.0);//center of subimage
 		ppatchBoundCornersP.at(6) = cv::Point2f(pptx-ppatchRectP.x,ppty-ppatchRectP.y);//point in subimage
 
-		std::cout << "\n pptx " << pptx << " ppty " << ppty << " cptx " << cptx << " cpty " << cpty << " cptPx " << (*itc).x << " cptPy " << (*itc).y << std::endl;
-
-		std::cout << "\n transformc tlx " << ppatchCornersC.at(0).x << " tly " << ppatchCornersC.at(0).y
-							<< " ,trx " << ppatchCornersC.at(1).x << " try " << ppatchCornersC.at(1).y
-							<< " ,brx " << ppatchCornersC.at(2).x << " bry " << ppatchCornersC.at(2).y
-							<< " ,blx " << ppatchCornersC.at(3).x << " bly " << ppatchCornersC.at(3).y << std::endl;
-
-		std::cout << "\n transformp tlx " << ppatchCornersP.at(0).x << " tly " << ppatchCornersP.at(0).y
-							<< " ,trx " << ppatchCornersP.at(1).x << " try " << ppatchCornersP.at(1).y
-							<< " ,brx " << ppatchCornersP.at(2).x << " bry " << ppatchCornersP.at(2).y
-							<< " ,blx " << ppatchCornersP.at(3).x << " bly " << ppatchCornersP.at(3).y << std::endl;
-
-		std::cout << "\n boundp tlx " << ppatchBoundCornersP.at(0).x << " tly " << ppatchBoundCornersP.at(0).y
-							<< " ,trx " << ppatchBoundCornersP.at(1).x << " try " << ppatchBoundCornersP.at(1).y
-							<< " ,brx " << ppatchBoundCornersP.at(2).x << " bry " << ppatchBoundCornersP.at(2).y
-							<< " ,blx " << ppatchBoundCornersP.at(3).x << " bly " << ppatchBoundCornersP.at(3).y << std::endl;
+		// std::cout << "\n pptx " << pptx << " ppty " << ppty << " cptx " << cptx << " cpty " << cpty << " cptPx " << (*itc).x << " cptPy " << (*itc).y << std::endl;
+		//
+		// std::cout << "\n transformc tlx " << ppatchCornersC.at(0).x << " tly " << ppatchCornersC.at(0).y
+		// 					<< " ,trx " << ppatchCornersC.at(1).x << " try " << ppatchCornersC.at(1).y
+		// 					<< " ,brx " << ppatchCornersC.at(2).x << " bry " << ppatchCornersC.at(2).y
+		// 					<< " ,blx " << ppatchCornersC.at(3).x << " bly " << ppatchCornersC.at(3).y << std::endl;
+		//
+		// std::cout << "\n transformp tlx " << ppatchCornersP.at(0).x << " tly " << ppatchCornersP.at(0).y
+		// 					<< " ,trx " << ppatchCornersP.at(1).x << " try " << ppatchCornersP.at(1).y
+		// 					<< " ,brx " << ppatchCornersP.at(2).x << " bry " << ppatchCornersP.at(2).y
+		// 					<< " ,blx " << ppatchCornersP.at(3).x << " bly " << ppatchCornersP.at(3).y << std::endl;
+		//
+		// std::cout << "\n boundp tlx " << ppatchBoundCornersP.at(0).x << " tly " << ppatchBoundCornersP.at(0).y
+		// 					<< " ,trx " << ppatchBoundCornersP.at(1).x << " try " << ppatchBoundCornersP.at(1).y
+		// 					<< " ,brx " << ppatchBoundCornersP.at(2).x << " bry " << ppatchBoundCornersP.at(2).y
+		// 					<< " ,blx " << ppatchBoundCornersP.at(3).x << " bly " << ppatchBoundCornersP.at(3).y << std::endl;
 
 		//if the bounding rectangle points are within the previous image
 		if ((acos(qkcHat(0))*2.0 < 20.0*3.1415/180.0)
@@ -1278,17 +1337,17 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			float cDy = ppatchBoundCornersC.at(6).y;
 
 			//determine the tl corner in the bounding image of the patch and extract the patch out
-			std::cout << "\n cptx " << cptx << " cpty " << cpty << std::endl;
-			std::cout << "\n bound centerx " << ppatchBoundCornersC.at(4).x << " bound centery " << ppatchBoundCornersC.at(4).y << std::endl;
-			std::cout << "\n subimage centerx " << ppatchBoundCornersC.at(5).x << " subimage centery " << ppatchBoundCornersC.at(5).y << std::endl;
-			std::cout << "\n cDx " << cDx << " cDy " << cDy << std::endl;
+			// std::cout << "\n cptx " << cptx << " cpty " << cpty << std::endl;
+			// std::cout << "\n bound centerx " << ppatchBoundCornersC.at(4).x << " bound centery " << ppatchBoundCornersC.at(4).y << std::endl;
+			// std::cout << "\n subimage centerx " << ppatchBoundCornersC.at(5).x << " subimage centery " << ppatchBoundCornersC.at(5).y << std::endl;
+			// std::cout << "\n cDx " << cDx << " cDy " << cDy << std::endl;
 			// std::cout << "\n G " << G << std::endl;
 			// std::cout << "\n Gkcum " << Gkcum << std::endl;
 
-			std::cout << "\n boundc tlx " << ppatchBoundCornersC.at(0).x << " tly " << ppatchBoundCornersC.at(0).y
-								<< " ,trx " << ppatchBoundCornersC.at(1).x << " try " << ppatchBoundCornersC.at(1).y
-								<< " ,brx " << ppatchBoundCornersC.at(2).x << " bry " << ppatchBoundCornersC.at(2).y
-								<< " ,blx " << ppatchBoundCornersC.at(3).x << " bly " << ppatchBoundCornersC.at(3).y << std::endl;
+			// std::cout << "\n boundc tlx " << ppatchBoundCornersC.at(0).x << " tly " << ppatchBoundCornersC.at(0).y
+			// 					<< " ,trx " << ppatchBoundCornersC.at(1).x << " try " << ppatchBoundCornersC.at(1).y
+			// 					<< " ,brx " << ppatchBoundCornersC.at(2).x << " bry " << ppatchBoundCornersC.at(2).y
+			// 					<< " ,blx " << ppatchBoundCornersC.at(3).x << " bly " << ppatchBoundCornersC.at(3).y << std::endl;
 
 			//check if the corners will be inside subimage, if not find the largest that will fit with correct center
 			float patchSizeWidthC = patchSize;
@@ -1315,9 +1374,9 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			ppatchRectC.y = int(std::round(cDy-patchSizeC/2.0));
 			ppatchRectC.width = patchSizeC;
 			ppatchRectC.height = patchSizeC;
-			std::cout << "\n ppatchRectP " << ppatchRectP << std::endl;
-			std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
-			std::cout << "\n ppatchBoundC.rows " << ppatchBoundC.rows << " ppatchBoundC.cols " << ppatchBoundC.cols << std::endl;
+			// std::cout << "\n ppatchRectP " << ppatchRectP << std::endl;
+			// std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
+			// std::cout << "\n ppatchBoundC.rows " << ppatchBoundC.rows << " ppatchBoundC.cols " << ppatchBoundC.cols << std::endl;
 
 			ppatch = ppatchBoundC(ppatchRectC).clone();
 
@@ -1410,10 +1469,10 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			//get the points
 			*itDPPred = *itDP;
 
-			std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
-			std::cout << "\n maxResultValx " << maxResultVal << std::endl;
-
-			std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
+			// std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
+			// std::cout << "\n maxResultValx " << maxResultVal << std::endl;
+			//
+			// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
 
 			*itcPred = cv::Point2f(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x,pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
 
@@ -1429,7 +1488,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			// itppIdx++;
 			// ROS_WARN("check 7 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 			// timeCheck = clock();
-			std::cout << "\n --------- next end --------- \n\n\n";
+			// std::cout << "\n --------- next end --------- \n\n\n";
 		}
 		else
 		{
@@ -1765,6 +1824,8 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		std::vector<cv::Point2f>::iterator itkc = kPtsC.begin();
 		float betakc = 0.0;
 		cv::MatIterator_<uchar> itIn = inliersG.begin<uchar>();
+		float avgcPtx = 0.0;
+		float avgcPty = 0.0;
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			// if (!G.empty())
@@ -1780,6 +1841,9 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 				inlierRatio += 1.0;
 			}
 
+			avgcPtx += (*itc).x;
+			avgcPty += (*itc).y;
+
 			itIn++;
 			itc++;
 			itkc++;
@@ -1788,8 +1852,47 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		depthEstimators = depthEstimatorsInHomog;
 		depthEstimatorsInHomog.clear();
 		inlierRatio /= depthEstimators.size();
+		avgcPtx /= float(depthEstimators.size());
+		avgcPty /= float(depthEstimators.size());
 
-		ROS_WARN("time for estimators %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
+		//find which partition the average is in
+		int partitionWidth = imageWidth/partitionSide;
+		int partitionHeight = imageHeight/partitionSide;
+		bool avgRowFound = false;
+		int avgRowInd = 0;
+		while (!avgRowFound)
+		{
+			int top = avgRowInd*partitionHeight;
+			int bottom = (avgRowInd+1)*partitionHeight;
+			if ((top <= avgcPty) && (avgcPty <= bottom))
+			{
+				avgRowFound = true;
+			}
+			else
+			{
+				avgRowInd++;
+			}
+		}
+
+		bool avgColFound = false;
+		int avgColInd = 0;
+		while (!avgColFound)
+		{
+			int left = avgColInd*partitionWidth;
+			int right = (avgColInd+1)*partitionWidth;
+			if ((left <= avgcPtx) && (avgcPtx <= right))
+			{
+				avgColFound = true;
+			}
+			else
+			{
+				avgColInd++;
+			}
+		}
+
+		currentAvgPartition = partitionSide*avgRowInd + avgColInd;
+
+		ROS_WARN("time for estimators %2.4f, avg partition is %d",float(clock()-updateClock)/CLOCKS_PER_SEC,currentAvgPartition);
 		updateClock = clock();
 
 		assert(depthEstimators.size() > 0);

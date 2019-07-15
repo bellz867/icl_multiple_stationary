@@ -144,25 +144,26 @@ bool Keyframe::findFeatures(cv::Mat& gray, ros::Time t, nav_msgs::Odometry image
 		std::cout << "\n key \n";
 		for (int ii = 0; ii < partitionSide*partitionSide; ii++)
 		{
-			std::vector<cv::Point2f> ptsii;
-			int colc = ii%partitionSide*partitionWidth + partitionWidth/2;
-			int rowc = ii/partitionSide*partitionHeight + partitionHeight/2;
-			int coltl = colc - (numberFeaturesPerPartCol-1)*minDistance/2;
-			int rowtl = rowc - (numberFeaturesPerPartRow-1)*minDistance/2;
+			// std::vector<cv::Point2f> ptsii;
+			// int colc = ii%partitionSide*partitionWidth + partitionWidth/2;
+			// int rowc = ii/partitionSide*partitionHeight + partitionHeight/2;
+			// int coltl = colc - (numberFeaturesPerPartCol-1)*minDistance/2;
+			// int rowtl = rowc - (numberFeaturesPerPartRow-1)*minDistance/2;
+			//
+			// for (int jj = 0; jj < numberFeaturesPerPartRow; jj++)
+			// {
+			// 	int rowii = rowtl + jj*minDistance;
+			// 	for (int hh = 0; hh < numberFeaturesPerPartCol; hh++)
+			// 	{
+			// 		int colii = coltl + hh*minDistance;
+			// 		ptsii.push_back(cv::Point2f(colii,rowii));
+			// 	}
+			// }
 
-			for (int jj = 0; jj < numberFeaturesPerPartRow; jj++)
-			{
-				int rowii = rowtl + jj*minDistance;
-				for (int hh = 0; hh < numberFeaturesPerPartCol; hh++)
-				{
-					int colii = coltl + hh*minDistance;
-					ptsii.push_back(cv::Point2f(colii,rowii));
-				}
-			}
+			newPatch = new PatchEstimator(imageWidth,imageHeight,partitionSide,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,ii,
+				                            fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
+																		expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
 
-			newPatch = new PatchEstimator(imageWidth,imageHeight,minFeaturesDanger,minFeaturesBad,keyInd,patchInd,ii,gray,
-				                            imageOdom,ptsii,fx,fy,cx,cy,zmin,zmax,t,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
-																		expName,patchSizeBase,checkSizeBase,pcb,qcb);
 			patchs.push_back(newPatch);
 			patchIndMax = patchInd;
 			patchInd++;

@@ -47,7 +47,7 @@ struct PatchEstimator
 	image_transport::Publisher imagePub;//,imagePub2;
 	// image_transport::Publisher imagePub2;
 	cv::Mat kimage,pimage;
-	int keyInd,patchInd,partitionInd;
+	int keyInd,patchInd,partitionInd,partitionSide,minDistance,currentAvgPartition,numberFeaturesPerPartCol,numberFeaturesPerPartRow;
   ros::Subscriber odomSub,roiSub;
 	ros::Publisher poseDeltaPub,roiPub,wallPub,pointCloudPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
@@ -84,16 +84,20 @@ struct PatchEstimator
 	int patchSizeBase,checkSizeBase;
 	Eigen::Vector3f pcb;
 	Eigen::Vector4f qcb;
+	bool firstImage;
 
 	~PatchEstimator();
 
 	PatchEstimator();
 
-	PatchEstimator(int imageWidth, int imageHeight, int minFeaturesDanger, int minFeaturesBad, int keyInd, int patchInd,  int partitionInd, cv::Mat& image,
-		             nav_msgs::Odometry imageOdom, std::vector<cv::Point2f> pts, float fxInit, float fyInit, float cxInit, float cyInit,
-								 float zminInit, float zmaxInit, ros::Time t, float fq, float fp, float ft, float fn, float fd, float fG,
-								 std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,int patchSizeBaseInit,int checkSizeBaseInit,
-							   Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit);
+	PatchEstimator(int imageWidthInit, int imageHeightInit, int partitionSideInit, int minDistanceInit, int minFeaturesDangerInit,
+								 int minFeaturesBadInit, int keyIndInit, int patchIndInit, int partitionIndInit, float fxInit, float fyInit,
+								 float cxInit, float cyInit, float zminInit, float zmaxInit, float fq, float fp, float ft, float fn, float fd,
+								 float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
+							   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit,
+								 int numberFeaturesPerPartColInit, int numberFeaturesPerPartRowInit);
+
+	void initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ros::Time t);
 
 	void markerOdomCB(const nav_msgs::Odometry::ConstPtr& msg);
 
