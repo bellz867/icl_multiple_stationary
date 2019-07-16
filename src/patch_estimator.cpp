@@ -72,7 +72,7 @@ PatchEstimator::~PatchEstimator()
 PatchEstimator::PatchEstimator() : it(nh)
 {}
 
-PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int partitionSideInit, int minDistanceInit, int minFeaturesDangerInit,
+PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int partitionRowsInit, int partitionColsInit, int minDistanceInit, int minFeaturesDangerInit,
 															 int minFeaturesBadInit, int keyIndInit, int patchIndInit, int partitionIndInit, float fxInit, float fyInit,
 															 float cxInit, float cyInit, float zminInit, float zmaxInit, float fq, float fp, float ft, float fn, float fd,
 															 float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
@@ -81,7 +81,8 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int part
 {
 	imageWidth = imageWidthInit;
 	imageHeight = imageHeightInit;
-	partitionSide = partitionSideInit;
+	partitionRows = partitionRowsInit;
+	partitionCols = partitionColsInit;
 	minDistance = minDistanceInit;
 	numberFeaturesPerPartCol = numberFeaturesPerPartColInit;
 	numberFeaturesPerPartRow = numberFeaturesPerPartRowInit;
@@ -106,6 +107,9 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int part
 	pkcHat = Eigen::Vector3f::Zero();
 	pckHat = Eigen::Vector3f::Zero();
  	qckHat = Eigen::Vector4f(1.0,0.0,0.0,0.0);
+	tkcDotEstimator.initialize(3);
+	qkcDotEstimator.initialize(4);
+
 	fx = fxInit;
 	fy = fyInit;
 	cx = cxInit;
@@ -210,14 +214,16 @@ void PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 	pimage = image.clone();
 	tLast = t;
 	tStart = t;
+	tkcDotEstimator.update(Eigen::Vector3f::Zero(),t);
+	qkcDotEstimator.update(Eigen::Vector4f(1.0,0.0,0.0,0.0),t);
 
-	int partitionWidth = imageWidth/partitionSide;
-	int partitionHeight = imageHeight/partitionSide;
+	int partitionWidth = imageWidth/partitionCols;
+	int partitionHeight = imageHeight/partitionRows;
 
 	// get the center of each partition and place uniform spacing of points using minDistance
 	std::vector<cv::Point2f> pts;
-	int colc = partitionInd%partitionSide*partitionWidth + partitionWidth/2;
-	int rowc = partitionInd/partitionSide*partitionHeight + partitionHeight/2;
+	int colc = partitionInd%partitionCols*partitionWidth + partitionWidth/2;
+	int rowc = partitionInd/partitionCols*partitionHeight + partitionHeight/2;
 	int coltl = colc - (numberFeaturesPerPartCol-1)*minDistance/2;
 	int rowtl = rowc - (numberFeaturesPerPartRow-1)*minDistance/2;
 
@@ -257,8 +263,8 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 {
 	clock_t processTime = clock();
 	ros::Time t = msg->header.stamp;
-	Eigen::Vector3f pcw(msg->odom.pose.pose.position.x,msg->odom.pose.pose.position.y,msg->odom.pose.pose.position.z);
-	Eigen::Vector4f qcw(msg->odom.pose.pose.orientation.w,msg->odom.pose.pose.orientation.x,msg->odom.pose.pose.orientation.y,msg->odom.pose.pose.orientation.z);
+	Eigen::Vector3f pcw(msg->pose.position.x,msg->pose.position.y,msg->pose.position.z);
+	Eigen::Vector4f qcw(msg->pose.orientation.w,msg->pose.orientation.x,msg->pose.orientation.y,msg->pose.orientation.z);
 	qcw /= qcw.norm();
 
 	//estimate the plane using the points by normalizing by the z element of the normal
@@ -352,237 +358,255 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	int rowtl = miny;
 
 
-	try
+	if ((coltl >= 0) && (rowtl >= 0) && ((coltl+cols) < pimage.cols) && ((rowtl+rows) < pimage.rows))
 	{
-		cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
-		int reduceFactor = 20;
-		int colsReduce = std::round(cols/reduceFactor);
-		int rowsReduce = std::round(rows/reduceFactor);
-		cv::Mat roiimageReduce(cv::Size(colsReduce,rowsReduce),CV_8U);
-		cv::resize(roiimage,roiimageReduce,roiimageReduce.size(),fx,fy,cv::INTER_AREA);
-		roiMutex.unlock();
-
-
-		Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
-		Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
-		float XYXYdet = float(XYXYICL.determinant());
-		Eigen::Matrix3f XYXYEKF = XY1TEKF*XY1EKF;
-		Eigen::Vector3f XYNZEKF = XY1TEKF*NZEKF;
-		// Eigen::Matrix3f XZXZ = XZ1T*XZ1;
-		// float XZXZdet = float(XZXZ.determinant());
-		// Eigen::Matrix3f YZYZ = YZ1T*YZ1;
-		// float YZYZdet = float(YZYZ.determinant());
-
-		if (XYXYdet > 0.001)
+		try
 		{
-			Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
-			Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
-			Eigen::Vector3f ncICL(dnzICL(0),dnzICL(1),1.0);
-			ncICL /= ncICL.norm();
-			float nxICL = ncICL(0);
-			float nyICL = ncICL(1);
-			float nzICL = ncICL(2);
-			float dcICL = -dnzICL(2)*nzICL;
-
-			Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYEKF(XYXYEKF, Eigen::ComputeThinU | Eigen::ComputeThinV);
-			Eigen::Vector3f dnzEKF = svdXYXYEKF.solve(XYNZEKF);
-			Eigen::Vector3f ncEKF(dnzEKF(0),dnzEKF(1),1.0);
-			ncEKF /= ncEKF.norm();
-			float nxEKF = ncEKF(0);
-			float nyEKF = ncEKF(1);
-			float nzEKF = ncEKF(2);
-			float dcEKF = -dnzEKF(2)*nzEKF;
-
-			ROS_WARN("roi get normal time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
-			processTime = clock();
-
-			//get the estimated point for each pixel in the roi
-			int plotInd = 0;
-
-			// PointCloudRGB::Ptr map(new PointCloudRGB);
-			// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
-			// map->header.frame_id = "world";
-			// map->height = rows;
-			// map->width = cols;
-			// map->is_dense = true;
-			// map->points.clear();
-			// map->points.resize(rows*cols);
-
-			// std::vector<geometry_msgs::Point32> wallPts(colsReduce*rowsReduce);
-			// std::vector<uint8_t> wallColors(colsReduce*rowsReduce);
-			// std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
-			// std::vector<uint8_t>::iterator colIt = wallColors.begin();
-			PointCloudRGB cloud;
-			cloud.height = 1;
-			cloud.width = 2*colsReduce*rowsReduce;
-			cloud.is_dense = true;
-			cloud.resize(2*colsReduce*rowsReduce);
-			PointCloudRGB::iterator cloudIt = cloud.begin();
-			pcl::PointXYZRGB ptxyz;
-			Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-			qcwInit /= qcwInit.norm();
-			Eigen::Vector3f pcwInit = rotatevec(pcw,getqInv(qcwInit));
-			Eigen::Vector4f qcwcwInit = getqMat(getqInv(qcwInit))*qcw;
-			qcwcwInit /= qcwcwInit.norm();
-			Eigen::Vector3f pcbInit = rotatevec(rotatevec(pcb,getqInv(qcb)),getqInv(qcwcwInit));
-			Eigen::Vector3f pcwInitcbInit = pcwInit + pcbInit;
-
-			// Eigen::Matrix4f qcwcwInitMat = getqMat(qcwcwInit);
-			// Eigen::Matrix<float,4,3> qcwcwInitMatR = qcwcwInitMat.block(0,1,4,3);
-			Eigen::Vector4f qcwcwInitI = getqInv(qcwcwInit);
-
-			int rowj = 0;
-			int colj = 0;
-
-			// *colIt = uint8_t(*itI);
-			float mxj = 0;
-			float myj = 0;
-			// Eigen::Vector4f pjw4(0.0,0.0,0.0,0.0);
-			// Eigen::Vector3f pjwc(0.0,0.0,0.0);
-			// Eigen::Matrix4f qjw4M;
-			float xc = pcwInitcbInit(0);
-			float yc = pcwInitcbInit(1);
-			float zc = pcwInitcbInit(2);
-			float qw = qcwcwInit(0);
-			float qx = qcwcwInit(1);
-			float qy = qcwcwInit(2);
-			float qz = qcwcwInit(3);
-			float qwI = qcwcwInitI(0);
-			float qxI = qcwcwInitI(1);
-			float qyI = qcwcwInitI(2);
-			float qzI = qcwcwInitI(3);
-			float xjcICL = 0;
-			float yjcICL = 0;
-			float zjcICL = 0;
-			float wjwICL = 0;
-			float xjwICL = 0;
-			float yjwICL = 0;
-			float zjwICL = 0;
-			float xjcEKF = 0;
-			float yjcEKF = 0;
-			float zjcEKF = 0;
-			float wjwEKF = 0;
-			float xjwEKF = 0;
-			float yjwEKF = 0;
-			float zjwEKF = 0;
-			// Eigen::Vector3f pjw(0.0,0.0,0.0);
-			for (cv::MatIterator_<uchar> itI = roiimageReduce.begin<uchar>(); itI != roiimageReduce.end<uchar>(); itI++)
-			{
-				rowj = rowtl + reduceFactor*(plotInd/colsReduce);
-				colj = coltl + reduceFactor*(plotInd%colsReduce);
-
-				// *colIt = uint8_t(*itI);
-				mxj = (colj - cx)/fx;
-				myj = (rowj - cy)/fy;
-				zjcICL = dcICL/(nxICL*mxj+nyICL*myj+nzICL);
-				xjcICL = zjcICL*mxj;
-				yjcICL = zjcICL*myj;
-
-				zjcEKF = dcEKF/(nxEKF*mxj+nyEKF*myj+nzEKF);
-				xjcEKF = zjcEKF*mxj;
-				yjcEKF = zjcEKF*myj;
-				// Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
-
-				// //rotate the point into the world frame
-				// Eigen::Vector3f pjw = pcw + rotatevec(pjc,qcw);
-				//
-				// Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-				// qcwInit /= qcwInit.norm();
-				// pjw = rotatevec(pjw-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
-
-				//rotate the point into the world frame
-				// pjw4 = getqMat(qcwcwInitMatR*pjwc)*qcwcwInitI;
-
-				wjwICL = -qx*xjcICL-qy*yjcICL-qz*zjcICL;
-				xjwICL = qw*xjcICL-qz*yjcICL+qy*zjcICL;
-				yjwICL = qz*xjcICL+qw*yjcICL-qx*zjcICL;
-				zjwICL = -qy*xjcICL+qx*yjcICL+qw*zjcICL;
-
-				wjwEKF = -qx*xjcEKF-qy*yjcEKF-qz*zjcEKF;
-				xjwEKF = qw*xjcEKF-qz*yjcEKF+qy*zjcEKF;
-				yjwEKF = qz*xjcEKF+qw*yjcEKF-qx*zjcEKF;
-				zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
-
-				ptxyz.x = xc+xjwICL*qwI+wjwICL*qxI-zjwICL*qyI+yjwICL*qzI;
-				ptxyz.y = yc+yjwICL*qwI+zjwICL*qxI+wjwICL*qyI-xjwICL*qzI;
-				ptxyz.z = zc+zjwICL*qwI-yjwICL*qxI+xjwICL*qyI+wjwICL*qzI;
-				ptxyz.r = (*itI);
-				ptxyz.g = std::min((*itI)+100,255);
-				ptxyz.b = (*itI);
-				*cloudIt = ptxyz;
-				cloudIt++;
-
-				ptxyz.x = xc+xjwEKF*qwI+wjwEKF*qxI-zjwEKF*qyI+yjwEKF*qzI;
-				ptxyz.y = yc+yjwEKF*qwI+zjwEKF*qxI+wjwEKF*qyI-xjwEKF*qzI;
-				ptxyz.z = zc+zjwEKF*qwI-yjwEKF*qxI+xjwEKF*qyI+wjwEKF*qzI;
-				ptxyz.r = (*itI);
-				ptxyz.g = (*itI);
-				ptxyz.b = std::min((*itI)+100,255);
-				*cloudIt = ptxyz;
-				cloudIt++;
-
-				// geometry_msgs::Point32 pjwMsg;
-				// pjwMsg.x = pjw(0);
-				// pjwMsg.y = pjw(1);
-				// pjwMsg.z = pjw(2);
-				// *ptIt = pjwMsg;
-				plotInd++;
-				// ptIt++;
-				// colIt++;
-			}
-
-			ROS_WARN("roi get points time %2.4f, plotInd %d",float(clock()-processTime)/CLOCKS_PER_SEC,plotInd);
-			processTime = clock();
-
-			// map->points = cloud;
-			//publish the features
-			icl_multiple_stationary::Wall wallMsg;
-
-			PointCloudRGB::Ptr map(new PointCloudRGB);
-			pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
-
-			// std::cout << "\n wall 1 1 \n";
-			map->header.frame_id = "world";
-
-			// std::cout << "\n wall 1 2 \n";
-			map->height = 1;
-			map->is_dense = true;
-			map->points.clear();
-			*map += cloud;
-			map->width = map->points.size();
-
-			ROS_WARN("patch map->width %d",int(map->width));
-			// std::cout << "\n wall 3 \n";
-
-
-			// sensor_msgs::PointCloud2 cloudMsg;
-			wallMsg.header.stamp = t;
-			// wallMsg.wallPts = wallPts;
-			pcl::toROSMsg(cloud, wallMsg.cloud);
-			wallMsg.keyInd = keyInd;
-			wallMsg.patchInd = patchInd;
-			// wallMsg.colors = wallColors;
-			// wallMsg.rows = rows;
-			// wallMsg.cols = cols;
-
-			roiMutex.lock();
-			if (allPtsKnown && (acos(nyICL) > (70.0*3.1415/180.0)))
-			{
-				wallPub.publish(wallMsg);
-			}
-			pointCloudPub.publish(map);
+			cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
+			int reduceFactor = 20;
+			int colsReduce = std::round(cols/reduceFactor);
+			int rowsReduce = std::round(rows/reduceFactor);
+			cv::Mat roiimageReduce(cv::Size(colsReduce,rowsReduce),CV_8U);
+			cv::resize(roiimage,roiimageReduce,roiimageReduce.size(),fx,fy,cv::INTER_AREA);
 			roiMutex.unlock();
 
-			ROS_WARN("roi send time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
-			processTime = clock();
+
+			Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
+			Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
+			float XYXYdet = float(XYXYICL.determinant());
+			Eigen::Matrix3f XYXYEKF = XY1TEKF*XY1EKF;
+			Eigen::Vector3f XYNZEKF = XY1TEKF*NZEKF;
+			// Eigen::Matrix3f XZXZ = XZ1T*XZ1;
+			// float XZXZdet = float(XZXZ.determinant());
+			// Eigen::Matrix3f YZYZ = YZ1T*YZ1;
+			// float YZYZdet = float(YZYZ.determinant());
+
+			if (XYXYdet > 0.001)
+			{
+				Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
+				Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
+				Eigen::Vector3f ncICL(dnzICL(0),dnzICL(1),1.0);
+				ncICL /= ncICL.norm();
+				float nxICL = ncICL(0);
+				float nyICL = ncICL(1);
+				float nzICL = ncICL(2);
+				float dcICL = -dnzICL(2)*nzICL;
+
+				Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYEKF(XYXYEKF, Eigen::ComputeThinU | Eigen::ComputeThinV);
+				Eigen::Vector3f dnzEKF = svdXYXYEKF.solve(XYNZEKF);
+				Eigen::Vector3f ncEKF(dnzEKF(0),dnzEKF(1),1.0);
+				ncEKF /= ncEKF.norm();
+				float nxEKF = ncEKF(0);
+				float nyEKF = ncEKF(1);
+				float nzEKF = ncEKF(2);
+				float dcEKF = -dnzEKF(2)*nzEKF;
+
+				ROS_WARN("roi get normal time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+				processTime = clock();
+
+				//get the estimated point for each pixel in the roi
+				int plotInd = 0;
+
+				// PointCloudRGB::Ptr map(new PointCloudRGB);
+				// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
+				// map->header.frame_id = "world";
+				// map->height = rows;
+				// map->width = cols;
+				// map->is_dense = true;
+				// map->points.clear();
+				// map->points.resize(rows*cols);
+
+				// std::vector<geometry_msgs::Point32> wallPts(colsReduce*rowsReduce);
+				// std::vector<uint8_t> wallColors(colsReduce*rowsReduce);
+				// std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
+				// std::vector<uint8_t>::iterator colIt = wallColors.begin();
+				PointCloudRGB cloud;
+				cloud.height = 1;
+				cloud.width = 2*colsReduce*rowsReduce;
+				cloud.is_dense = true;
+				cloud.resize(2*colsReduce*rowsReduce);
+				PointCloudRGB::iterator cloudIt = cloud.begin();
+				pcl::PointXYZRGB ptxyz;
+				Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+				qcwInit /= qcwInit.norm();
+				Eigen::Vector3f pcwInit = rotatevec(pcw,getqInv(qcwInit));
+				Eigen::Vector4f qcwcwInit = getqMat(getqInv(qcwInit))*qcw;
+				qcwcwInit /= qcwcwInit.norm();
+				Eigen::Vector3f pcbInit = rotatevec(rotatevec(pcb,getqInv(qcb)),getqInv(qcwcwInit));
+				Eigen::Vector3f pcwInitcbInit = pcwInit + pcbInit;
+
+				// Eigen::Matrix4f qcwcwInitMat = getqMat(qcwcwInit);
+				// Eigen::Matrix<float,4,3> qcwcwInitMatR = qcwcwInitMat.block(0,1,4,3);
+				Eigen::Vector4f qcwcwInitI = getqInv(qcwcwInit);
+
+				int rowj = 0;
+				int colj = 0;
+
+				// *colIt = uint8_t(*itI);
+				float mxj = 0;
+				float myj = 0;
+				// Eigen::Vector4f pjw4(0.0,0.0,0.0,0.0);
+				// Eigen::Vector3f pjwc(0.0,0.0,0.0);
+				// Eigen::Matrix4f qjw4M;
+				float xc = pcwInitcbInit(0);
+				float yc = pcwInitcbInit(1);
+				float zc = pcwInitcbInit(2);
+				float qw = qcwcwInit(0);
+				float qx = qcwcwInit(1);
+				float qy = qcwcwInit(2);
+				float qz = qcwcwInit(3);
+				float qwI = qcwcwInitI(0);
+				float qxI = qcwcwInitI(1);
+				float qyI = qcwcwInitI(2);
+				float qzI = qcwcwInitI(3);
+				float xjcICL = 0;
+				float yjcICL = 0;
+				float zjcICL = 0;
+				float wjwICL = 0;
+				float xjwICL = 0;
+				float yjwICL = 0;
+				float zjwICL = 0;
+				float xjcEKF = 0;
+				float yjcEKF = 0;
+				float zjcEKF = 0;
+				float wjwEKF = 0;
+				float xjwEKF = 0;
+				float yjwEKF = 0;
+				float zjwEKF = 0;
+				// Eigen::Vector3f pjw(0.0,0.0,0.0);
+				for (cv::MatIterator_<uchar> itI = roiimageReduce.begin<uchar>(); itI != roiimageReduce.end<uchar>(); itI++)
+				{
+					rowj = rowtl + reduceFactor*(plotInd/colsReduce);
+					colj = coltl + reduceFactor*(plotInd%colsReduce);
+
+					// *colIt = uint8_t(*itI);
+					mxj = (colj - cx)/fx;
+					myj = (rowj - cy)/fy;
+					zjcICL = dcICL/(nxICL*mxj+nyICL*myj+nzICL);
+					xjcICL = zjcICL*mxj;
+					yjcICL = zjcICL*myj;
+
+					zjcEKF = dcEKF/(nxEKF*mxj+nyEKF*myj+nzEKF);
+					xjcEKF = zjcEKF*mxj;
+					yjcEKF = zjcEKF*myj;
+					// Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
+
+					// //rotate the point into the world frame
+					// Eigen::Vector3f pjw = pcw + rotatevec(pjc,qcw);
+					//
+					// Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
+					// qcwInit /= qcwInit.norm();
+					// pjw = rotatevec(pjw-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
+
+					//rotate the point into the world frame
+					// pjw4 = getqMat(qcwcwInitMatR*pjwc)*qcwcwInitI;
+
+					wjwICL = -qx*xjcICL-qy*yjcICL-qz*zjcICL;
+					xjwICL = qw*xjcICL-qz*yjcICL+qy*zjcICL;
+					yjwICL = qz*xjcICL+qw*yjcICL-qx*zjcICL;
+					zjwICL = -qy*xjcICL+qx*yjcICL+qw*zjcICL;
+
+					wjwEKF = -qx*xjcEKF-qy*yjcEKF-qz*zjcEKF;
+					xjwEKF = qw*xjcEKF-qz*yjcEKF+qy*zjcEKF;
+					yjwEKF = qz*xjcEKF+qw*yjcEKF-qx*zjcEKF;
+					zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
+
+					ptxyz.x = xc+xjwICL*qwI+wjwICL*qxI-zjwICL*qyI+yjwICL*qzI;
+					ptxyz.y = yc+yjwICL*qwI+zjwICL*qxI+wjwICL*qyI-xjwICL*qzI;
+					ptxyz.z = zc+zjwICL*qwI-yjwICL*qxI+xjwICL*qyI+wjwICL*qzI;
+					ptxyz.r = (*itI);
+					ptxyz.g = std::min((*itI)+100,255);
+					ptxyz.b = (*itI);
+					*cloudIt = ptxyz;
+					cloudIt++;
+
+					ptxyz.x = xc+xjwEKF*qwI+wjwEKF*qxI-zjwEKF*qyI+yjwEKF*qzI;
+					ptxyz.y = yc+yjwEKF*qwI+zjwEKF*qxI+wjwEKF*qyI-xjwEKF*qzI;
+					ptxyz.z = zc+zjwEKF*qwI-yjwEKF*qxI+xjwEKF*qyI+wjwEKF*qzI;
+					ptxyz.r = (*itI);
+					ptxyz.g = (*itI);
+					ptxyz.b = std::min((*itI)+100,255);
+					*cloudIt = ptxyz;
+					cloudIt++;
+
+					// geometry_msgs::Point32 pjwMsg;
+					// pjwMsg.x = pjw(0);
+					// pjwMsg.y = pjw(1);
+					// pjwMsg.z = pjw(2);
+					// *ptIt = pjwMsg;
+					plotInd++;
+					// ptIt++;
+					// colIt++;
+				}
+
+				ROS_WARN("roi get points time %2.4f, plotInd %d",float(clock()-processTime)/CLOCKS_PER_SEC,plotInd);
+				processTime = clock();
+
+				// map->points = cloud;
+				//publish the features
+
+
+				PointCloudRGB::Ptr map(new PointCloudRGB);
+				pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
+
+				// std::cout << "\n wall 1 1 \n";
+				map->header.frame_id = "world";
+
+				// std::cout << "\n wall 1 2 \n";
+				map->height = 1;
+				map->is_dense = true;
+				map->points.clear();
+				*map += cloud;
+				map->width = map->points.size();
+
+				ROS_WARN("patch map->width %d",int(map->width));
+				// std::cout << "\n wall 3 \n";
+
+
+				// sensor_msgs::PointCloud2 cloudMsg;
+
+				// wallMsg.colors = wallColors;
+				// wallMsg.rows = rows;
+				// wallMsg.cols = cols;
+
+				roiMutex.lock();
+				if (!patchShutdown)
+				{
+					if (allPtsKnown && (acos(nyICL) > (70.0*3.1415/180.0)) && (acos(nxICL) > (70.0*3.1415/180.0)))
+					{
+						icl_multiple_stationary::Wall wallMsg;
+						wallMsg.header.stamp = t;
+						// wallMsg.wallPts = wallPts;
+						pcl::toROSMsg(cloud, wallMsg.cloud);
+						wallMsg.keyInd = keyInd;
+						wallMsg.patchInd = patchInd;
+						wallPub.publish(wallMsg);
+
+						icl_multiple_stationary::PoseDelta poseDeltaMsg;
+						poseDeltaMsg.header.stamp = t;
+						poseDeltaMsg.pose = msg->pose;
+						poseDeltaMsg.poseHat = msg->poseHat;
+						poseDeltaPub.publish(poseDeltaMsg);
+					}
+					pointCloudPub.publish(map);
+				}
+				roiMutex.unlock();
+
+				ROS_WARN("roi send time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+				processTime = clock();
+			}
+		}
+		catch (cv::Exception e)
+		{
+			ROS_ERROR("wall points failed");
+			roiMutex.unlock();
 		}
 	}
-	catch (cv::Exception e)
+	else
 	{
-		ROS_ERROR("wall points failed");
 		roiMutex.unlock();
+		ROS_ERROR("wall points failed roi to large");
 	}
-
 }
 
 //image callback
@@ -687,69 +711,24 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	std::cout << "\n timeFromStart " << timeFromStart << std::endl;
 	std::cout << "\n dt " << dt << std::endl;
 
+	// pckHat += (rotatevec(vc,qckHat)*dt);
+	// qckHat += (0.5*B(qckHat)*wc*dt);
+	// qckHat /= qckHat.norm();
+	// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
+	// qkcHat = getqInv(qckHat);
+	// qkcHat /= qkcHat.norm();
+	pkcHat += ((-vc-getss(wc)*pkcHat)*dt);
+	qkcHat += (-0.5*B(qkcHat)*wc*dt);
+	qkcHat /= qkcHat.norm();
+
 	// find the features
-	float inlierRatio = match(image,dt,vc,wc,t);
+	match(image,dt,vc,wc,t);
 
-	// std::cout << "\n pkc \n" << pkc << std::endl;
-	// std::cout << "\n qkc \n" << qkc << std::endl;
-
-	// // build and publish odom message
-	// nav_msgs::Odometry odomMsg;
-	// odomMsg.header.stamp = t;
-	// odomMsg.header.frame_id = "world";
-	// odomMsg.child_frame_id = "cameraHat";
-	// odomMsg.pose.pose.position.x = pcwHat(0);
-	// odomMsg.pose.pose.position.y = pcwHat(1);
-	// odomMsg.pose.pose.position.z = pcwHat(2);
-	// odomMsg.pose.pose.orientation.w = qcwHat(0);
-	// odomMsg.pose.pose.orientation.x = qcwHat(1);
-	// odomMsg.pose.pose.orientation.y = qcwHat(2);
-	// odomMsg.pose.pose.orientation.z = qcwHat(3);
-	// odomMsg.twist.twist.linear.x = vc(0);
-	// odomMsg.twist.twist.linear.y = vc(1);
-	// odomMsg.twist.twist.linear.z = vc(2);
-	// odomMsg.twist.twist.angular.x = wc(0);
-	// odomMsg.twist.twist.angular.y = wc(1);
-	// odomMsg.twist.twist.angular.z = wc(2);
-	// // odomPub.publish(odomMsg);
-	//
-	// nav_msgs::Odometry odomDelayedMsg;
-	// odomDelayedMsg.header.stamp = t;
-	// odomDelayedMsg.header.frame_id = "world";
-	// odomDelayedMsg.child_frame_id = "camera";
-	// odomDelayedMsg.pose.pose.position.x = pcw(0);
-	// odomDelayedMsg.pose.pose.position.y = pcw(1);
-	// odomDelayedMsg.pose.pose.position.z = pcw(2);
-	// odomDelayedMsg.pose.pose.orientation.w = qcw(0);
-	// odomDelayedMsg.pose.pose.orientation.x = qcw(1);
-	// odomDelayedMsg.pose.pose.orientation.y = qcw(2);
-	// odomDelayedMsg.pose.pose.orientation.z = qcw(3);
-	// odomDelayedMsg.twist.twist.linear.x = vc(0);
-	// odomDelayedMsg.twist.twist.linear.y = vc(1);
-	// odomDelayedMsg.twist.twist.linear.z = vc(2);
-	// odomDelayedMsg.twist.twist.angular.x = wc(0);
-	// odomDelayedMsg.twist.twist.angular.y = wc(1);
-	// odomDelayedMsg.twist.twist.angular.z = wc(2);
-	// odomDelayedPub.publish(odomDelayedMsg);
+	pubMutex.lock();
 	cv::Mat drawImage = image.clone();
-	if (depthEstimators.size() > 0)
-	{
-		//plot the points
-		// get all the points and draw them on the image
-		// std::cout << "\n wall 1 \n";
-		// PointCloudRGB::Ptr map(new PointCloudRGB);
-		// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
-		//
-		// // std::cout << "\n wall 1 1 \n";
-		// map->header.frame_id = "world";
-		//
-		// // std::cout << "\n wall 1 2 \n";
-		// map->height = 1;
-		// map->is_dense = true;
-		// map->points.clear();
 
-		//publish the image
-		// pcl::PointXYZRGB pt,ptHat;
+	if (depthEstimators.size() > minFeaturesBad)
+	{
 
 		for (uint16_t ii = 0; ii < depthEstimators.size(); ii++)
 		{
@@ -808,9 +787,11 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			// 	ros::shutdown();
 			// }
 		}
+
 		// map->width = map->points.size();
 		// pointCloudPub.publish(map);
 	}
+	pubMutex.unlock();
 
 	// ROS_WARN("get circle time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
 	// processTime = clock();
@@ -821,10 +802,8 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
 	out_msg.image = drawImage; // Your cv::Mat
 
-	{
-		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-		imagePub.publish(out_msg.toImageMsg());
-	}
+	pubMutex.lock();
+	imagePub.publish(out_msg.toImageMsg());
 
 	// ROS_WARN("cb time %2.4f",float(clock()-callbackTime)/CLOCKS_PER_SEC);
 
@@ -853,18 +832,6 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	else
 	{
 		std::cout << "\n hi9 \n";
-		// pckHat += (rotatevec(vc,qckHat)*dt);
-		// qckHat += (0.5*B(qckHat)*wc*dt);
-		// qckHat /= qckHat.norm();
-		// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
-		// qkcHat = getqInv(qckHat);
-		// qkcHat /= qkcHat.norm();
-		pkcHat += ((-vc-getss(wc)*pkcHat)*dt);
-		qkcHat += (-0.5*B(qkcHat)*wc*dt);
-		qkcHat /= qkcHat.norm();
-		pckHat = rotatevec(-pkcHat,getqInv(qkcHat));
-		qckHat = getqInv(qkcHat);
-		qckHat /= qckHat.norm();
 
 		// std::cout << "\n dt \n" << dt << std::endl;
 		// std::cout << "\n vc \n" << vc << std::endl;
@@ -887,6 +854,11 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		// std::cout << "\n pckHat \n" << pckHat << std::endl;
 		// std::cout << "\n qckHat \n" << qckHat << std::endl;
 
+
+		pckHat = rotatevec(-pkcHat,getqInv(qkcHat));
+		qckHat = getqInv(qkcHat);
+		qckHat /= qckHat.norm();
+
 		Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 		Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
 
@@ -895,52 +867,41 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 		Eigen::Vector3f pcwHat = rotatevec(pckHat,qkw)+pkw;
 
-		Eigen::Vector3f pkc = rotatevec(pkw-pcw,getqInv(qcw));
-		Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
-		qkc /= qkc.norm();
-
-		if (allPtsKnown)
-		{
-			icl_multiple_stationary::PoseDelta poseDeltaMsg;
-			poseDeltaMsg.header.stamp = t;
-			poseDeltaMsg.pose.position.x = pcw(0);
-			poseDeltaMsg.pose.position.y = pcw(1);
-			poseDeltaMsg.pose.position.z = pcw(2);
-			poseDeltaMsg.pose.orientation.w = qcw(0);
-			poseDeltaMsg.pose.orientation.x = qcw(1);
-			poseDeltaMsg.pose.orientation.y = qcw(2);
-			poseDeltaMsg.pose.orientation.z = qcw(3);
-			poseDeltaMsg.poseHat.position.x = pcwHat(0);
-			poseDeltaMsg.poseHat.position.y = pcwHat(1);
-			poseDeltaMsg.poseHat.position.z = pcwHat(2);
-			poseDeltaMsg.poseHat.orientation.w = qcwHat(0);
-			poseDeltaMsg.poseHat.orientation.x = qcwHat(1);
-			poseDeltaMsg.poseHat.orientation.y = qcwHat(2);
-			poseDeltaMsg.poseHat.orientation.z = qcwHat(3);
-			poseDeltaPub.publish(poseDeltaMsg);
-		}
-
+		// Eigen::Vector3f pkc = rotatevec(pkw-pcw,getqInv(qcw));
+		// Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
+		// qkc /= qkc.norm();
 
 		icl_multiple_stationary::Roi roiMsg;
 		roiMsg.header.stamp = t;
-		roiMsg.odom = imageOdom;
+		roiMsg.pose = imageOdom.pose.pose;
+		roiMsg.poseHat.position.x = pcwHat(0);
+		roiMsg.poseHat.position.y = pcwHat(1);
+		roiMsg.poseHat.position.z = pcwHat(2);
+		roiMsg.poseHat.orientation.w = qcwHat(0);
+		roiMsg.poseHat.orientation.x = qcwHat(1);
+		roiMsg.poseHat.orientation.y = qcwHat(2);
+		roiMsg.poseHat.orientation.z = qcwHat(3);
 		roiPub.publish(roiMsg);
 	}
 
-	ROS_WARN("IMAGE STOP cb time %2.4f, inlier ratio %2.4f",float(clock()-callbackTime)/CLOCKS_PER_SEC,inlierRatio);
+	pubMutex.unlock();
+
+	ROS_WARN("IMAGE STOP cb time %2.4f",float(clock()-callbackTime)/CLOCKS_PER_SEC);
 }
 
 //finds the features in the previous image in the new image and matches the features
-float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t)
+void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t)
 {
-	std::lock_guard<std::mutex> featureMutexGuard(featureMutex);
+	// std::lock_guard<std::mutex> featureMutexGuard(featureMutex);
 
 	clock_t estimatorUpdateTime = clock();
 	ROS_WARN("patch %d start",patchInd);
 
 	clock_t timeCheck = clock();
 
+	featureMutex.lock();
 	int numberPts = int(depthEstimators.size());
+	featureMutex.unlock();
 	Eigen::MatrixXf XY1ICL = Eigen::MatrixXf::Ones(numberPts,3);
 	Eigen::MatrixXf XY1ICLk = Eigen::MatrixXf::Ones(numberPts,3);
 	Eigen::MatrixXf XY1TICL = Eigen::MatrixXf::Ones(3,numberPts);
@@ -950,8 +911,8 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 	int itIdx = 0;
 
 	//get the points from the previous image
-	std::vector<cv::Point2f> pPts(depthEstimators.size()),cPts(depthEstimators.size()),kPts(depthEstimators.size());
-	std::vector<cv::Point2f> kPtsInPred(depthEstimators.size()),cPtsInPred(depthEstimators.size());//,cPtPsInPred(depthEstimators.size());
+	std::vector<cv::Point2f> pPts(numberPts),cPts(numberPts),kPts(numberPts);
+	std::vector<cv::Point2f> kPtsInPred(numberPts),cPtsInPred(numberPts);//,cPtPsInPred(depthEstimators.size());
 	Eigen::Vector3f mcc;
 	std::vector<cv::Point2f>::iterator itp = pPts.begin();
 	std::vector<cv::Point2f>::iterator itc = cPts.begin();
@@ -959,6 +920,7 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 	float avgNumSaved = 0.0;
 	float avgNumThrown = 0.0;
 
+	featureMutex.lock();
 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 	{
 		*itk = cv::Point2f((*itD)->ptk(0),(*itD)->ptk(1));
@@ -994,8 +956,9 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 		itp++;
 		itc++;
 	}
-	avgNumSaved /= float(depthEstimators.size());
-	avgNumThrown /= float(depthEstimators.size());
+	featureMutex.unlock();
+	avgNumSaved /= float(numberPts);
+	avgNumThrown /= float(numberPts);
 
 	Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
 	Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
@@ -1130,14 +1093,17 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 		catch (cv::Exception e)
 		{
 			ROS_ERROR("update failed");
+			featureMutex.lock();
 			for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 			{
 				delete *itD;
 			}
+
 			// cPtsInPred.resize(numPtsPred);
 			// ROS_WARN("depthEstimators size after predict1 %d",int(depthEstimators.size()));
 			// ROS_WARN("depthEstimatorsInPred size after predict1 %d",int(depthEstimatorsInPred.size()));
 			depthEstimators.clear();
+			featureMutex.unlock();
 			pPts.clear();
 			cPts.clear();
 			kPts.clear();
@@ -1146,6 +1112,7 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 	else
 	{
 		ROS_ERROR("planes off");
+		featureMutex.lock();
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			delete *itD;
@@ -1154,32 +1121,34 @@ float PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen:
 		// ROS_WARN("depthEstimators size after predict1 %d",int(depthEstimators.size()));
 		// ROS_WARN("depthEstimatorsInPred size after predict1 %d",int(depthEstimatorsInPred.size()));
 		depthEstimators.clear();
+		featureMutex.unlock();
 		pPts.clear();
 		cPts.clear();
 		kPts.clear();
 	}
 
+	featureMutex.lock();
 	// ROS_WARN("keyframe %d patch %d pPts size before flow %d",keyInd,patchInd,int(pPts.size()));
 	ROS_WARN("time for getting points %2.4f depthEstimators size after predict %d",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC,int(depthEstimators.size()));
 	estimatorUpdateTime = clock();
 
 	// find the points using either approximated flow or looking for the board
-	float inlierRatio = 0.0;
   //use optical flow to find the features
+
 	if (depthEstimators.size() > minFeaturesBad)
 	{
 		std::cout << "\n hi7 \n";
 		// cv::perspectiveTransform(cPtPsInPred,cPtsInPred,GI);
 		estimatorUpdateTime = clock();
 		//update the estimtators using the estimted points
-		inlierRatio = update(image,kPtsInPred,cPtsInPred,vc,wc,t,dt);
+		update(image,kPtsInPred,cPtsInPred,vc,wc,t,dt);
 		ROS_WARN("time for estimator update call %2.4f",float(clock()-estimatorUpdateTime)/CLOCKS_PER_SEC);
 		// estimatorUpdateTime = clock();
 	}
+	featureMutex.unlock();
 	cPtsInPred.clear();
 	kPtsInPred.clear();
 	// cPtPsInPred.clear();
-	return inlierRatio;
 }
 
 void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& pPts, std::vector<cv::Point2f>& cPts, cv::Mat& G)
@@ -1198,7 +1167,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 		std::cout << "\n\n\n *********** find points start *********** \n";
 	}
 
-	std::cout << "\n G " << G << std::endl;
+	// std::cout << "\n G " << G << std::endl;
 
 	cv::Mat GI;
 	cv::invert(G,GI,cv::DECOMP_SVD);
@@ -1257,13 +1226,13 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	float Dtly = 0.0;
 	for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 	{
-		// std::cout << "\n\n\n --------- next start --------- \n";
+		std::cout << "\n\n\n --------- next start --------- \n";
 		// get center point in new image, find the patch box around it, transform into previous image,
 		// check to ensure it fits in previous image
 		// if patch does fit, extract the patch then transform extracted patch back and perform search
 		// if patch does not fit, skip the point so partition is deleted
 
-		// std::cout << "\n hi1 \n";
+		std::cout << "\n hi1 \n";
 
 		//predicted patch center in new image
 		pptx = (*itpp).x;
@@ -1286,7 +1255,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 		cv::perspectiveTransform(ppatchCornersC,ppatchCornersP,GI);
 		ppatchRectP = cv::boundingRect(ppatchCornersP);
 
-		// std::cout << "\n hi2 \n";
+		std::cout << "\n hi2 \n";
 
 		//assign the new corners as the bounding rect corners
 		ppatchBoundCornersP.at(0) = cv::Point2f(ppatchRectP.x,ppatchRectP.y);//tl
@@ -1316,6 +1285,8 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				ppatchBoundP = pimage(ppatchRectP).clone();
 			}
 
+			std::cout << "\n hi3 \n";
+
 			//extract and transform bounding patch
 			cv::warpPerspective(ppatchBoundP,ppatchBoundC,G,ppatchBoundP.size(),cv::INTER_LINEAR,cv::BORDER_CONSTANT,cv::Scalar(255,255,255));
 
@@ -1332,37 +1303,38 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			//check if the corners will be inside subimage, if not find the largest that will fit with correct center
 			float patchSizeWidthC = patchSize;
 			float patchSizeHeightC = patchSize;
-			if ((cDx-patchSizeWidthC/2.0) <= 0)
+			if (int(cDx-patchSizeWidthC/2.0) <= 0)
 			{
 				patchSizeWidthC -= 2.0*fabsf(cDx-patchSizeWidthC/2.0);
 			}
-			if ((cDx+patchSizeWidthC/2.0) >= ppatchBoundC.cols)
+			if (int(cDx+patchSizeWidthC/2.0) >= ppatchBoundC.cols)
 			{
 				patchSizeWidthC -= 2.0*fabsf((cDx+patchSizeWidthC/2.0) - ppatchBoundC.cols);
 			}
-			if ((cDy-patchSizeHeightC/2.0) <= 0.0)
+			if (int(cDy-patchSizeHeightC/2.0) <= 0.0)
 			{
 				patchSizeHeightC -= 2.0*fabsf(cDy-patchSizeHeightC/2.0);
 			}
-			if ((cDy+patchSizeHeightC/2.0) >= ppatchBoundC.rows)
+			if (int(cDy+patchSizeHeightC/2.0) >= ppatchBoundC.rows)
 			{
 				patchSizeHeightC -= 2.0*fabsf((cDy+patchSizeHeightC/2.0)-ppatchBoundC.rows);
 			}
 
 			int patchSizeC = std::min(patchSizeWidthC,patchSizeHeightC);
-			ppatchRectC.x = int(std::round(cDx-patchSizeC/2.0));
-			ppatchRectC.y = int(std::round(cDy-patchSizeC/2.0));
+			ppatchRectC.x = int(cDx-patchSizeC/2.0);
+			ppatchRectC.y = int(cDy-patchSizeC/2.0);
 			ppatchRectC.width = patchSizeC;
 			ppatchRectC.height = patchSizeC;
 
+
 			if ((ppatchRectC.x >= 0) && (ppatchRectC.y >= 0)
-					&& ((ppatchRectC.x+ppatchRectC.width) <= (ppatchBoundC.cols)) && ((ppatchRectC.y+ppatchRectC.height) <= (ppatchBoundC.rows)))
+					&& ((ppatchRectC.x+ppatchRectC.width) < (ppatchBoundC.cols)) && ((ppatchRectC.y+ppatchRectC.height) < (ppatchBoundC.rows)))
 			{
 				warpGood = true;
 			}
 		}
 
-		std::cout << "\n pptx " << pptx << " ppty " << ppty << " cptx " << cptx << " cpty " << cpty << " cptPx " << (*itc).x << " cptPy " << (*itc).y << std::endl;
+		// std::cout << "\n pptx " << pptx << " ppty " << ppty << " cptx " << cptx << " cpty " << cpty << " cptPx " << (*itc).x << " cptPy " << (*itc).y << std::endl;
 		//
 		// std::cout << "\n transformc tlx " << ppatchCornersC.at(0).x << " tly " << ppatchCornersC.at(0).y
 		// 					<< " ,trx " << ppatchCornersC.at(1).x << " try " << ppatchCornersC.at(1).y
@@ -1403,6 +1375,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			// std::cout << "\n ppatchRectP " << ppatchRectP << std::endl;
 			// std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
 			// std::cout << "\n ppatchBoundC.rows " << ppatchBoundC.rows << " ppatchBoundC.cols " << ppatchBoundC.cols << std::endl;
+			std::cout << "\n hi33 \n";
 
 			ppatch = ppatchBoundC(ppatchRectC).clone();
 
@@ -1452,7 +1425,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
 			cv::minMaxLoc(tmresult,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
 
-			// std::cout << "\n hi6 \n";
+			std::cout << "\n hi5 \n";
 
 			// if (isFirstPt)
 			// {
@@ -1513,7 +1486,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			// itppIdx++;
 			// ROS_WARN("check 7 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 			// timeCheck = clock();
-			// std::cout << "\n --------- next end --------- \n\n\n";
+			std::cout << "\n --------- next end --------- \n\n\n";
 		}
 		else
 		{
@@ -1549,10 +1522,9 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	}
 }
 
-float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t, float dt)
+void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t, float dt)
 {
 
-	float inlierRatio = 0.0;
 	// //predict the orientation and position
 	// pkcHat += (-vc*dt);
 	// qkcHat += (-0.5*B(qkcHat)*wc*dt);
@@ -1833,7 +1805,7 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 				// nk = nks.at(minqkcsErrorInd);
 				tkc = tkcs.at(minqkcsErrorInd);
 
-				ROS_WARN("keyframe %d selected best as %d",keyInd,minqkcsErrorInd);
+				// ROS_WARN("keyframe %d selected best as %d",keyInd,minqkcsErrorInd);
 			}
 			catch (cv::Exception e)
 			{
@@ -1851,11 +1823,25 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		// float kn = dt/(nTau + dt + 100.0*fabsf(qkc(2)));
 		// float kd = dt/(dTau + dt);
 
-		qkcHat += kq*(qkc - qkcHat);
+		// qkcHat += kq*(qkc - qkcHat);
+		// qkcHat /= qkcHat.norm();
+
+		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkc,t);
+		qkcHat = xHatq.segment(0,4);
 		qkcHat /= qkcHat.norm();
 
 		Eigen::Matrix3f RkcHat = getqRot(qkcHat);
-		tkcHat += kt*(tkc - tkcHat);
+
+		Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkc,t);
+	  tkcHat = xHatt.segment(0,3);
+
+		if (tkcHat.norm() > 0.001)
+		{
+			tkcHat /= tkcHat.norm();
+		}
+	  // Eigen::Vector3f ucDot = xHatt.segment(3,3);
+
+		// tkcHat += kt*(tkc - tkcHat);
 
 		// float alphank = 0.75;
 		// nk = (alphank*nk + (1.0-alphank)*(Eigen::Vector3f(0.0,0.0,1.0)));
@@ -1921,7 +1907,7 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 			// {
 			// 	inlierRatio += 1.0;
 			// }
-			inlierRatio += 1.0;
+			// inlierRatio += 1.0;
 
 			allPtsKnownIn = allPtsKnownIn&&(*itD)->depthEstimatorICLExt.dkKnown;
 
@@ -1936,13 +1922,13 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 		allPtsKnown = allPtsKnownIn;
 		depthEstimators = depthEstimatorsInHomog;
 		depthEstimatorsInHomog.clear();
-		inlierRatio /= depthEstimators.size();
+		// inlierRatio /= depthEstimators.size();
 		avgcPtx /= float(depthEstimators.size());
 		avgcPty /= float(depthEstimators.size());
 
 		//find which partition the average is in
-		int partitionWidth = imageWidth/partitionSide;
-		int partitionHeight = imageHeight/partitionSide;
+		int partitionWidth = imageWidth/partitionCols;
+		int partitionHeight = imageHeight/partitionRows;
 		bool avgRowFound = false;
 		int avgRowInd = 0;
 		while (!avgRowFound)
@@ -1975,7 +1961,7 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 			}
 		}
 
-		currentAvgPartition = partitionSide*avgRowInd + avgColInd;
+		currentAvgPartition = partitionCols*avgRowInd + avgColInd;
 
 		ROS_WARN("time for estimators %2.4f, avg partition is %d, all points known %d",float(clock()-updateClock)/CLOCKS_PER_SEC,currentAvgPartition,int(allPtsKnown));
 		updateClock = clock();
@@ -2020,6 +2006,4 @@ float PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std
 	// std::cout << "\n vc \n" << vc << std::endl;
 	// std::cout << "\n wc \n" << wc << std::endl;
 
-
-	return inlierRatio;
 }

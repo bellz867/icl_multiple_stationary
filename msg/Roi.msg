@@ -1,2 +1,3 @@
 Header header
-nav_msgs/Odometry odom
+geometry_msgs/Pose pose
+geometry_msgs/Pose poseHat

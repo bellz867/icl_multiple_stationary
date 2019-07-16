@@ -15,7 +15,7 @@
     <param name="minFeatureDisEdge" value="20"/>
 	  <param name="minFeaturesDanger" value="50"/>
     <param name="patchRadius" value="50"/>
-    <param name="partitionRows" value="2"/>
+    <param name="partitionRows" value="1"/>
     <param name="partitionCols" value="2"/>
 
 

@@ -30,6 +30,7 @@
 #include <depth_estimator.h>
 #include <helper_functions.h>
 #include <data_save.h>
+#include <vector_derivative_estimator.h>
 
 #include <icl_multiple_stationary/PoseDelta.h>
 #include <icl_multiple_stationary/Roi.h>
@@ -47,7 +48,7 @@ struct PatchEstimator
 	image_transport::Publisher imagePub;//,imagePub2;
 	// image_transport::Publisher imagePub2;
 	cv::Mat kimage,pimage;
-	int keyInd,patchInd,partitionInd,partitionSide,minDistance,currentAvgPartition,numberFeaturesPerPartCol,numberFeaturesPerPartRow;
+	int keyInd,patchInd,partitionInd,partitionRows,partitionCols,minDistance,currentAvgPartition,numberFeaturesPerPartCol,numberFeaturesPerPartRow;
   ros::Subscriber odomSub,roiSub;
 	ros::Publisher poseDeltaPub,roiPub,wallPub,pointCloudPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
@@ -57,13 +58,14 @@ struct PatchEstimator
 	Eigen::Vector3f pkcHat;
 	Eigen::Vector3f pckHat;
 	Eigen::Vector4f qckHat;
+	VectorDerivativeEstimator tkcDotEstimator,qkcDotEstimator;
 	float dkcHat,tau,dkHat;
 	float fx,fy,cx,cy,zmin,zmax;
 	DepthEstimator* newDepthEstimator;
 	std::vector<DepthEstimator*> depthEstimators;
 	std::deque<nav_msgs::Odometry> odomSync;
 	std::deque<nav_msgs::Odometry> markerOdomSync;
-	std::mutex odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex;
+	std::mutex odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex,findPointsMutex;
 	ros::Time tLast;
 	float pTau,qTau,tTau,nTau,dTau,GTau;
 	nav_msgs::Odometry keyOdom,imageOdom;
@@ -91,7 +93,7 @@ struct PatchEstimator
 
 	PatchEstimator();
 
-	PatchEstimator(int imageWidthInit, int imageHeightInit, int partitionSideInit, int minDistanceInit, int minFeaturesDangerInit,
+	PatchEstimator(int imageWidthInit, int imageHeightInit, int partitionRowsInit, int partitionColsInit, int minDistanceInit, int minFeaturesDangerInit,
 								 int minFeaturesBadInit, int keyIndInit, int patchIndInit, int partitionIndInit, float fxInit, float fyInit,
 								 float cxInit, float cyInit, float zminInit, float zmaxInit, float fq, float fp, float ft, float fn, float fd,
 								 float fG, std::string cameraNameInit, float tauInit, bool saveExpInit, std::string expNameInit,
@@ -108,11 +110,11 @@ struct PatchEstimator
 
 	void imageCB(const sensor_msgs::Image::ConstPtr& msg);
 
-	float match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t);
+	void match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t);
 
 	void findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& pPts, std::vector<cv::Point2f>& cPts, cv::Mat& G);
 
-	float update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc,
+	void update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std::vector<cv::Point2f>& cPts, Eigen::Vector3f vc,
 		          Eigen::Vector3f wc, ros::Time t, float dt);
 };
 

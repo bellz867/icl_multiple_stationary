@@ -190,7 +190,7 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	//check if a new frame is needed
 	// bool addframe = false;
-	std::vector<bool> addKeytoPartition(partitionSide*partitionSide);
+	std::vector<bool> addKeytoPartition(partitionRows*partitionCols);
 	for (int ii = 0; ii < addKeytoPartition.size(); ii++)
 	{
 		addKeytoPartition.at(ii) = true;
@@ -266,7 +266,7 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		if (addKeytoPartition.at(ii))
 		{
 			lastKeyOdom = imageOdom;
-			newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionSide,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,ii,
+			newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionRows,partitionCols,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,ii,
 																		fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
 																		expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
 			keyframes.push_back(newKeyframe);

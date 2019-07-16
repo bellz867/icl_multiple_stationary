@@ -8,23 +8,24 @@
 // LS estimator for a first order approximatoion of the derivative of a state vector wrt time, thanks Anup
 struct VectorDerivativeEstimator
 {
+    int stateSize;
     bool firstUpdate;
     ros::Time tLast;
-    Eigen::Matrix<float,6,1>  xHat;
-    Eigen::Matrix<float,6,6> P;
-    Eigen::Matrix<float,6,6> Q;
-    Eigen::Matrix3f R;
-    Eigen::Matrix<float,6,6> F;
-    Eigen::Matrix<float,3,6> H;
-    Eigen::Matrix<float,6,3> HT;
+    Eigen::VectorXf  xHat;
+    Eigen::MatrixXf P;
+    Eigen::MatrixXf Q;
+    Eigen::MatrixXf R;
+    Eigen::MatrixXf F;
+    Eigen::MatrixXf H;
+    Eigen::MatrixXf HT;
 
     VectorDerivativeEstimator();
 
-    void initialize();
+    void initialize(int stateSizeInit);
 
-    Eigen::Matrix<float,6,1> update(Eigen::Vector3f newMeasure, ros::Time newTime);
+    Eigen::VectorXf update(Eigen::VectorXf newMeasure, ros::Time newTime);
 
-    Eigen::Matrix<float,6,1> xDot(Eigen::Matrix<float,6,1> x);
+    Eigen::VectorXf xDot(Eigen::VectorXf x);
 };
 
 #endif

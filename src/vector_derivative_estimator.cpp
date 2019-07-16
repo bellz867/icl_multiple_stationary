@@ -4,40 +4,41 @@ VectorDerivativeEstimator::VectorDerivativeEstimator()
 {
 }
 
-void VectorDerivativeEstimator::initialize()
+void VectorDerivativeEstimator::initialize(int stateSizeInit)
 {
-	xHat = Eigen::Matrix<float,6,1>::Zero();
+	stateSize = stateSizeInit;
+	xHat = Eigen::VectorXf::Zero(2*stateSize);
 	firstUpdate = true;
-	P = Eigen::Matrix<float,6,6>::Zero();
-	Q = Eigen::Matrix<float,6,6>::Zero();
+	P = Eigen::MatrixXf::Zero(2*stateSize,2*stateSize);
+	Q = Eigen::MatrixXf::Zero(2*stateSize,2*stateSize);
 
 	// feature variance
 	float rr = 0.00001;
-	R = rr*Eigen::Matrix3f::Identity();//measurment covariance
-	P.block(0,0,3,3) = R;//covariance
-	Q.block(0,0,3,3) =  0.1*Eigen::Matrix3f::Identity();//process covariance
+	R = rr*Eigen::MatrixXf::Identity(stateSize,stateSize);//measurment covariance
+	P.block(0,0,stateSize,stateSize) = R;//covariance
+	Q.block(0,0,stateSize,stateSize) =  0.1*Eigen::MatrixXf::Identity(stateSize,stateSize);//process covariance
 
 	// flow variance
-	P.block(3,3,3,3) = Eigen::Matrix3f::Identity();//covariance
-	Q.block(3,3,3,3) = Eigen::Matrix3f::Identity();//process covariance
+	P.block(stateSize,stateSize,stateSize,stateSize) = Eigen::MatrixXf::Identity(stateSize,stateSize);//covariance
+	Q.block(stateSize,stateSize,stateSize,stateSize) = Eigen::MatrixXf::Identity(stateSize,stateSize);//process covariance
 
 	//process jacobian
-	F = Eigen::Matrix<float,6,6>::Identity();
+	F = Eigen::MatrixXf::Identity(2*stateSize,2*stateSize);
 
 	//measruement jacobian
-	H = Eigen::Matrix<float,3,6>::Zero();
-	H.block(0,0,3,3) = Eigen::Matrix3f::Identity();
+	H = Eigen::MatrixXf::Zero(stateSize,2*stateSize);
+	H.block(0,0,stateSize,stateSize) = Eigen::MatrixXf::Identity(stateSize,stateSize);
 	HT = H.transpose();
 }
 
-Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMeasure, ros::Time newTime)
+Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ros::Time newTime)
 {
 	ros::Time t = newTime;
-	Eigen::Vector3f z = newMeasure;
+	Eigen::VectorXf z = newMeasure;
 
 	if (firstUpdate)
 	{
-		xHat.segment(0,3) = z;
+		xHat.segment(0,stateSize) = z;
 		tLast = t;
 		firstUpdate = false;
 	}
@@ -46,7 +47,7 @@ Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMe
 	tLast = t;
 
 	//predict
-	F.block(0,3,3,3) = dt*Eigen::Matrix3f::Identity();
+	F.block(0,stateSize,stateSize,stateSize) = dt*Eigen::MatrixXf::Identity(stateSize,stateSize);
 	// std::cout << std::endl << "+++++++++++++++++" << std::endl;
 	// std::cout << "\n xHat \n" << xHat <<std::endl;
 	// std::cout << "\n xDot(xHat) \n" << xDot(xHat) <<std::endl;
@@ -63,12 +64,12 @@ Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMe
 	// Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(argK, Eigen::ComputeThinU | Eigen::ComputeThinV);
 	// Eigen::Matrix2f argKI = svdargK.solve(Eigen::Matrix2f::Identity());
 	// Eigen::Matrix3f argK = H*P*HT + R;
-	Eigen::Matrix3f argK = P.block(0,0,3,3) + R;
+	Eigen::MatrixXf argK = P.block(0,0,stateSize,stateSize) + R;
 	Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(argK, Eigen::ComputeThinU | Eigen::ComputeThinV);
-	Eigen::Matrix3f argKI = svdargK.solve(Eigen::Matrix3f::Identity());
+	Eigen::MatrixXf argKI = svdargK.solve(Eigen::MatrixXf::Identity(stateSize,stateSize));
 	// std::cout << "\n argKI \n" << argKI <<std::endl;
 	// Eigen::Matrix<float,6,3> K = P*HT*argKI;
-	Eigen::Matrix<float,6,3> K = P.block(0,0,6,3)*argKI;
+	Eigen::MatrixXf K = P.block(0,0,2*stateSize,stateSize)*argKI;
 	// std::cout << "\n K \n" << K <<std::endl;
 
 	// std::cout << "\n z \n" << z <<std::endl;
@@ -78,7 +79,7 @@ Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMe
 
 	// std::cout << std::endl << xHat.segment(0,7) << std::endl;
 	// std::cout << std::endl << P << std::endl;
-	xHat += (K*(z-xHat.segment(0,3)));
+	xHat += (K*(z-xHat.segment(0,stateSize)));
 
 	// std::cout << std::endl << "----------------" << std::endl;
 	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
@@ -88,9 +89,9 @@ Eigen::Matrix<float,6,1> VectorDerivativeEstimator::update(Eigen::Vector3f newMe
 	return xHat;
 }
 
-Eigen::Matrix<float,6,1> VectorDerivativeEstimator::xDot(Eigen::Matrix<float,6,1> x)
+Eigen::VectorXf VectorDerivativeEstimator::xDot(Eigen::VectorXf x)
 {
-	Eigen::Matrix<float,6,1> xDot = Eigen::Matrix<float,6,1>::Zero();
-	xDot.segment(0,3) = x.segment(3,3);
+	Eigen::VectorXf xDot = Eigen::VectorXf::Zero(2*stateSize);
+	xDot.segment(0,stateSize) = x.segment(stateSize,stateSize);
 	return xDot;
 }
