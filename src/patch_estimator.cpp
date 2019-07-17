@@ -429,8 +429,8 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				pcl::PointXYZRGB ptxyz;
 				Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
 				qcwInit /= qcwInit.norm();
-				Eigen::Vector3f pcwInit = rotatevec(pcw,getqInv(qcwInit));
-				Eigen::Vector4f qcwcwInit = getqMat(getqInv(qcwInit))*qcw;
+				Eigen::Vector3f pcwInit = rotatevec(pcw,qcb);
+				Eigen::Vector4f qcwcwInit = getqMat(qcb)*qcw;
 				qcwcwInit /= qcwcwInit.norm();
 				Eigen::Vector3f pcbInit = rotatevec(rotatevec(pcb,getqInv(qcb)),getqInv(qcwcwInit));
 				Eigen::Vector3f pcwInitcbInit = pcwInit + pcbInit;
@@ -1224,6 +1224,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	float cpty = 0.0;
 	float Dtlx = 0.0;
 	float Dtly = 0.0;
+	std::cout << "\n G " << G << std::endl;
 	for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 	{
 		std::cout << "\n\n\n --------- next start --------- \n";
@@ -1326,9 +1327,13 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			ppatchRectC.width = patchSizeC;
 			ppatchRectC.height = patchSizeC;
 
+			std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
+			std::cout << "\n cDx " << cDx << " cDy " << cDy << " patchSize " << patchSize << "  ppatchBoundC.cols " <<  ppatchBoundC.cols << "  ppatchBoundC.rows " <<  ppatchBoundC.rows << std::endl;
 
-			if ((ppatchRectC.x >= 0) && (ppatchRectC.y >= 0)
-					&& ((ppatchRectC.x+ppatchRectC.width) < (ppatchBoundC.cols)) && ((ppatchRectC.y+ppatchRectC.height) < (ppatchBoundC.rows)))
+
+			if ((ppatchRectC.x >= 0) && (ppatchRectC.y >= 0) && (ppatchRectC.x < ppatchBoundC.cols) && (ppatchRectC.y < ppatchBoundC.rows)
+					&& ((ppatchRectC.x+ppatchRectC.width) < (ppatchBoundC.cols)) && ((ppatchRectC.y+ppatchRectC.height) < (ppatchBoundC.rows))
+				  && (ppatchRectC.width > 0) && (ppatchRectC.height > 0))
 			{
 				warpGood = true;
 			}
@@ -1416,12 +1421,15 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 
 
-			// std::cout << "\n hi5 \n";
+			std::cout << "\n cpatch.size() " << cpatch.size() << " ppatch.size() " << ppatch.size() << std::endl;
 
 			//use the patch as template and match in check patch
 			// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
 			// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
 			cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
+
+			std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
+
 			cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
 			cv::minMaxLoc(tmresult,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
 

@@ -39,7 +39,8 @@ OdomEstimator::OdomEstimator()
 	velSub = nh.subscribe(bodyName+"/odom",5,&OdomEstimator::velCB,this);
 	poseDeltaSub = nh.subscribe(cameraName+"/pose_delta",100, &OdomEstimator::poseDeltaCB,this);
 
-	pcwHat = Eigen::Vector3f::Zero();
+	pcwHat = rotatevec(pcb,getqInv(qcb));
+
 	qcwHat = Eigen::Vector4f::Zero();
 	qcwHat(0) = 1.0;
 	vcHat = Eigen::Vector3f::Zero();
@@ -159,10 +160,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	poseDeltasRemove.clear();
 
 	float qcwHatNorm = qcwHat.norm();
-	Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-	qcwInit /= qcwInit.norm();
-	Eigen::Vector3f pbwHat = rotatevec(pcwHat-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
-	Eigen::Vector4f qbwHat = getqMat(getqMat(getqInv(qcwInit))*qcwHat/qcwHatNorm)*getqInv(qcb);
+	Eigen::Vector3f pbwHat = rotatevec(pcwHat,qcb)-pcb;
+	Eigen::Vector4f qbwHat = getqMat(getqMat(qcb)*qcwHat/qcwHatNorm)*getqInv(qcb);
 	qbwHat /= qbwHat.norm();
 
 	// build and publish odom message for camera
