@@ -4,15 +4,22 @@ import rospy
 import roslib
 import rosbag
 
-directory = "/home/zack/kitti/2011_09_26/2011_09_26_drive_0028_sync/"
-images = "image_00"
+leftImageDir = "/home/zack/kitti/2011_09_26/2011_09_26_drive_0028_sync/image_00/data"
+rightImageDir = "/home/zack/kitti/2011_09_26/2011_09_26_drive_0028_sync/image_01/data"
+oxtDir = "/home/zack/kitti/2011_09_26/2011_09_26_drive_0028_sync/oxts/data"
 
-bagNew = rosbag.Bag('loop2.bag','w')
-bagncr = rosbag.Bag('loop2_ncr.bag')
+seqBag = rosbag.Bag('2011_09_26.bag','w')
 
-tripodImage = []
-tripodCameraInfo = []
-tripodOdomEKF = []
+width = 1242
+height = 375
+K = [984.2439, 0.0, 690.0, 0.0, 980.8141, 233.1966, 0.0 0.0, 1.0]
+D = [-0.3728755, 0.2037299, 0.002219027, 0.001383707, -0.07233722]
+
+leftImage = []
+leftCameraInfo = []
+rightImage = []
+rightCameraInfo = []
+rightImage = []
 boardOdomEKF = []
 turtleOdomEKF = []
 turtleOdom = []
