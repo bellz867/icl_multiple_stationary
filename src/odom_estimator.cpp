@@ -39,10 +39,18 @@ OdomEstimator::OdomEstimator()
 	velSub = nh.subscribe(bodyName+"/odom",5,&OdomEstimator::velCB,this);
 	poseDeltaSub = nh.subscribe(cameraName+"/pose_delta",100, &OdomEstimator::poseDeltaCB,this);
 
-	pcwHat = rotatevec(pcb,getqInv(qcb));
+	pbInit = Eigen::Vector3f(-2.185,3.549,0.0);
+	qbInit = Eigen::Vector4f(-0.0395,0.0,0.0,0.999);
+	qbInit /= qbInit.norm();
 
-	qcwHat = Eigen::Vector4f::Zero();
-	qcwHat(0) = 1.0;
+	pcwHat = rotatevec(pbInit + rotatevec(pcb,qbInit),getqInv(qcb));
+
+	// rotatevec(rotatevec(pbInit,getqInv(qbInit))+pcb,getqInv(qcb));
+
+	// qcwHat = Eigen::Vector4f+ rotatevec(pcb,qbInit)::Zero();
+	// qcwHat(0) = 1.0;
+	qcwHat = getqMat(getqMat(qbInit)*getqInv(qcb))*Eigen::Vector4f(M_PI/4,M_PI/4,0.0,0.0);
+	qcwHat /= qcwHat.norm();
 	vcHat = Eigen::Vector3f::Zero();
 	wcHat = Eigen::Vector3f::Zero();
 }

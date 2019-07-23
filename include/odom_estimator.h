@@ -23,6 +23,7 @@ struct OdomEstimator
 	ros::Time tVelLast;//last time
 	std::mutex poseDeltaMutex;
 	std::deque<icl_multiple_stationary::PoseDelta::ConstPtr> poseDeltas;
+	bool useMocap;
 
 	bool firstVel;
 	Eigen::Vector3f pcwHat;
@@ -31,6 +32,8 @@ struct OdomEstimator
 	Eigen::Vector3f wcHat;
 	Eigen::Vector3f pcb;
 	Eigen::Vector4f qcb;
+	Eigen::Vector3f pbInit;
+	Eigen::Vector4f qbInit;
 
 	float pTau;
 	float qTau;

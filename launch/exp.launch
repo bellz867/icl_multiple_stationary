@@ -8,6 +8,8 @@
   <!-- keyframe estimator -->
   <include file="$(find icl_multiple_stationary)/launch/estimator_main.launch"/>
 
+  <node pkg="icl_multiple_stationary" type="mocap_odom_main_node" name="mocap_odom_main_node" output="screen" />
+
   <!-- wall mapper -->
   <include file="$(find icl_multiple_stationary)/launch/wall_mapper.launch"/>
 

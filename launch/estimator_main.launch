@@ -3,7 +3,7 @@
 <launch>
 
   <!-- estimator node -->
-  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen" >
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node">
 
 	  <!-- forward camera -->
 	  <param name="cameraName" value="camera"/>
