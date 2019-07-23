@@ -1,0 +1,14 @@
+sudo nano /etc/ntp.conf
+change pool to match server
+sudo systemctl restart ntp
+sudo systemctl status ntp
+
+
+sudo nano /etc/hosts
+<ipaddress> ntp-server-host
+sudo ntpdate ntp-server-host
+sudo timedatectl set-ntp off
+sudo nano /etc/ntp.conf
+server ntp-server-host prefer iburst
+sudo systemctl restart ntp
+ntpq -p
