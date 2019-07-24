@@ -3,6 +3,7 @@
 DepthEstimatorICLExt::DepthEstimatorICLExt()
 {
   uvInt = Eigen::Vector2f::Zero();
+  psiDotInt = Eigen::Vector2f::Zero();
   yysum = 0.0;
   yusum = 0.0;
   firstzk = true;
@@ -21,6 +22,7 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
     tau = tauInit;
     uDotEstimator.initialize(3);
   	uDotEstimator.update(uk,t);
+    psiDotEstimator.initialize(2);
 }
 
 Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, Eigen::Vector3f pkc, ros::Time t, float dt)
@@ -60,7 +62,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n hi6 \n";
 
-  Eigen::Vector2f zeta = YcYcI*YcT*Rkc*uk;
+  Eigen::Vector2f psiMeas = YcYcI*YcT*Rkc*uk;
+  Eigen::Matrix<float,4,1> Xpsi = psiDotEstimator.update(psiMeas,t);
+  Eigen::Vector2f psi = Xpsi.segment(0,2);
+  Eigen::Vector2f psiDot = Xpsi.segment(2,2);
 
   float dcDot = -ucT*v;
   float dkcDot = -ukcT*v;
@@ -99,51 +104,61 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
 
   dcHat += ((dcDot+kxixiTilde)*dt);
-  dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
-  dkHat += (kxpxpTilde(1)*dt);
+  // dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
+  // dkHat += (kxpxpTilde(1)*dt);
+  dkcHat += ((dkcDot)*dt);
+  // dkHat += (kxpxpTilde(1)*dt);
 
-  zetaBuff.push_back(zeta);
+  psiBuff.push_back(psi);
+  psiDotBuff.push_back(psiDot);
   uvBuff.push_back(uv);
   tBuff.push_back(t);
   dtBuff.push_back(dt);
   uvInt += (uv*dt);
+  psiDotInt += (psiDot*dt);
 
   // std::cout << "\n hi9 \n";
 
   if ((1.0-fabsf(ucT*ukc) < 0.4))
   {
-    zetaBuff.clear();
+    psiBuff.clear();
+    psiDotBuff.clear();
     uvBuff.clear();
     tBuff.clear();
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
+    psiDotInt = Eigen::Vector2f::Zero();
     numThrown++;
     std::cout << "\n eig clear\n";
   }
 
   if (v.norm() < 0.1)
   {
-    zetaBuff.clear();
+    psiBuff.clear();
+    psiDotBuff.clear();
     uvBuff.clear();
     tBuff.clear();
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
+    psiDotInt = Eigen::Vector2f::Zero();
     numThrown++;
     std::cout << "\n v clear\n";
   }
 
   if (pkc.norm() < 0.1)
   {
-    zetaBuff.clear();
+    psiBuff.clear();
+    psiDotBuff.clear();
     uvBuff.clear();
     tBuff.clear();
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
+    psiDotInt = Eigen::Vector2f::Zero();
     // numThrown++;
     std::cout << "\n pkc clear\n";
   }
 
-  // std::cout << "\n" << "dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat;
+  std::cout << "\n" << "dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat;
 
   // std::cout << "\n hi10 \n";
 
@@ -161,7 +176,9 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
         if ((tBuff.at(tBuff.size()-1) - tBuff.at(1)).toSec() > tau)
         {
           uvInt -= (uvBuff.at(0)*dtBuff.at(0));
-          zetaBuff.pop_front();
+          psiDotInt -= (psiDotBuff.at(0)*dtBuff.at(0));
+          psiBuff.pop_front();
+          psiDotBuff.pop_front();
           uvBuff.pop_front();
           tBuff.pop_front();
           dtBuff.pop_front();
@@ -185,8 +202,11 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
     // std::cout << "\n hi11 \n";
 
-    Eigen::Vector2f Y = zetaBuff.at(zetaBuff.size()-1) - zetaBuff.at(0);
+    // Eigen::Vector2f Y = psiDotInt;
+    Eigen::Vector2f Y = (psiBuff.at(psiBuff.size()-1)-psiBuff.at(0));
     Eigen::Vector2f U = uvInt;
+
+    std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1);
 
     float Yx = Y(0);
     float Ux = U(0);
@@ -205,16 +225,19 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     float yy = Yx*Yx + Yy*Yy;
     float yu = Yx*Ux+Yy*Uy;
     float dk = yu/yy;
+    float dkMed = yusum/yysum;;
 
-    // std::cout << ", yusum/yysum " << (yusum/yysum) <<  ", (yu/yy)  " << (yu/yy) << ", Y.norm() " << Y.norm() << ", U.norm() " << U.norm() << ", zeta(0)*(yu/yy) " << zeta(0)*(yu/yy)<< ", fabsf(dcHat-zeta(0)*(yu/yy))/dcHat " << fabsf(dcHat-zeta(0)*(yu/yy))/dcHat << std::endl;
+    std::cout << ", dkMed " << dkMed <<  ", dk  " << dk << ", |Y| " << Y.norm() << ", |U| ";
+    std::cout << U.norm() << ", psi(0)*dk " << psi(0)*dk << ", psi(1)*dk " << psi(1)*dk;
+    std::cout << ", psi(0)*dkMed " << psi(0)*dkMed << ", psi(1)*dkMed " << psi(1)*dkMed << std::endl;
     // std::cout << "\n yu " << yu << std::endl;
     // std::cout << "\n Y.norm() " << Y.norm() << std::endl;
     // std::cout << "\n U.norm() " << U.norm() << std::endl;
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.15) && (Y.norm() > 0.15);
-    bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
+    bool measgood = (U.norm() > 0.25) && (Y.norm() > 0.15);
+    // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
 
@@ -237,11 +260,22 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // if (measgood && (numSaved < 50) && disAgree)
     if (measgood && (numSaved < 50))
     {
-      if ((dk > zmin) && (dk < zmax))
+      bool saveNew = true;
+      // if (numSaved > 0)
+      // {
+      //   if ((pkc-pkcLastSave).norm() < 0.1)
+      //   {
+      //     saveNew = false;
+      //   }
+      // }
+
+      if ((dk > zmin) && (dk < zmax) && saveNew)
       {
         yysum += yy;
         yusum += yu;
         numSaved++;
+        tLastSave = t;
+        pkcLastSave = pkc;
       }
       else
       {
@@ -251,11 +285,13 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
     if (dirGoodzBad)
     {
-      zetaBuff.clear();
+      psiBuff.clear();
+      psiDotBuff.clear();
       uvBuff.clear();
       tBuff.clear();
       dtBuff.clear();
       uvInt = Eigen::Vector2f::Zero();
+      psiDotInt = Eigen::Vector2f::Zero();
     }
   }
   else

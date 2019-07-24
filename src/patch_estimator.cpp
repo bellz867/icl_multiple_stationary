@@ -597,6 +597,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 						poseDeltaMsg.pose = msg->pose;
 						poseDeltaMsg.poseHat = msg->poseHat;
 						poseDeltaPub.publish(poseDeltaMsg);
+						ROS_WARN("published poseDelta");
 					}
 					pointCloudPub.publish(map);
 				}
@@ -860,14 +861,13 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		// Eigen::Vector4f qckHat = getqInv(qkcHat);
 		// qckHat /= qckHat.norm();
 		// Eigen::Vector3f pckHat = rotatevec(-pkcHat,qckHat);
-
-		// std::cout << "\n pckHat \n" << pckHat << std::endl;
-		// std::cout << "\n qckHat \n" << qckHat << std::endl;
-
-
-		pckHat = rotatevec(-pkcHat,getqInv(qkcHat));
-		qckHat = getqInv(qkcHat);
+		qckHat = getqInv(qkcHat/qkcHat.norm());
 		qckHat /= qckHat.norm();
+
+		pckHat = rotatevec(-pkcHat,qckHat);
+
+		std::cout << "\n pckHat \n" << pckHat << std::endl;
+		std::cout << "\n qckHat \n" << qckHat << std::endl;
 
 		Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 		Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
@@ -875,7 +875,45 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		Eigen::Vector4f qcwHat = getqMat(qkw)*qckHat;
 		qcwHat /= qcwHat.norm();
 
-		Eigen::Vector3f pcwHat = rotatevec(pckHat,qkw)+pkw;
+		Eigen::Vector3f pcwHat = pkw + rotatevec(pckHat,qkw);
+
+		Eigen::Vector3f pckbHat = rotatevec(pckHat,qcb)-pcb;
+		Eigen::Vector4f qckbHat = getqMat(qckHat)*getqInv(qcb);
+		qckbHat /= qckbHat.norm();
+
+		std::cout << "\n pckbHat \n" << pckbHat << std::endl;
+		std::cout << "\n qckbHat \n" << qckbHat << std::endl;
+
+		Eigen::Vector3f pbwHat = rotatevec(pcwHat,qcb)-pcb;
+		pbwHat(2) = 0.0;
+		Eigen::Vector4f qbwHat = getqMat(qcwHat)*getqInv(qcb);
+		qbwHat /= qbwHat.norm();
+		qbwHat(1) = 0.0;
+		qbwHat(2) = 0.0;
+		qbwHat /= qbwHat.norm();
+
+		Eigen::Vector3f pbw = rotatevec(pcw,qcb)-pcb;
+		pbw(2) = 0.0;
+		Eigen::Vector4f qbw = getqMat(qcw)*getqInv(qcb);
+		qbw /= qbw.norm();
+		qbw(1) = 0.0;
+		qbw(2) = 0.0;
+		qbw /= qbw.norm();
+
+		Eigen::Vector3f pbwk = rotatevec(pkw,qcb)-pcb;
+		pbwk(2) = 0.0;
+		Eigen::Vector4f qbwk = getqMat(qkw)*getqInv(qcb);
+		qbwk /= qbwk.norm();
+		qbwk(1) = 0.0;
+		qbwk(2) = 0.0;
+		qbwk /= qbwk.norm();
+
+		std::cout << "\n pbwHat \n" << pbwHat << std::endl;
+		std::cout << "\n qbwHat \n" << qbwHat << std::endl;
+		std::cout << "\n pbwk \n" << pbwk << std::endl;
+		std::cout << "\n qbwk \n" << qbwk << std::endl;
+		std::cout << "\n pbw \n" << pbw << std::endl;
+		std::cout << "\n qbw \n" << qbw << std::endl;
 
 		// Eigen::Vector3f pkc = rotatevec(pkw-pcw,getqInv(qcw));
 		// Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
@@ -1235,288 +1273,261 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	float Dtlx = 0.0;
 	float Dtly = 0.0;
 	std::cout << "\n G " << G << std::endl;
+
+
 	for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 	{
-		std::cout << "\n\n\n --------- next start --------- \n";
-		// get center point in new image, find the patch box around it, transform into previous image,
-		// check to ensure it fits in previous image
-		// if patch does fit, extract the patch then transform extracted patch back and perform search
-		// if patch does not fit, skip the point so partition is deleted
-
-		std::cout << "\n hi1 \n";
-
-		//predicted patch center in new image
-		pptx = (*itpp).x;
-		ppty = (*itpp).y;
-		cptx = (*itc).x;
-		cpty = (*itc).y;
-		// sizeNormalizer = G.at<double>(2,0)*pptx + G.at<double>(2,1)*ppty + G.at<double>(2,2);
-		// cptx = (G.at<double>(0,0)*pptx + G.at<double>(0,1)*ppty + G.at<double>(0,2))/sizeNormalizer;
-		// cpty = (G.at<double>(1,0)*pptx + G.at<double>(1,1)*ppty + G.at<double>(1,2))/sizeNormalizer;
-
-		//four corners around the predicted center
-		ppatchCornersC.at(0) = cv::Point2f(cptx-patchSize/2.0,cpty-patchSize/2.0);//tl
-		ppatchCornersC.at(1) = cv::Point2f(cptx+patchSize/2.0,cpty-patchSize/2.0);//tr
-		ppatchCornersC.at(2) = cv::Point2f(cptx+patchSize/2.0,cpty+patchSize/2.0);//br
-		ppatchCornersC.at(3) = cv::Point2f(cptx-patchSize/2.0,cpty+patchSize/2.0);//bl
-
-		pcheckRect = cv::Rect(cptx-checkSize/2.0,cpty-checkSize/2.0,checkSize,checkSize);
-
-		//transform four corners into previous image and find bounding rectangle
-		cv::perspectiveTransform(ppatchCornersC,ppatchCornersP,GI);
-		ppatchRectP = cv::boundingRect(ppatchCornersP);
-
-		std::cout << "\n hi2 \n";
-
-		//assign the new corners as the bounding rect corners
-		ppatchBoundCornersP.at(0) = cv::Point2f(ppatchRectP.x,ppatchRectP.y);//tl
-		ppatchBoundCornersP.at(1) = cv::Point2f(ppatchRectP.x+ppatchRectP.width,ppatchRectP.y);//tr
-		ppatchBoundCornersP.at(2) = cv::Point2f(ppatchRectP.x+ppatchRectP.width,ppatchRectP.y+ppatchRectP.height);//br
-		ppatchBoundCornersP.at(3) = cv::Point2f(ppatchRectP.x,ppatchRectP.y+ppatchRectP.height);//bl
-		ppatchBoundCornersP.at(4) = cv::Point2f(ppatchRectP.x+ppatchRectP.width/2.0,ppatchRectP.y+ppatchRectP.height/2.0);//center in image
-		ppatchBoundCornersP.at(5) = cv::Point2f(ppatchRectP.width/2.0,ppatchRectP.height/2.0);//center of subimage
-		ppatchBoundCornersP.at(6) = cv::Point2f(pptx-ppatchRectP.x,ppty-ppatchRectP.y);//point in subimage
-
-		bool warpGood = false;
-		if ((ppatchBoundCornersP.at(0).x > 0) && (ppatchBoundCornersP.at(0).y > 0)
-					&& (ppatchBoundCornersP.at(0).x < (imageWidth)) && (ppatchBoundCornersP.at(0).y < (imageHeight))
-					&& (ppatchBoundCornersP.at(1).x > 0) && (ppatchBoundCornersP.at(1).y > 0)
-					&& (ppatchBoundCornersP.at(1).x < (imageWidth)) && (ppatchBoundCornersP.at(1).y < (imageHeight))
-					&& (ppatchBoundCornersP.at(2).x > 0) && (ppatchBoundCornersP.at(2).y > 0)
-					&& (ppatchBoundCornersP.at(2).x < (imageWidth)) && (ppatchBoundCornersP.at(2).y < (imageHeight))
-					&& (ppatchBoundCornersP.at(3).x > 0) && (ppatchBoundCornersP.at(3).y > 0)
-					&& (ppatchBoundCornersP.at(3).x < (imageWidth)) && (ppatchBoundCornersP.at(3).y < (imageHeight)))
+		try
 		{
-			if (useKey)
+			std::cout << "\n\n\n --------- next start --------- \n";
+			// get center point in new image, find the patch box around it, transform into previous image,
+			// check to ensure it fits in previous image
+			// if patch does fit, extract the patch then transform extracted patch back and perform search
+			// if patch does not fit, skip the point so partition is deleted
+
+			std::cout << "\n hi1 \n";
+
+			//predicted patch center in new image
+			pptx = (*itpp).x;
+			ppty = (*itpp).y;
+			cptx = (*itc).x;
+			cpty = (*itc).y;
+			// sizeNormalizer = G.at<double>(2,0)*pptx + G.at<double>(2,1)*ppty + G.at<double>(2,2);
+			// cptx = (G.at<double>(0,0)*pptx + G.at<double>(0,1)*ppty + G.at<double>(0,2))/sizeNormalizer;
+			// cpty = (G.at<double>(1,0)*pptx + G.at<double>(1,1)*ppty + G.at<double>(1,2))/sizeNormalizer;
+
+			//four corners around the predicted center
+			ppatchCornersC.at(0) = cv::Point2f(cptx-patchSize/2.0,cpty-patchSize/2.0);//tl
+			ppatchCornersC.at(1) = cv::Point2f(cptx+patchSize/2.0,cpty-patchSize/2.0);//tr
+			ppatchCornersC.at(2) = cv::Point2f(cptx+patchSize/2.0,cpty+patchSize/2.0);//br
+			ppatchCornersC.at(3) = cv::Point2f(cptx-patchSize/2.0,cpty+patchSize/2.0);//bl
+
+			pcheckRect = cv::Rect(cptx-checkSize/2.0,cpty-checkSize/2.0,checkSize,checkSize);
+
+			//transform four corners into previous image and find bounding rectangle
+			cv::perspectiveTransform(ppatchCornersC,ppatchCornersP,GI);
+			ppatchRectP = cv::boundingRect(ppatchCornersP);
+
+			std::cout << "\n hi2 \n";
+
+			//assign the new corners as the bounding rect corners
+			ppatchBoundCornersP.at(0) = cv::Point2f(ppatchRectP.x,ppatchRectP.y);//tl
+			ppatchBoundCornersP.at(1) = cv::Point2f(ppatchRectP.x+ppatchRectP.width,ppatchRectP.y);//tr
+			ppatchBoundCornersP.at(2) = cv::Point2f(ppatchRectP.x+ppatchRectP.width,ppatchRectP.y+ppatchRectP.height);//br
+			ppatchBoundCornersP.at(3) = cv::Point2f(ppatchRectP.x,ppatchRectP.y+ppatchRectP.height);//bl
+			ppatchBoundCornersP.at(4) = cv::Point2f(ppatchRectP.x+ppatchRectP.width/2.0,ppatchRectP.y+ppatchRectP.height/2.0);//center in image
+			ppatchBoundCornersP.at(5) = cv::Point2f(ppatchRectP.width/2.0,ppatchRectP.height/2.0);//center of subimage
+			ppatchBoundCornersP.at(6) = cv::Point2f(pptx-ppatchRectP.x,ppty-ppatchRectP.y);//point in subimage
+
+			bool warpGood = false;
+			if ((ppatchBoundCornersP.at(0).x > 0) && (ppatchBoundCornersP.at(0).y > 0)
+						&& (ppatchBoundCornersP.at(0).x < (imageWidth)) && (ppatchBoundCornersP.at(0).y < (imageHeight))
+						&& (ppatchBoundCornersP.at(1).x > 0) && (ppatchBoundCornersP.at(1).y > 0)
+						&& (ppatchBoundCornersP.at(1).x < (imageWidth)) && (ppatchBoundCornersP.at(1).y < (imageHeight))
+						&& (ppatchBoundCornersP.at(2).x > 0) && (ppatchBoundCornersP.at(2).y > 0)
+						&& (ppatchBoundCornersP.at(2).x < (imageWidth)) && (ppatchBoundCornersP.at(2).y < (imageHeight))
+						&& (ppatchBoundCornersP.at(3).x > 0) && (ppatchBoundCornersP.at(3).y > 0)
+						&& (ppatchBoundCornersP.at(3).x < (imageWidth)) && (ppatchBoundCornersP.at(3).y < (imageHeight)))
 			{
-				ppatchBoundP = kimage(ppatchRectP).clone();
+				if (useKey)
+				{
+					ppatchBoundP = kimage(ppatchRectP).clone();
+				}
+				else
+				{
+					ppatchBoundP = pimage(ppatchRectP).clone();
+				}
+
+				std::cout << "\n hi3 \n";
+
+				//extract and transform bounding patch
+				cv::warpPerspective(ppatchBoundP,ppatchBoundC,G,ppatchBoundP.size(),cv::INTER_LINEAR,cv::BORDER_CONSTANT,cv::Scalar(255,255,255));
+
+				//transform the bounding corners back to remove the excess of bounding image
+				cv::perspectiveTransform(ppatchBoundCornersP,ppatchBoundCornersC,G);
+
+				//relative position of the center of the patch to the center of the transformed subimage
+				float cDx = ppatchBoundCornersC.at(6).x;
+				float cDy = ppatchBoundCornersC.at(6).y;
+
+				//check if the corners will be inside subimage, if not find the largest that will fit with correct center
+				float patchSizeWidthC = patchSize;
+				float patchSizeHeightC = patchSize;
+				if (int(cDx-patchSizeWidthC/2.0) <= 0)
+				{
+					patchSizeWidthC -= 2.0*fabsf(cDx-patchSizeWidthC/2.0);
+				}
+				if (int(cDx+patchSizeWidthC/2.0) >= ppatchBoundC.cols)
+				{
+					patchSizeWidthC -= 2.0*fabsf((cDx+patchSizeWidthC/2.0) - ppatchBoundC.cols);
+				}
+				if (int(cDy-patchSizeHeightC/2.0) <= 0.0)
+				{
+					patchSizeHeightC -= 2.0*fabsf(cDy-patchSizeHeightC/2.0);
+				}
+				if (int(cDy+patchSizeHeightC/2.0) >= ppatchBoundC.rows)
+				{
+					patchSizeHeightC -= 2.0*fabsf((cDy+patchSizeHeightC/2.0)-ppatchBoundC.rows);
+				}
+
+				int patchSizeC = std::min(patchSizeWidthC,patchSizeHeightC);
+				ppatchRectC.x = int(cDx-patchSizeC/2.0);
+				ppatchRectC.y = int(cDy-patchSizeC/2.0);
+				ppatchRectC.width = patchSizeC;
+				ppatchRectC.height = patchSizeC;
+
+				std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
+				std::cout << "\n cDx " << cDx << " cDy " << cDy << " patchSize " << patchSize << "  ppatchBoundC.cols " <<  ppatchBoundC.cols << "  ppatchBoundC.rows " <<  ppatchBoundC.rows << std::endl;
+
+
+				if ((ppatchRectC.x >= 0) && (ppatchRectC.y >= 0) && (ppatchRectC.x < ppatchBoundC.cols) && (ppatchRectC.y < ppatchBoundC.rows)
+						&& ((ppatchRectC.x+ppatchRectC.width) < (ppatchBoundC.cols)) && ((ppatchRectC.y+ppatchRectC.height) < (ppatchBoundC.rows))
+					  && (ppatchRectC.width > 0) && (ppatchRectC.height > 0))
+				{
+					warpGood = true;
+				}
+			}
+
+			//if the bounding rectangle points are within the previous image
+			if ((acos(qkcHat(0))*2.0 < 20.0*3.1415/180.0) && warpGood
+					&& (pcheckRect.x > 0) && (pcheckRect.y > 0)
+					&& ((pcheckRect.x+checkSize) < (imageWidth)) && ((pcheckRect.y+checkSize) < (imageHeight)))
+			{
+				std::cout << "\n hi33 \n";
+
+				ppatch = ppatchBoundC(ppatchRectC).clone();
+
+				// ppatch = ppatchBoundC.clone();
+
+				std::cout << "\n hi4 \n";
+
+				//extract the check image
+				cpatch = image(pcheckRect).clone();
+
+				std::cout << "\n hi44 \n";
+
+				// cv::Mat pSobel,cSobel;
+				// // cv::Sobel(ppatch,pSobel,CV_32F,1,1,3);
+				//
+				// /// Generate grad_x and grad_y
+				// cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
+				// cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
+				// /// Gradient X
+				// //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+				// cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 5);
+				// cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 5);
+				// cv::convertScaleAbs( pgrad_x, pabs_grad_x );
+				// cv::convertScaleAbs( pgrad_y, pabs_grad_y );
+				// cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
+				// cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 5);
+				// cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 5);
+				// cv::convertScaleAbs( cgrad_x, cabs_grad_x );
+				// cv::convertScaleAbs( cgrad_y, cabs_grad_y );
+				// cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
+				/// Gradient Y
+				//Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+
+
+				/// Total Gradient (approximate)
+
+				// std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
+
+
+
+				std::cout << "\n cpatch.size() " << cpatch.size() << " ppatch.size() " << ppatch.size() << std::endl;
+
+				//use the patch as template and match in check patch
+				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
+				// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
+				cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
+
+				std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
+
+				cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
+				cv::minMaxLoc(tmresult,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
+
+				std::cout << "\n hi5 \n";
+
+				// if (isFirstPt)
+				// {
+				// 	// cv_bridge::CvImage out_msg;
+				// 	// out_msg.header.stamp = t; // Same timestamp and tf frame as input image
+				// 	// out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+				// 	// {
+				// 	// 	cv::circle(cpatch,cv::Point2f((ppatchRectCLocal.width-1)/2.0+maxResultPt.x,(ppatchRectCLocal.height-1)/2.0+maxResultPt.y),5,cv::Scalar(255,255,255),-1);
+				// 	// 	out_msg.image = cpatch; // Your cv::Mat
+				// 	// 	std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+				// 	// 	imagePub.publish(out_msg.toImageMsg());
+				// 	// }
+				// 	cv_bridge::CvImage out_msg2;
+				// 	out_msg2.header.stamp = t; // Same timestamp and tf frame as input image
+				// 	out_msg2.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
+				// 	// cv::Rect blendCenter(std::round(maxResultPt.x),
+				// 	//                      std::round(maxResultPt.y),
+				// 	// 										 ppatchRectCLocal.width,ppatchRectCLocal.height);
+				// 	cv::Mat reducedWarpBlend;
+				// 	cv::addWeighted(reducedWarp,0.6,reducedWarpSobel,0.4,20.0,reducedWarpBlend);
+				// 	out_msg2.image = reducedWarpBlend; // Your cv::Mat
+				// 	{
+				// 		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
+				// 		imagePub2.publish(out_msg2.toImageMsg());
+				// 	}
+				// 	isFirstPt = false;
+				// }
+
+				// std::cout << "\n ppatch \n" << ppatch << std::endl;
+				// std::cout << "\n cpatch \n" << cpatch << std::endl;
+				// std::cout << "\n tmresult \n" << tmresult << std::endl;
+				// std::cout << "\n tmresultBlur \n" << tmresultBlur << std::endl;
+				// std::cout << "\n minResultVal \n" << minResultVal << std::endl;
+				// std::cout << "\n minResultPt \n" << minResultPt << std::endl;
+				// std::cout << "\n maxResultVal \n" << maxResultVal << std::endl;
+				// std::cout << "\n fitx " << (ppatchRectCLocal.width-1)/2.0+maxResultPt.x
+				//           << "\n fity " << (ppatchRectCLocal.height-1)/2.0+maxResultPt.y << std::endl;
+
+				//get the points
+				*itDPPred = *itDP;
+
+				// std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
+				// std::cout << "\n maxResultValx " << maxResultVal << std::endl;
+				//
+				// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
+
+				*itcPred = cv::Point2f(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x,pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
+
+				// *itcPred = cv::Point2f(std::round(ppatchRectC.x)+(ppatchRectC.width-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round(ppatchRectC.y)+(ppatchRectC.height-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
+				// *itcPPred = cv::Point2f(std::round((*itpp).x)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round((*itpp).y)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
+				// *itcPPred = cv::Point2f(std::round(pPtsRectCPtsP.at(0).x+pPtsRecSearchtlDiff.x+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.x),std::round(pPtsRectCPtsP.at(0).y+pPtsRecSearchtlDiff.y+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.y));
+				*itkPred = cv::Point2f((*itDP)->ptk(0),(*itDP)->ptk(1));
+
+				itDPPred++;
+				itcPred++;
+				itkPred++;
+				numPtsPred++;
+				// itppIdx++;
+				// ROS_WARN("check 7 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
+				// timeCheck = clock();
+				std::cout << "\n --------- next end --------- \n\n\n";
 			}
 			else
 			{
-				ppatchBoundP = pimage(ppatchRectP).clone();
-			}
-
-			std::cout << "\n hi3 \n";
-
-			//extract and transform bounding patch
-			cv::warpPerspective(ppatchBoundP,ppatchBoundC,G,ppatchBoundP.size(),cv::INTER_LINEAR,cv::BORDER_CONSTANT,cv::Scalar(255,255,255));
-
-			//transform the bounding corners back to remove the excess of bounding image
-			cv::perspectiveTransform(ppatchBoundCornersP,ppatchBoundCornersC,G);
-
-			//relative position of the center of the patch to the center of the transformed subimage
-			//center in new image - bounding box center in new image + bounding box center in transformed subimage
-			// float cDx = cptx - ppatchBoundCornersC.at(4).x + ppatchBoundCornersC.at(5).x;
-			// float cDy = cpty - ppatchBoundCornersC.at(4).y + ppatchBoundCornersC.at(5).y;
-			float cDx = ppatchBoundCornersC.at(6).x;
-			float cDy = ppatchBoundCornersC.at(6).y;
-
-			//check if the corners will be inside subimage, if not find the largest that will fit with correct center
-			float patchSizeWidthC = patchSize;
-			float patchSizeHeightC = patchSize;
-			if (int(cDx-patchSizeWidthC/2.0) <= 0)
-			{
-				patchSizeWidthC -= 2.0*fabsf(cDx-patchSizeWidthC/2.0);
-			}
-			if (int(cDx+patchSizeWidthC/2.0) >= ppatchBoundC.cols)
-			{
-				patchSizeWidthC -= 2.0*fabsf((cDx+patchSizeWidthC/2.0) - ppatchBoundC.cols);
-			}
-			if (int(cDy-patchSizeHeightC/2.0) <= 0.0)
-			{
-				patchSizeHeightC -= 2.0*fabsf(cDy-patchSizeHeightC/2.0);
-			}
-			if (int(cDy+patchSizeHeightC/2.0) >= ppatchBoundC.rows)
-			{
-				patchSizeHeightC -= 2.0*fabsf((cDy+patchSizeHeightC/2.0)-ppatchBoundC.rows);
-			}
-
-			int patchSizeC = std::min(patchSizeWidthC,patchSizeHeightC);
-			ppatchRectC.x = int(cDx-patchSizeC/2.0);
-			ppatchRectC.y = int(cDy-patchSizeC/2.0);
-			ppatchRectC.width = patchSizeC;
-			ppatchRectC.height = patchSizeC;
-
-			std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
-			std::cout << "\n cDx " << cDx << " cDy " << cDy << " patchSize " << patchSize << "  ppatchBoundC.cols " <<  ppatchBoundC.cols << "  ppatchBoundC.rows " <<  ppatchBoundC.rows << std::endl;
-
-
-			if ((ppatchRectC.x >= 0) && (ppatchRectC.y >= 0) && (ppatchRectC.x < ppatchBoundC.cols) && (ppatchRectC.y < ppatchBoundC.rows)
-					&& ((ppatchRectC.x+ppatchRectC.width) < (ppatchBoundC.cols)) && ((ppatchRectC.y+ppatchRectC.height) < (ppatchBoundC.rows))
-				  && (ppatchRectC.width > 0) && (ppatchRectC.height > 0))
-			{
-				warpGood = true;
+				delete *itDP;
+				if (G.empty())
+				{
+					std::cout << "\n G empty \n";
+				}
 			}
 		}
-
-		// std::cout << "\n pptx " << pptx << " ppty " << ppty << " cptx " << cptx << " cpty " << cpty << " cptPx " << (*itc).x << " cptPy " << (*itc).y << std::endl;
-		//
-		// std::cout << "\n transformc tlx " << ppatchCornersC.at(0).x << " tly " << ppatchCornersC.at(0).y
-		// 					<< " ,trx " << ppatchCornersC.at(1).x << " try " << ppatchCornersC.at(1).y
-		// 					<< " ,brx " << ppatchCornersC.at(2).x << " bry " << ppatchCornersC.at(2).y
-		// 					<< " ,blx " << ppatchCornersC.at(3).x << " bly " << ppatchCornersC.at(3).y << std::endl;
-		//
-		// std::cout << "\n transformp tlx " << ppatchCornersP.at(0).x << " tly " << ppatchCornersP.at(0).y
-		// 					<< " ,trx " << ppatchCornersP.at(1).x << " try " << ppatchCornersP.at(1).y
-		// 					<< " ,brx " << ppatchCornersP.at(2).x << " bry " << ppatchCornersP.at(2).y
-		// 					<< " ,blx " << ppatchCornersP.at(3).x << " bly " << ppatchCornersP.at(3).y << std::endl;
-		//
-		// std::cout << "\n boundp tlx " << ppatchBoundCornersP.at(0).x << " tly " << ppatchBoundCornersP.at(0).y
-		// 					<< " ,trx " << ppatchBoundCornersP.at(1).x << " try " << ppatchBoundCornersP.at(1).y
-		// 					<< " ,brx " << ppatchBoundCornersP.at(2).x << " bry " << ppatchBoundCornersP.at(2).y
-		// 					<< " ,blx " << ppatchBoundCornersP.at(3).x << " bly " << ppatchBoundCornersP.at(3).y << std::endl;
-
-		//if the bounding rectangle points are within the previous image
-		if ((acos(qkcHat(0))*2.0 < 20.0*3.1415/180.0) && warpGood
-				&& (pcheckRect.x > 0) && (pcheckRect.y > 0)
-				&& ((pcheckRect.x+checkSize) < (imageWidth)) && ((pcheckRect.y+checkSize) < (imageHeight)))
-		{
-			// std::cout << "\n hi3 \n";
-
-			//determine the tl corner in the bounding image of the patch and extract the patch out
-			// std::cout << "\n cptx " << cptx << " cpty " << cpty << std::endl;
-			// std::cout << "\n bound centerx " << ppatchBoundCornersC.at(4).x << " bound centery " << ppatchBoundCornersC.at(4).y << std::endl;
-			// std::cout << "\n subimage centerx " << ppatchBoundCornersC.at(5).x << " subimage centery " << ppatchBoundCornersC.at(5).y << std::endl;
-			// std::cout << "\n cDx " << cDx << " cDy " << cDy << std::endl;
-			// std::cout << "\n G " << G << std::endl;
-			// std::cout << "\n Gkcum " << Gkcum << std::endl;
-
-			// std::cout << "\n boundc tlx " << ppatchBoundCornersC.at(0).x << " tly " << ppatchBoundCornersC.at(0).y
-			// 					<< " ,trx " << ppatchBoundCornersC.at(1).x << " try " << ppatchBoundCornersC.at(1).y
-			// 					<< " ,brx " << ppatchBoundCornersC.at(2).x << " bry " << ppatchBoundCornersC.at(2).y
-			// 					<< " ,blx " << ppatchBoundCornersC.at(3).x << " bly " << ppatchBoundCornersC.at(3).y << std::endl;
-
-
-			// std::cout << "\n ppatchRectP " << ppatchRectP << std::endl;
-			// std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
-			// std::cout << "\n ppatchBoundC.rows " << ppatchBoundC.rows << " ppatchBoundC.cols " << ppatchBoundC.cols << std::endl;
-			std::cout << "\n hi33 \n";
-
-			ppatch = ppatchBoundC(ppatchRectC).clone();
-
-			// ppatch = ppatchBoundC.clone();
-
-			std::cout << "\n hi4 \n";
-
-			//extract the check image
-			cpatch = image(pcheckRect).clone();
-
-			std::cout << "\n hi44 \n";
-
-			// cv::Mat pSobel,cSobel;
-			// // cv::Sobel(ppatch,pSobel,CV_32F,1,1,3);
-			//
-			// /// Generate grad_x and grad_y
-			// cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
-			// cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
-			// /// Gradient X
-			// //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-			// cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 5);
-			// cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 5);
-			// cv::convertScaleAbs( pgrad_x, pabs_grad_x );
-			// cv::convertScaleAbs( pgrad_y, pabs_grad_y );
-			// cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
-			// cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 5);
-			// cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 5);
-			// cv::convertScaleAbs( cgrad_x, cabs_grad_x );
-			// cv::convertScaleAbs( cgrad_y, cabs_grad_y );
-			// cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
-			/// Gradient Y
-			//Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-
-
-			/// Total Gradient (approximate)
-
-			// std::cout << "\n ppatchRectCLocal \n" << ppatchRectCLocal << std::endl;
-
-
-
-			std::cout << "\n cpatch.size() " << cpatch.size() << " ppatch.size() " << ppatch.size() << std::endl;
-
-			//use the patch as template and match in check patch
-			// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
-			// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
-			cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
-
-			std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
-
-			cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
-			cv::minMaxLoc(tmresult,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
-
-			std::cout << "\n hi5 \n";
-
-			// if (isFirstPt)
-			// {
-			// 	// cv_bridge::CvImage out_msg;
-			// 	// out_msg.header.stamp = t; // Same timestamp and tf frame as input image
-			// 	// out_msg.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-			// 	// {
-			// 	// 	cv::circle(cpatch,cv::Point2f((ppatchRectCLocal.width-1)/2.0+maxResultPt.x,(ppatchRectCLocal.height-1)/2.0+maxResultPt.y),5,cv::Scalar(255,255,255),-1);
-			// 	// 	out_msg.image = cpatch; // Your cv::Mat
-			// 	// 	std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-			// 	// 	imagePub.publish(out_msg.toImageMsg());
-			// 	// }
-			// 	cv_bridge::CvImage out_msg2;
-			// 	out_msg2.header.stamp = t; // Same timestamp and tf frame as input image
-			// 	out_msg2.encoding = sensor_msgs::image_encodings::MONO8; // Or whatever
-			// 	// cv::Rect blendCenter(std::round(maxResultPt.x),
-			// 	//                      std::round(maxResultPt.y),
-			// 	// 										 ppatchRectCLocal.width,ppatchRectCLocal.height);
-			// 	cv::Mat reducedWarpBlend;
-			// 	cv::addWeighted(reducedWarp,0.6,reducedWarpSobel,0.4,20.0,reducedWarpBlend);
-			// 	out_msg2.image = reducedWarpBlend; // Your cv::Mat
-			// 	{
-			// 		std::lock_guard<std::mutex> pubMutexGuard(pubMutex);
-			// 		imagePub2.publish(out_msg2.toImageMsg());
-			// 	}
-			// 	isFirstPt = false;
-			// }
-
-			// std::cout << "\n ppatch \n" << ppatch << std::endl;
-			// std::cout << "\n cpatch \n" << cpatch << std::endl;
-			// std::cout << "\n tmresult \n" << tmresult << std::endl;
-			// std::cout << "\n tmresultBlur \n" << tmresultBlur << std::endl;
-			// std::cout << "\n minResultVal \n" << minResultVal << std::endl;
-			// std::cout << "\n minResultPt \n" << minResultPt << std::endl;
-			// std::cout << "\n maxResultVal \n" << maxResultVal << std::endl;
-			// std::cout << "\n fitx " << (ppatchRectCLocal.width-1)/2.0+maxResultPt.x
-			//           << "\n fity " << (ppatchRectCLocal.height-1)/2.0+maxResultPt.y << std::endl;
-
-			//get the points
-			*itDPPred = *itDP;
-
-			// std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
-			// std::cout << "\n maxResultValx " << maxResultVal << std::endl;
-			//
-			// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
-
-			*itcPred = cv::Point2f(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x,pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
-
-			// *itcPred = cv::Point2f(std::round(ppatchRectC.x)+(ppatchRectC.width-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round(ppatchRectC.y)+(ppatchRectC.height-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
-			// *itcPPred = cv::Point2f(std::round((*itpp).x)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round((*itpp).y)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
-			// *itcPPred = cv::Point2f(std::round(pPtsRectCPtsP.at(0).x+pPtsRecSearchtlDiff.x+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.x),std::round(pPtsRectCPtsP.at(0).y+pPtsRecSearchtlDiff.y+itppIdx*checkSize+(patchSize-1)/2+maxResultPt.y));
-			*itkPred = cv::Point2f((*itDP)->ptk(0),(*itDP)->ptk(1));
-
-			itDPPred++;
-			itcPred++;
-			itkPred++;
-			numPtsPred++;
-			// itppIdx++;
-			// ROS_WARN("check 7 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
-			// timeCheck = clock();
-			std::cout << "\n --------- next end --------- \n\n\n";
-		}
-		else
+		catch (cv::Exception e)
 		{
 			delete *itDP;
-			if (G.empty())
-			{
-				std::cout << "\n G empty \n";
-			}
+			std::cout << "\n patch failed \n";
 		}
+
 		itDP++;
 		itc++;
 	}
+
 	depthEstimatorsInPred.resize(numPtsPred);
 	cPtsInPred.resize(numPtsPred);
 	kPtsInPred.resize(numPtsPred);
@@ -2015,12 +2026,12 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 	}
 	//
 	// std::cout << "\n after update \n";
-	// std::cout << "\n tkcHat \n" << tkcHat << std::endl;
-	// std::cout << "\n qkcHat \n" << qkcHat << std::endl;
+	std::cout << "\n tkcHat \n" << tkcHat << std::endl;
+	std::cout << "\n qkcHat \n" << qkcHat << std::endl;
 	// std::cout << "\n rotation \n" << 2.0*acos(qkcHat(0))*180/3.14 << std::endl;
-	// std::cout << "\n pkcHat \n" << pkcHat << std::endl;
+	std::cout << "\n pkcHat \n" << pkcHat << std::endl;
 	// std::cout << "\n dkHat " << dkHat << std::endl;
-	// std::cout << "\n dkcHat " << dkcHat << std::endl;
+	std::cout << "\n dkcHat " << dkcHat << std::endl;
 	// std::cout << "\n vc \n" << vc << std::endl;
 	// std::cout << "\n wc \n" << wc << std::endl;
 

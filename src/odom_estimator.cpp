@@ -169,8 +169,12 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 			pbwTildeSum += pbwTildei;
 			qbwTildeSum += qbwTildei;
 
-			// std::cout << "\n pcw \n" << pcw << std::endl;
-			// std::cout << "\n qcw \n" << qcw << std::endl;
+			std::cout << "\n pbwi \n" << pbwi << std::endl;
+			std::cout << "\n qbwi \n" << qbwi << std::endl;
+			std::cout << "\n pbwHati \n" << pbwHati << std::endl;
+			std::cout << "\n qbwHati \n" << qbwHati << std::endl;
+			std::cout << "\n pbwHat \n" << pbwHat << std::endl;
+			std::cout << "\n qbwHat \n" << qbwHat << std::endl;
 			// std::cout << "\n pRatioi \n" << pRatioi << std::endl;
 			// std::cout << "\n keyIndi \n" << keyIndi << std::endl;
 			// delete *it;

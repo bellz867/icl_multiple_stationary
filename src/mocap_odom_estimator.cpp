@@ -90,7 +90,7 @@ void MocapOdomEstimator::poseCB(const geometry_msgs::PoseStamped::ConstPtr& msg)
 
 void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 {
-	std::cout << "\n mocap odom vel \n";
+	// std::cout << "\n mocap odom vel \n";
 	velMutex.lock();
 
 	if (firstPose)
@@ -140,15 +140,15 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	XHat += DXHat;
 	P = (F*P*F.transpose() + Q);
 
-	std::cout << "\n DXHat " << DXHat << std::endl;
-	std::cout << "\n P " << P << std::endl;
+	// std::cout << "\n DXHat " << DXHat << std::endl;
+	// std::cout << "\n P " << P << std::endl;
 
 	Eigen::VectorXf Z = Eigen::VectorXf::Zero(6);
 	if (((fabs(px-XHat(0)) < 0.01) && (fabs(py-XHat(1)) < 0.01))
-	     || (fabs(px-XHat(0)) > 0.25)
-			 || (fabs(py-XHat(1)) > 0.25)
-			 || (fabs(acos(qw)*2.0 - acos(qwHat)*2.0) > 15.0*M_PI/180.0)
-			 || (fabs(acos(qz)*2.0 - acos(qzHat)*2.0) > 15.0*M_PI/180.0))
+	     || (fabs(px-XHat(0)) > 0.5)
+			 || (fabs(py-XHat(1)) > 0.5)
+			 || (fabs(acos(qw)*2.0 - acos(qwHat)*2.0) > 30.0*M_PI/180.0)
+			 || (fabs(acos(qz)*2.0 - acos(qzHat)*2.0) > 30.0*M_PI/180.0))
 	{
 		Z(0) = XHat(0);
 		Z(1) = XHat(1);
@@ -173,8 +173,8 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		Z(3) = -Z(3);
 	}
 
-	std::cout << "\n XHat " << XHat << std::endl;
-	std::cout << "\n Z " << Z << std::endl;
+	// std::cout << "\n XHat " << XHat << std::endl;
+	// std::cout << "\n Z " << Z << std::endl;
 
 	//process jacobian
 	F(0,2) = 2.0*qwHat*vxHat*dt;
@@ -190,16 +190,16 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	F(4,6) = dt;
 	F(5,7) = dt;
 
-	std::cout << "\n F " << F << std::endl;
+	// std::cout << "\n F " << F << std::endl;
 
 	Eigen::MatrixXf S = P.block(0,0,6,6) + R;
 	Eigen::JacobiSVD<Eigen::MatrixXf> svdS(S, Eigen::ComputeThinU | Eigen::ComputeThinV);
 	Eigen::MatrixXf SI = svdS.solve(Eigen::MatrixXf::Identity(6,6));
 
-	std::cout << "\n S " << S << std::endl;
+	// std::cout << "\n S " << S << std::endl;
 
 	Eigen::MatrixXf K = P.block(0,0,8,6)*SI;
-	std::cout << "\n K " << K << std::endl;
+	// std::cout << "\n K " << K << std::endl;
 	// std::cout << "\n K \n" << K <<std::endl;
 
 	// std::cout << "\n z \n" << z <<std::endl;
@@ -210,16 +210,16 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	// std::cout << std::endl << xHat.segment(0,7) << std::endl;
 	// std::cout << std::endl << P << std::endl;
 	XHat += (K*(Z-XHat.segment(0,6)));
-	std::cout << "\n XHat " << XHat << std::endl;
+	// std::cout << "\n XHat " << XHat << std::endl;
 	// std::cout << std::endl << "----------------" << std::endl;
 	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
 	// P = (Eigen::Matrix<float,6,6>::Identity() - K*H)*P;
 	P -= (K*H*P);
-	std::cout << "\n P " << P << std::endl;
+	// std::cout << "\n P " << P << std::endl;
 
 	// build and publish odom message for body
 	float normqHat = sqrtf(XHat(2)*XHat(2)+XHat(3)*XHat(3));
-	std::cout << "\n normqHat " << normqHat << std::endl;
+	// std::cout << "\n normqHat " << normqHat << std::endl;
 	nav_msgs::Odometry bodyOdomMsg;
 	bodyOdomMsg.header.stamp = t;
 	bodyOdomMsg.header.frame_id = "world";

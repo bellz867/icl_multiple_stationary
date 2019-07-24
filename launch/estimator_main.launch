@@ -3,7 +3,7 @@
 <launch>
 
   <!-- estimator node -->
-  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node">
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node"  output="screen">
 
 	  <!-- forward camera -->
 	  <param name="cameraName" value="camera"/>
@@ -16,7 +16,7 @@
 	  <param name="minFeaturesDanger" value="50"/>
     <param name="patchRadius" value="50"/>
     <param name="partitionRows" value="1"/>
-    <param name="partitionCols" value="2"/>
+    <param name="partitionCols" value="1"/>
 
 
     <param name="minFeaturesBad" value="8"/>

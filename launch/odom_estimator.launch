@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <launch>
-  <node pkg="icl_multiple_stationary" type="odom_main_node" name="odom_main_node" >
+  <node pkg="icl_multiple_stationary" type="odom_main_node" name="odom_main_node">
 
 	  <param name="bodyName" value=""/>
     <param name="cameraName" value="camera"/>
@@ -18,8 +18,8 @@
     <param name="qcbz" value="0.00289808"/>
 
     <!-- cutoff frequencies -->
-    <param name="fp" value="2.5"/>
-    <param name="fq" value="2.5"/>
+    <param name="fp" value="5.0"/>
+    <param name="fq" value="5.0"/>
     <param name="fv" value="50.0"/>
     <param name="fw" value="50.0"/>
 
