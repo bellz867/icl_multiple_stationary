@@ -6,8 +6,6 @@ OdomEstimator::OdomEstimator()
 	ros::NodeHandle nhp("~");
 	nhp.param<std::string>("bodyName", bodyName, "turtle");
 	nhp.param<std::string>("cameraName", cameraName, "camera");
-	nhp.param<bool>("useMocap", useMocap, false);
-
 
 	float pcbx,pcby,pcbz,qcbw,qcbx,qcby,qcbz,qmew,qmex,qmey,qmez;
 	nhp.param<float>("pcbx", pcbx, 0.0);
@@ -33,45 +31,28 @@ OdomEstimator::OdomEstimator()
 	vTau = 1.0/(2.0*M_PI*fv);
 	wTau = 1.0/(2.0*M_PI*fw);
 
-	pbwHat = Eigen::Vector3f::Zero();
-	qbwHat = Eigen::Vector4f::Zero();
-	qbwHat(0) = 1.0;
-	vbHat = Eigen::Vector3f::Zero();
-	wbHat = Eigen::Vector3f::Zero();
-
-	// Get initial odom from mocap
-	if (useMocap)
-	{
-		gotInitialPose = false;
-		initialPoseSub = nh.subscribe("/mocap/body/odom",1,&OdomEstimator::mocapPoseCB,this);
-		ROS_INFO("Waiting for initial pose from mocap on topic /mocap/body/odom");
-		do
-		{
-			ros::spinOnce();
-			ros::Duration(0.1).sleep();
-		} while (!(ros::isShuttingDown()) && !gotInitialPose);
-		ROS_INFO("Got initial pose");
-	}
-
 	//publisher
-	camOdomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odom",1);
+  camOdomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/odom",1);
 	bodyOdomPub = nh.advertise<nav_msgs::Odometry>(cameraName+"/body/odom",1);
 
 	// Subscriber
 	velSub = nh.subscribe(bodyName+"/odom",5,&OdomEstimator::velCB,this);
 	poseDeltaSub = nh.subscribe(cameraName+"/pose_delta",100, &OdomEstimator::poseDeltaCB,this);
-}
 
-void OdomEstimator::mocapPoseCB(const nav_msgs::Odometry::ConstPtr& msg)
-{
-	tVelLast = msg->header.stamp;
-	pbwHat = Eigen::Vector3f(msg->pose.pose.position.x,msg->pose.pose.position.y,msg->pose.pose.position.z);
-	qbwHat = Eigen::Vector4f(msg->pose.pose.orientation.w,msg->pose.pose.orientation.x,msg->pose.pose.orientation.y,msg->pose.pose.orientation.z);;
-	qbwHat /= qbwHat.norm();
-	vbHat = Eigen::Vector3f(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
-	wbHat = Eigen::Vector3f(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
-	initialPoseSub.shutdown();
-	gotInitialPose = true;
+	pbInit = Eigen::Vector3f(-2.185,3.549,0.0);
+	qbInit = Eigen::Vector4f(-0.0395,0.0,0.0,0.999);
+	qbInit /= qbInit.norm();
+
+	pcwHat = rotatevec(pbInit + rotatevec(pcb,qbInit),getqInv(qcb));
+
+	// rotatevec(rotatevec(pbInit,getqInv(qbInit))+pcb,getqInv(qcb));
+
+	// qcwHat = Eigen::Vector4f+ rotatevec(pcb,qbInit)::Zero();
+	// qcwHat(0) = 1.0;
+	qcwHat = getqMat(getqMat(qbInit)*getqInv(qcb))*Eigen::Vector4f(M_PI/4,M_PI/4,0.0,0.0);
+	qcwHat /= qcwHat.norm();
+	vcHat = Eigen::Vector3f::Zero();
+	wcHat = Eigen::Vector3f::Zero();
 }
 
 void OdomEstimator::poseDeltaCB(const icl_multiple_stationary::PoseDelta::ConstPtr& msg)
@@ -82,10 +63,29 @@ void OdomEstimator::poseDeltaCB(const icl_multiple_stationary::PoseDelta::ConstP
 
 void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 {
+	// //check to make sure mocap recieved
+	// if (firstPose || firstMarker)
+	// {
+	// 	ROS_ERROR("NO MOCAP");
+	// 	return;
+	// }
+
 	//velocity is of turtlebot in body frame of turtlebot x forward, y to left, z up
+	// odom pose is in ENU, odom twist is in body
 	ros::Time t = msg->header.stamp;
 	Eigen::Vector3f vb(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
 	Eigen::Vector3f wb(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
+
+	Eigen::Vector3f vc = rotatevec((vb+getss(wb)*pcb),getqInv(qcb));
+	Eigen::Vector3f wc = rotatevec(wb,getqInv(qcb));
+
+	if (firstVel)
+	{
+		tVelLast = t;
+		vcHat = vc;
+		wcHat = wc;
+		firstVel = false;
+	}
 
 	float dt = (t-tVelLast).toSec();
 	tVelLast = t;
@@ -96,18 +96,19 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float kv = dt/(vTau+dt);
 	float kw = dt/(wTau+dt);
 
-	vbHat += kv*(vb-vbHat);
-	wbHat += kw*(wb-wbHat);
+	// get the linear velocuty in world
+	Eigen::Vector3f vcHatRot = rotatevec(vcHat,qcwHat);
 
 	// predict the estimates forward
-	pbwHat += (rotatevec(vbHat,qbwHat)*dt);
-	qbwHat += (0.5*B(qbwHat)*wbHat*dt);
+	// pcwHat += (dt*vcHatRot + kp*(Eigen::Vector3f(0.0,pcw(1)-pcwHat(1),0.0)));
+	pcwHat += (dt*vcHatRot);
+	qcwHat += (dt*0.5*B(qcwHat)*wcHat);
 
-	// // get the linear velocuty in world
-	// Eigen::Vector3f vcHatRot = rotatevec(vcHat,qcwHat);
+	vcHat += kv*(vc-vcHat);
+	wcHat += kw*(wc-wcHat);
 
 	poseDeltaMutex.lock();
-	// get the pose from each keyframe, rotate into body of turtlebot, and average all together to get estimate
+	// get the pose from each keyframe and average all together to get estimate
 	std::deque<icl_multiple_stationary::PoseDelta::ConstPtr> poseDeltasRemove = poseDeltas;
 	poseDeltas.clear();
 	poseDeltaMutex.unlock();
@@ -115,8 +116,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	if (numMeas > 0)
 	{
 		// weight the estimates
-		Eigen::Vector3f pbwTildeSum = Eigen::Vector3f::Zero();
-		Eigen::Vector4f qbwTildeSum = Eigen::Vector4f::Zero();
+		Eigen::Vector3f pcwTildeSum = Eigen::Vector3f::Zero();
+		Eigen::Vector4f qcwTildeSum = Eigen::Vector4f::Zero();
 		for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
 		{
 			// get the poses at time i
@@ -134,40 +135,23 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 			Eigen::Vector4f qcwHati((*it)->poseHat.orientation.w,(*it)->poseHat.orientation.x,(*it)->poseHat.orientation.y,(*it)->poseHat.orientation.z);
 			qcwHati /= qcwHati.norm();
 
-			//convert into body frame
-			Eigen::Vector3f pbwi = rotatevec(pcwHat,qcb)-pcb;
-			pbwi(2) = 0.0;
-			Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
-			qbwi /= qbwi.norm();
-			qbwi(1) = 0.0;
-			qbwi(2) = 0.0;
-			qbwi /= qbwi.norm();
-
-			Eigen::Vector3f pbwHati = rotatevec(pcwHati,qcb)-pcb;
-			pbwHati(2) = 0.0;
-			Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
-			qbwHati /= qbwHati.norm();
-			qbwHati(1) = 0.0;
-			qbwHati(2) = 0.0;
-			qbwHati /= qbwHati.norm();
-
 			// get the difference between the estimate now and time i
-			Eigen::Vector3f pbwbwi = pbwHat - pbwi;
-			Eigen::Vector4f qbwbwi = getqMat(getqInv(qbwi))*qbwHat;
-			qbwbwi /= qbwbwi.norm();
+			Eigen::Vector3f pcwcwi = pcwHat - pcwi;
+			Eigen::Vector4f qcwcwi = getqMat(getqInv(qcwi))*qcwHat;
+			qcwcwi /= qcwcwi.norm();
 
 			// new measure is what the camera thought at time i plus the difference
-			Eigen::Vector3f pbw = pbwHati + pbwbwi;
-			Eigen::Vector4f qbw = getqMat(qbwHati)*qbwbwi;
-			qbw /= qbw.norm();
+			Eigen::Vector3f pcw = pcwHati + pcwcwi;
+			Eigen::Vector4f qcw = getqMat(qcwHati)*qcwcwi;
+			qcw /= qcw.norm();
 
 			// get the error for time i
-			Eigen::Vector3f pbwTildei = pbw - pbwHat;
-			Eigen::Vector4f qbwTildei = qbwi - qbwHat;
+			Eigen::Vector3f pcwTildei = pcw - pcwHat;
+			Eigen::Vector4f qcwTildei = qcwi - qcwHat;
 
-			// add what the camera thought to the sum
-			pbwTildeSum += pbwTildei;
-			qbwTildeSum += qbwTildei;
+			// add what the camera thought to the sum weighted by the 1-alpha discounted further by ratio
+			pcwTildeSum += pcwTildei;
+			qcwTildeSum += qcwTildei;
 
 			// std::cout << "\n pcw \n" << pcw << std::endl;
 			// std::cout << "\n qcw \n" << qcw << std::endl;
@@ -177,18 +161,16 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		}
 
 		// new estimate is the weighted average
-		pbwHat += dt*kp/numMeas*pbwTildeSum;
-		qbwHat += dt*kq/numMeas*qbwTildeSum;
+		pcwHat += dt*kp/numMeas*pcwTildeSum;
+		qcwHat += dt*kq/numMeas*qcwTildeSum;
 	}
 
 	poseDeltasRemove.clear();
 
-	Eigen::Vector4f qbwHatNormed = qbwHat/qbwHat.norm();
-	pcwHat = rotatevec(pbwHat + pcb,getqInv(qcb));
-	qcwHat = getqMat(qbwHatNormed)*qcb;
-	qcwHat /= qcwHat.norm();
-	vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
-	wcHat = rotatevec(wbHat,getqInv(qcb));
+	float qcwHatNorm = qcwHat.norm();
+	Eigen::Vector3f pbwHat = rotatevec(pcwHat,qcb)-pcb;
+	Eigen::Vector4f qbwHat = getqMat(getqMat(qcb)*qcwHat/qcwHatNorm)*getqInv(qcb);
+	qbwHat /= qbwHat.norm();
 
 	// build and publish odom message for camera
 	nav_msgs::Odometry camOdomMsg;
@@ -198,10 +180,10 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	camOdomMsg.pose.pose.position.x = pcwHat(0);
 	camOdomMsg.pose.pose.position.y = pcwHat(1);
 	camOdomMsg.pose.pose.position.z = pcwHat(2);
-	camOdomMsg.pose.pose.orientation.w = qcwHat(0);
-	camOdomMsg.pose.pose.orientation.x = qcwHat(1);
-	camOdomMsg.pose.pose.orientation.y = qcwHat(2);
-	camOdomMsg.pose.pose.orientation.z = qcwHat(3);
+	camOdomMsg.pose.pose.orientation.w = qcwHat(0)/qcwHatNorm;
+	camOdomMsg.pose.pose.orientation.x = qcwHat(1)/qcwHatNorm;
+	camOdomMsg.pose.pose.orientation.y = qcwHat(2)/qcwHatNorm;
+	camOdomMsg.pose.pose.orientation.z = qcwHat(3)/qcwHatNorm;
 	camOdomMsg.twist.twist.linear.x = vcHat(0);
 	camOdomMsg.twist.twist.linear.y = vcHat(1);
 	camOdomMsg.twist.twist.linear.z = vcHat(2);
@@ -218,15 +200,15 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	bodyOdomMsg.pose.pose.position.x = pbwHat(0);
 	bodyOdomMsg.pose.pose.position.y = pbwHat(1);
 	bodyOdomMsg.pose.pose.position.z = pbwHat(2);
-	bodyOdomMsg.pose.pose.orientation.w = qbwHatNormed(0);
-	bodyOdomMsg.pose.pose.orientation.x = qbwHatNormed(1);
-	bodyOdomMsg.pose.pose.orientation.y = qbwHatNormed(2);
-	bodyOdomMsg.pose.pose.orientation.z = qbwHatNormed(3);
-	bodyOdomMsg.twist.twist.linear.x = vbHat(0);
-	bodyOdomMsg.twist.twist.linear.y = vbHat(1);
-	bodyOdomMsg.twist.twist.linear.z = vbHat(2);
-	bodyOdomMsg.twist.twist.angular.x = wbHat(0);
-	bodyOdomMsg.twist.twist.angular.y = wbHat(1);
-	bodyOdomMsg.twist.twist.angular.z = wbHat(2);
+	bodyOdomMsg.pose.pose.orientation.w = qbwHat(0);
+	bodyOdomMsg.pose.pose.orientation.x = qbwHat(1);
+	bodyOdomMsg.pose.pose.orientation.y = qbwHat(2);
+	bodyOdomMsg.pose.pose.orientation.z = qbwHat(3);
+	bodyOdomMsg.twist.twist.linear.x = vcHat(0);
+	bodyOdomMsg.twist.twist.linear.y = vcHat(1);
+	bodyOdomMsg.twist.twist.linear.z = vcHat(2);
+	bodyOdomMsg.twist.twist.angular.x = wcHat(0);
+	bodyOdomMsg.twist.twist.angular.y = wcHat(1);
+	bodyOdomMsg.twist.twist.angular.z = wcHat(2);
 	bodyOdomPub.publish(bodyOdomMsg);
 }

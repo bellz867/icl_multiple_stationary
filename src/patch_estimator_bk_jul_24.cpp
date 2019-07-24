@@ -427,19 +427,15 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				cloud.resize(2*colsReduce*rowsReduce);
 				PointCloudRGB::iterator cloudIt = cloud.begin();
 				pcl::PointXYZRGB ptxyz;
+				Eigen::Vector3f pcwInit = rotatevec(pcw,qcb);
+				Eigen::Vector4f qcwcwInit = getqMat(qcb)*qcw;
+				qcwcwInit /= qcwcwInit.norm();
+				Eigen::Vector3f pcbInit = rotatevec(rotatevec(pcb,getqInv(qcb)),getqInv(qcwcwInit));
+				Eigen::Vector3f pcwInitcbInit = pcwInit + pcbInit;
 
-				//convert into body frame
-				Eigen::Vector3f pbw = rotatevec(pcw,qcb)-pcb;
-				pbw(2) = 0.0;
-				Eigen::Vector4f qbw = getqMat(qcw)*getqInv(qcb);
-				qbw /= qbw.norm();
-				qbw(1) = 0.0;
-				qbw(2) = 0.0;
-				qbw /= qbw.norm();
-				qcw = getqMat(qbw)*qcb;
-				qcw /= qcw.norm();
-				Eigen::Vector3f pcbw = rotatevec(pcb,qbw);
-
+				// Eigen::Matrix4f qcwcwInitMat = getqMat(qcwcwInit);
+				// Eigen::Matrix<float,4,3> qcwcwInitMatR = qcwcwInitMat.block(0,1,4,3);
+				Eigen::Vector4f qcwcwInitI = getqInv(qcwcwInit);
 
 				int rowj = 0;
 				int colj = 0;
@@ -450,34 +446,31 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				// Eigen::Vector4f pjw4(0.0,0.0,0.0,0.0);
 				// Eigen::Vector3f pjwc(0.0,0.0,0.0);
 				// Eigen::Matrix4f qjw4M;
-				// float xb
-				// float xc = pcwInitcbInit(0);
-				// float yc = pcwInitcbInit(1);
-				// float zc = pcwInitcbInit(2);
-				// float qw = qcwcwInit(0);
-				// float qx = qcwcwInit(1);
-				// float qy = qcwcwInit(2);
-				// float qz = qcwcwInit(3);
-				// float qwI = qcwcwInitI(0);
-				// float qxI = qcwcwInitI(1);
-				// float qyI = qcwcwInitI(2);
-				// float qzI = qcwcwInitI(3);
+				float xc = pcwInitcbInit(0);
+				float yc = pcwInitcbInit(1);
+				float zc = pcwInitcbInit(2);
+				float qw = qcwcwInit(0);
+				float qx = qcwcwInit(1);
+				float qy = qcwcwInit(2);
+				float qz = qcwcwInit(3);
+				float qwI = qcwcwInitI(0);
+				float qxI = qcwcwInitI(1);
+				float qyI = qcwcwInitI(2);
+				float qzI = qcwcwInitI(3);
 				float xjcICL = 0;
 				float yjcICL = 0;
 				float zjcICL = 0;
-				Eigen::Vector3f piw(0.0,0.0,0.0);
-				Eigen::Vector3f pic(0.0,0.0,0.0);
-				// float wjwICL = 0;
-				// float xjwICL = 0;
-				// float yjwICL = 0;
-				// float zjwICL = 0;
-				// float xjcEKF = 0;
-				// float yjcEKF = 0;
-				// float zjcEKF = 0;
-				// float wjwEKF = 0;
-				// float xjwEKF = 0;
-				// float yjwEKF = 0;
-				// float zjwEKF = 0;
+				float wjwICL = 0;
+				float xjwICL = 0;
+				float yjwICL = 0;
+				float zjwICL = 0;
+				float xjcEKF = 0;
+				float yjcEKF = 0;
+				float zjcEKF = 0;
+				float wjwEKF = 0;
+				float xjwEKF = 0;
+				float yjwEKF = 0;
+				float zjwEKF = 0;
 				// Eigen::Vector3f pjw(0.0,0.0,0.0);
 				for (cv::MatIterator_<uchar> itI = roiimageReduce.begin<uchar>(); itI != roiimageReduce.end<uchar>(); itI++)
 				{
@@ -491,13 +484,9 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					xjcICL = zjcICL*mxj;
 					yjcICL = zjcICL*myj;
 
-					pic(0) = xjcICL;
-					pic(1) = yjcICL;
-					pic(2) = zjcICL;
-
-					// zjcEKF = dcEKF/(nxEKF*mxj+nyEKF*myj+nzEKF);
-					// xjcEKF = zjcEKF*mxj;
-					// yjcEKF = zjcEKF*myj;
+					zjcEKF = dcEKF/(nxEKF*mxj+nyEKF*myj+nzEKF);
+					xjcEKF = zjcEKF*mxj;
+					yjcEKF = zjcEKF*myj;
 					// Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
 
 					// //rotate the point into the world frame
@@ -510,34 +499,33 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					//rotate the point into the world frame
 					// pjw4 = getqMat(qcwcwInitMatR*pjwc)*qcwcwInitI;
 
-					// wjwICL = -qx*xjcICL-qy*yjcICL-qz*zjcICL;
-					// xjwICL = qw*xjcICL-qz*yjcICL+qy*zjcICL;
-					// yjwICL = qz*xjcICL+qw*yjcICL-qx*zjcICL;
-					// zjwICL = -qy*xjcICL+qx*yjcICL+qw*zjcICL;
+					wjwICL = -qx*xjcICL-qy*yjcICL-qz*zjcICL;
+					xjwICL = qw*xjcICL-qz*yjcICL+qy*zjcICL;
+					yjwICL = qz*xjcICL+qw*yjcICL-qx*zjcICL;
+					zjwICL = -qy*xjcICL+qx*yjcICL+qw*zjcICL;
 
-					// wjwEKF = -qx*xjcEKF-qy*yjcEKF-qz*zjcEKF;
-					// xjwEKF = qw*xjcEKF-qz*yjcEKF+qy*zjcEKF;
-					// yjwEKF = qz*xjcEKF+qw*yjcEKF-qx*zjcEKF;
-					// zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
-					piw = pbw + pcbw + rotatevec(pic,qcw);
+					wjwEKF = -qx*xjcEKF-qy*yjcEKF-qz*zjcEKF;
+					xjwEKF = qw*xjcEKF-qz*yjcEKF+qy*zjcEKF;
+					yjwEKF = qz*xjcEKF+qw*yjcEKF-qx*zjcEKF;
+					zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
 
-					ptxyz.x = piw(0);
-					ptxyz.y = piw(1);
-					ptxyz.z = piw(2);
+					ptxyz.x = xc+xjwICL*qwI+wjwICL*qxI-zjwICL*qyI+yjwICL*qzI;
+					ptxyz.y = yc+yjwICL*qwI+zjwICL*qxI+wjwICL*qyI-xjwICL*qzI;
+					ptxyz.z = zc+zjwICL*qwI-yjwICL*qxI+xjwICL*qyI+wjwICL*qzI;
 					ptxyz.r = (*itI);
 					ptxyz.g = std::min((*itI)+100,255);
 					ptxyz.b = (*itI);
 					*cloudIt = ptxyz;
 					cloudIt++;
 
-					// ptxyz.x = xc+xjwEKF*qwI+wjwEKF*qxI-zjwEKF*qyI+yjwEKF*qzI;
-					// ptxyz.y = yc+yjwEKF*qwI+zjwEKF*qxI+wjwEKF*qyI-xjwEKF*qzI;
-					// ptxyz.z = zc+zjwEKF*qwI-yjwEKF*qxI+xjwEKF*qyI+wjwEKF*qzI;
-					// ptxyz.r = (*itI);
-					// ptxyz.g = (*itI);
-					// ptxyz.b = std::min((*itI)+100,255);
-					// *cloudIt = ptxyz;
-					// cloudIt++;
+					ptxyz.x = xc+xjwEKF*qwI+wjwEKF*qxI-zjwEKF*qyI+yjwEKF*qzI;
+					ptxyz.y = yc+yjwEKF*qwI+zjwEKF*qxI+wjwEKF*qyI-xjwEKF*qzI;
+					ptxyz.z = zc+zjwEKF*qwI-yjwEKF*qxI+xjwEKF*qyI+wjwEKF*qzI;
+					ptxyz.r = (*itI);
+					ptxyz.g = (*itI);
+					ptxyz.b = std::min((*itI)+100,255);
+					*cloudIt = ptxyz;
+					cloudIt++;
 
 					// geometry_msgs::Point32 pjwMsg;
 					// pjwMsg.x = pjw(0);

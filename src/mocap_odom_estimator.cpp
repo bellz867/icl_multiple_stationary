@@ -144,7 +144,11 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	std::cout << "\n P " << P << std::endl;
 
 	Eigen::VectorXf Z = Eigen::VectorXf::Zero(6);
-	if ((fabs(px-XHat(0)) < 0.1) && (fabs(py-XHat(1)) < 0.1))
+	if (((fabs(px-XHat(0)) < 0.01) && (fabs(py-XHat(1)) < 0.01))
+	     || (fabs(px-XHat(0)) > 0.25)
+			 || (fabs(py-XHat(1)) > 0.25)
+			 || (fabs(acos(qw)*2.0 - acos(qwHat)*2.0) > 15.0*M_PI/180.0)
+			 || (fabs(acos(qz)*2.0 - acos(qzHat)*2.0) > 15.0*M_PI/180.0))
 	{
 		Z(0) = XHat(0);
 		Z(1) = XHat(1);
