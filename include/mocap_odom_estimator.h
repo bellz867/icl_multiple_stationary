@@ -22,7 +22,7 @@ struct MocapOdomEstimator
 
 	bool firstVel;
 	bool firstPose;
-	Eigen::MatrixXf P,Q,R,F,H,HT;
+	Eigen::MatrixXf P,Q,R,F,H,HT,Hb;
 	Eigen::VectorXf XHat;
 	std::mutex poseMutex,velMutex;
 	float px,py,qw,qz,vx,wz;

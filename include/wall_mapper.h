@@ -43,7 +43,7 @@ struct WallMapper
     //ros
     ros::NodeHandle nh;
     ros::Subscriber wallSub,odomSub;
-    ros::Publisher pointCloudPub;
+    ros::Publisher pointCloudPub,pointCloudTruePub;
     image_transport::ImageTransport it;
     // image_transport::Publisher wallPub;
     int width;// width in decimeters
@@ -59,6 +59,8 @@ struct WallMapper
 
     cv::Point2i center;
     std::string cameraName;
+
+    PointCloudRGB cloud_true;
 
     // std::vector<std::vector<cv::Point2f>> wallPts;
     // std::vector<std::vector<geometry_msgs::Point32>> keyClouds;

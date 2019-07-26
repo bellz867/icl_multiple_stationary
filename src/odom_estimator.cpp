@@ -112,84 +112,87 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	poseDeltas.clear();
 	poseDeltaMutex.unlock();
 	int numMeas = poseDeltasRemove.size();
-	if (numMeas > 0)
-	{
-		// weight the estimates
-		Eigen::Vector3f pbwTildeSum = Eigen::Vector3f::Zero();
-		Eigen::Vector4f qbwTildeSum = Eigen::Vector4f::Zero();
-		for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
-		{
-			// get the poses at time i
-			// geometry_msgs::Pose posei = poseDeltaSyncBuff.at(i).pose;
-			// geometry_msgs::Pose poseHati = poseDeltaSyncBuff.at(i).poseHat;
-			// int keyIndi = poseDeltaSyncBuff.at(i).keyInd;
-
-			//convert what camera thought at time i to eigen
-			Eigen::Vector3f pcwi((*it)->pose.position.x,(*it)->pose.position.y,(*it)->pose.position.z);
-			Eigen::Vector4f qcwi((*it)->pose.orientation.w,(*it)->pose.orientation.x,(*it)->pose.orientation.y,(*it)->pose.orientation.z);
-			qcwi /= qcwi.norm();
-
-			//convert what estimate was at time i to eigen
-			Eigen::Vector3f pcwHati((*it)->poseHat.position.x,(*it)->poseHat.position.y,(*it)->poseHat.position.z);
-			Eigen::Vector4f qcwHati((*it)->poseHat.orientation.w,(*it)->poseHat.orientation.x,(*it)->poseHat.orientation.y,(*it)->poseHat.orientation.z);
-			qcwHati /= qcwHati.norm();
-
-			//convert into body frame
-			Eigen::Vector3f pbwi = rotatevec(pcwHat,qcb)-pcb;
-			pbwi(2) = 0.0;
-			Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
-			qbwi /= qbwi.norm();
-			qbwi(1) = 0.0;
-			qbwi(2) = 0.0;
-			qbwi /= qbwi.norm();
-
-			Eigen::Vector3f pbwHati = rotatevec(pcwHati,qcb)-pcb;
-			pbwHati(2) = 0.0;
-			Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
-			qbwHati /= qbwHati.norm();
-			qbwHati(1) = 0.0;
-			qbwHati(2) = 0.0;
-			qbwHati /= qbwHati.norm();
-
-			// get the difference between the estimate now and time i
-			Eigen::Vector3f pbwbwi = pbwHat - pbwi;
-			Eigen::Vector4f qbwbwi = getqMat(getqInv(qbwi))*qbwHat;
-			qbwbwi /= qbwbwi.norm();
-
-			// new measure is what the camera thought at time i plus the difference
-			Eigen::Vector3f pbw = pbwHati + pbwbwi;
-			Eigen::Vector4f qbw = getqMat(qbwHati)*qbwbwi;
-			qbw /= qbw.norm();
-
-			// get the error for time i
-			Eigen::Vector3f pbwTildei = pbw - pbwHat;
-			Eigen::Vector4f qbwTildei = qbwi - qbwHat;
-
-			// add what the camera thought to the sum
-			pbwTildeSum += pbwTildei;
-			qbwTildeSum += qbwTildei;
-
-			std::cout << "\n pbwi \n" << pbwi << std::endl;
-			std::cout << "\n qbwi \n" << qbwi << std::endl;
-			std::cout << "\n pbwHati \n" << pbwHati << std::endl;
-			std::cout << "\n qbwHati \n" << qbwHati << std::endl;
-			std::cout << "\n pbwHat \n" << pbwHat << std::endl;
-			std::cout << "\n qbwHat \n" << qbwHat << std::endl;
-			// std::cout << "\n pRatioi \n" << pRatioi << std::endl;
-			// std::cout << "\n keyIndi \n" << keyIndi << std::endl;
-			// delete *it;
-		}
-
-		// new estimate is the weighted average
-		pbwHat += dt*kp/numMeas*pbwTildeSum;
-		qbwHat += dt*kq/numMeas*qbwTildeSum;
-	}
+	// if (numMeas > 0)
+	// {
+	// 	// weight the estimates
+	// 	Eigen::Vector3f pbwTildeSum = Eigen::Vector3f::Zero();
+	// 	Eigen::Vector4f qbwTildeSum = Eigen::Vector4f::Zero();
+	// 	for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
+	// 	{
+	// 		// get the poses at time i
+	// 		// geometry_msgs::Pose posei = poseDeltaSyncBuff.at(i).pose;
+	// 		// geometry_msgs::Pose poseHati = poseDeltaSyncBuff.at(i).poseHat;
+	// 		// int keyIndi = poseDeltaSyncBuff.at(i).keyInd;
+	//
+	// 		//convert what camera thought at time i to eigen
+	// 		Eigen::Vector3f pcwi((*it)->pose.position.x,(*it)->pose.position.y,(*it)->pose.position.z);
+	// 		Eigen::Vector4f qcwi((*it)->pose.orientation.w,(*it)->pose.orientation.x,(*it)->pose.orientation.y,(*it)->pose.orientation.z);
+	// 		qcwi /= qcwi.norm();
+	//
+	// 		//convert what estimate was at time i to eigen
+	// 		Eigen::Vector3f pcwHati((*it)->poseHat.position.x,(*it)->poseHat.position.y,(*it)->poseHat.position.z);
+	// 		Eigen::Vector4f qcwHati((*it)->poseHat.orientation.w,(*it)->poseHat.orientation.x,(*it)->poseHat.orientation.y,(*it)->poseHat.orientation.z);
+	// 		qcwHati /= qcwHati.norm();
+	//
+	// 		//convert into body frame
+	// 		Eigen::Vector3f pbwi = rotatevec(pcwHat,qcb)-pcb;
+	// 		pbwi(2) = 0.0;
+	// 		Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
+	// 		qbwi /= qbwi.norm();
+	// 		qbwi(1) = 0.0;
+	// 		qbwi(2) = 0.0;
+	// 		qbwi /= qbwi.norm();
+	//
+	// 		Eigen::Vector3f pbwHati = rotatevec(pcwHati,qcb)-pcb;
+	// 		pbwHati(2) = 0.0;
+	// 		Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
+	// 		qbwHati /= qbwHati.norm();
+	// 		qbwHati(1) = 0.0;
+	// 		qbwHati(2) = 0.0;
+	// 		qbwHati /= qbwHati.norm();
+	//
+	// 		// get the difference between the estimate now and time i
+	// 		Eigen::Vector3f pbwbwi = pbwHat - pbwi;
+	// 		Eigen::Vector4f qbwbwi = getqMat(getqInv(qbwi))*qbwHat;
+	// 		qbwbwi /= qbwbwi.norm();
+	//
+	// 		// new measure is what the camera thought at time i plus the difference
+	// 		Eigen::Vector3f pbw = pbwHati + pbwbwi;
+	// 		Eigen::Vector4f qbw = getqMat(qbwHati)*qbwbwi;
+	// 		qbw /= qbw.norm();
+	//
+	// 		// get the error for time i
+	// 		Eigen::Vector3f pbwTildei = pbw - pbwHat;
+	// 		Eigen::Vector4f qbwTildei = qbwi - qbwHat;
+	//
+	// 		// add what the camera thought to the sum
+	// 		pbwTildeSum += pbwTildei;
+	// 		qbwTildeSum += qbwTildei;
+	//
+	// 		std::cout << "\n pbwi \n" << pbwi << std::endl;
+	// 		std::cout << "\n qbwi \n" << qbwi << std::endl;
+	// 		std::cout << "\n pbwHati \n" << pbwHati << std::endl;
+	// 		std::cout << "\n qbwHati \n" << qbwHati << std::endl;
+	// 		std::cout << "\n pbwHat \n" << pbwHat << std::endl;
+	// 		std::cout << "\n qbwHat \n" << qbwHat << std::endl;
+	// 		// std::cout << "\n pRatioi \n" << pRatioi << std::endl;
+	// 		// std::cout << "\n keyIndi \n" << keyIndi << std::endl;
+	// 		// delete *it;
+	// 	}
+	//
+	// 	// new estimate is the weighted average
+	// 	pbwHat += dt*kp/numMeas*pbwTildeSum;
+	// 	qbwHat += dt*kq/numMeas*qbwTildeSum;
+	// }
 
 	poseDeltasRemove.clear();
+	qbwHat /= qbwHat.norm();
+	qbwHat(1) = 0.0;
+	qbwHat(2) = 0.0;
+	qbwHat /= qbwHat.norm();
 
-	Eigen::Vector4f qbwHatNormed = qbwHat/qbwHat.norm();
 	pcwHat = rotatevec(pbwHat + pcb,getqInv(qcb));
-	qcwHat = getqMat(qbwHatNormed)*qcb;
+	qcwHat = getqMat(qbwHat)*qcb;
 	qcwHat /= qcwHat.norm();
 	vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
 	wcHat = rotatevec(wbHat,getqInv(qcb));
@@ -222,10 +225,10 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	bodyOdomMsg.pose.pose.position.x = pbwHat(0);
 	bodyOdomMsg.pose.pose.position.y = pbwHat(1);
 	bodyOdomMsg.pose.pose.position.z = pbwHat(2);
-	bodyOdomMsg.pose.pose.orientation.w = qbwHatNormed(0);
-	bodyOdomMsg.pose.pose.orientation.x = qbwHatNormed(1);
-	bodyOdomMsg.pose.pose.orientation.y = qbwHatNormed(2);
-	bodyOdomMsg.pose.pose.orientation.z = qbwHatNormed(3);
+	bodyOdomMsg.pose.pose.orientation.w = qbwHat(0);
+	bodyOdomMsg.pose.pose.orientation.x = qbwHat(1);
+	bodyOdomMsg.pose.pose.orientation.y = qbwHat(2);
+	bodyOdomMsg.pose.pose.orientation.z = qbwHat(3);
 	bodyOdomMsg.twist.twist.linear.x = vbHat(0);
 	bodyOdomMsg.twist.twist.linear.y = vbHat(1);
 	bodyOdomMsg.twist.twist.linear.z = vbHat(2);
