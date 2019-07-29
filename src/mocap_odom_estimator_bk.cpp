@@ -13,12 +13,13 @@ MocapOdomEstimator::MocapOdomEstimator()
 	velSub = nh.subscribe("/odom",5,&MocapOdomEstimator::velCB,this);
 	poseSub = nh.subscribe("/vrpn_client_node/turtlebot/pose",5, &MocapOdomEstimator::poseCB,this);
 
-	XHat = Eigen::VectorXf::Zero(4);//px,py,qw,qz,vx,wz,ax,alz
-	P = Eigen::MatrixXf::Zero(4,4);
-	Q = Eigen::MatrixXf::Zero(4,4);
-	R = Eigen::MatrixXf::Zero(4,4);
-	F = Eigen::MatrixXf::Identity(4,4);
-	H = Eigen::MatrixXf::Identity(4,4);
+	XHat = Eigen::VectorXf::Zero(8);//px,py,qw,qz,vx,wz,ax,alz
+	P = Eigen::MatrixXf::Zero(8,8);
+	Q = Eigen::MatrixXf::Zero(8,8);
+	R = Eigen::MatrixXf::Zero(6,6);
+	F = Eigen::MatrixXf::Identity(8,8);
+	H = Eigen::MatrixXf::Zero(6,8);
+	H.block(0,0,6,6) = Eigen::MatrixXf::Identity(6,6);
 	HT = H.transpose();
 	Hb = Eigen::MatrixXf::Zero(2,8);
 	Hb.block(0,4,2,2) = Eigen::MatrixXf::Identity(2,2);
@@ -27,21 +28,29 @@ MocapOdomEstimator::MocapOdomEstimator()
 	P(1,1) = 1.0;//py
 	P(2,2) = 0.1;//qw
 	P(3,3) = 0.1;//qz
+	P(4,4) = 0.1;//vx
+	P(5,5) = 0.1;//wz
+	P(6,6) = 1.0;//ax
+	P(7,7) = 1.0;//alz
 
 	Q(0,0) = 2.5;//px
 	Q(1,1) = 2.5;//py
 	Q(2,2) = 0.7;//qw
 	Q(3,3) = 0.7;//qz
+	Q(4,4) = 0.01;//vx
+	Q(5,5) = 0.01;//wz
+	Q(6,6) = 1.0;//ax
+	Q(7,7) = 1.0;//alz
 
-	R(0,0) = 200.0;//px
-	R(1,1) = 200.0;//py
-	R(2,2) = 2.0*M_PI;//qw
-	R(3,3) = 2.0*M_PI;//qz
+	R(0,0) = 5.0;//px
+	R(1,1) = 5.0;//py
+	R(2,2) = 0.7;//qw
+	R(3,3) = 0.7;//qz
+	R(4,4) = 0.001;//vx
+	R(5,5) = 0.001;//wz
 
 	px = 0.0;
 	py = 0.0;
-	pxLast = 0.0;
-	pyLast = 0.0;
 	qw = 0.0;
 	qz = 0.0;
 	vx = 0.0;
@@ -103,7 +112,8 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		XHat(1) = py;
 		XHat(2) = qw;
 		XHat(3) = qz;
-
+		XHat(4) = vx;
+		XHat(5) = wz;
 		tLast = t;
 		firstVel = false;
 	}
@@ -116,22 +126,18 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float pyHat = XHat(1);
 	float qwHat = XHat(2);
 	float qzHat = XHat(3);
-	float vxHat = vx;
-	float wzHat = wz;
+	float vxHat = XHat(4);
+	float wzHat = XHat(5);
+	float aHat = XHat(6);
+	float alHat = XHat(7);
 
-	Eigen::VectorXf DXHat = Eigen::VectorXf::Zero(4);
+	Eigen::VectorXf DXHat = Eigen::VectorXf::Zero(8);
 	DXHat(0) = (qwHat*vxHat*qwHat - qzHat*vxHat*qzHat)*dt;
 	DXHat(1) = 2.0*qzHat*vxHat*qwHat*dt;
 	DXHat(2) = -0.5*qzHat*wzHat*dt;
 	DXHat(3) = 0.5*qwHat*wzHat*dt;
-
-	//process jacobian
-	F(0,2) = 2.0*qwHat*vxHat*dt;
-	F(0,3) = -2.0*qzHat*vxHat*dt;
-	F(1,2) = 2.0*qzHat*vxHat*dt;
-	F(1,3) = 2.0*qwHat*vxHat*dt;
-	F(2,3) = -0.5*wzHat*dt;
-	F(3,2) = 0.5*wzHat*dt;
+	DXHat(4) = aHat*dt;
+	DXHat(5) = alHat*dt;
 
 	XHat += DXHat;
 	P = (F*P*F.transpose() + Q);
@@ -139,49 +145,95 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	// std::cout << "\n DXHat " << DXHat << std::endl;
 	// std::cout << "\n P " << P << std::endl;
 
-	Eigen::VectorXf Z = Eigen::VectorXf::Zero(4);
-	Z(0) = px;
-	Z(1) = py;
-	Z(2) = qw;
-	Z(3) = qz;
-
-	float xDiff = fabsf(px-pxLast);
-	float yDiff = fabsf(py-pyLast);
-	bool measGood = true;
-	if ((xDiff < 0.01) && (yDiff < 0.01))
+	Eigen::VectorXf Z;
+	bool pBad = false;
+	if (((fabs(px-XHat(0)) < 0.01) && (fabs(py-XHat(1)) < 0.01))
+	     || (fabs(px-XHat(0)) > 0.5)
+			 || (fabs(py-XHat(1)) > 0.5)
+			 || (fabs(acos(qw)*2.0 - acos(qwHat)*2.0) > 30.0*M_PI/180.0)
+			 || (fabs(acos(qz)*2.0 - acos(qzHat)*2.0) > 30.0*M_PI/180.0))
 	{
-		measGood = false;
+		Z = Eigen::VectorXf::Zero(2);
+		Z(0) = vx;
+		Z(1) = wz;
+		pBad = true;
 	}
 	else
 	{
-		pxLast = px;
-		pyLast = py;
-	}
-
-	if (sqrtf((qwHat+Z(2))*(qwHat+Z(2))+(qzHat+Z(3))*(qzHat+Z(3))) < sqrtf((qwHat-Z(2))*(qwHat-Z(2))+(qzHat-Z(3))*(qzHat-Z(3))))
-	{
-		Z(2) = -Z(2);
-		Z(3) = -Z(3);
+		Z = Eigen::VectorXf::Zero(6);
+		Z(0) = px;
+		Z(1) = py;
+		Z(2) = qw;
+		Z(3) = qz;
+		Z(4) = vx;
+		Z(5) = wz;
+		if (sqrtf((qwHat+Z(2))*(qwHat+Z(2))+(qzHat+Z(3))*(qzHat+Z(3))) < sqrtf((qwHat-Z(2))*(qwHat-Z(2))+(qzHat-Z(3))*(qzHat-Z(3))))
+		{
+			Z(2) = -Z(2);
+			Z(3) = -Z(3);
+		}
 	}
 	velMutex.unlock();
-
-	float distance = float((Z-XHat).norm());
 
 	// std::cout << "\n XHat " << XHat << std::endl;
 	// std::cout << "\n Z " << Z << std::endl;
 
-	if (measGood)
+	//process jacobian
+	F(0,2) = 2.0*qwHat*vxHat*dt;
+	F(0,3) = -2.0*qzHat*vxHat*dt;
+	F(0,4) = (qwHat*qwHat - qzHat*qzHat)*dt;
+	F(1,2) = 2.0*qzHat*vxHat*dt;
+	F(1,3) = 2.0*qwHat*vxHat*dt;
+	F(1,4) = 2.0*qwHat*qzHat*dt;
+	F(2,3) = -0.5*wzHat*dt;
+	F(2,5) = -0.5*qzHat*dt;
+	F(3,2) = 0.5*wzHat*dt;
+	F(3,5) = 0.5*qwHat*dt;
+	F(4,6) = dt;
+	F(5,7) = dt;
+
+	// std::cout << "\n F " << F << std::endl;
+	Eigen::MatrixXf K;
+	if (!pBad)
 	{
-		// std::cout << "\n F " << F << std::endl;
-		Eigen::MatrixXf S = P + (1.0+25*distance)*R;
+		Eigen::MatrixXf S = P.block(0,0,6,6) + R;
 		Eigen::JacobiSVD<Eigen::MatrixXf> svdS(S, Eigen::ComputeThinU | Eigen::ComputeThinV);
-		Eigen::MatrixXf SI = svdS.solve(Eigen::MatrixXf::Identity(4,4));
+		Eigen::MatrixXf SI = svdS.solve(Eigen::MatrixXf::Identity(6,6));
 
 		// std::cout << "\n S " << S << std::endl;
-		Eigen::MatrixXf K = P*SI;
-		XHat += (K*(Z-XHat));
-		P -= (K*P);
+		K = P.block(0,0,8,6)*SI;
+		XHat += (K*(Z-XHat.segment(0,6)));
+		P -= (K*H*P);
 	}
+	// else
+	// {
+	// 	Eigen::MatrixXf S = P.block(4,4,2,2) + R.block(4,4,2,2);
+	// 	Eigen::JacobiSVD<Eigen::MatrixXf> svdS(S, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	// 	Eigen::MatrixXf SI = svdS.solve(Eigen::MatrixXf::Identity(2,2));
+	//
+	// 	// std::cout << "\n S " << S << std::endl;
+	// 	K = P.block(0,4,8,2)*SI;
+	// 	XHat += (K*(Z-XHat.segment(4,2)));
+	// 	P -= (K*Hb*P);
+	// }
+
+	// std::cout << "\n K " << K << std::endl;
+	// std::cout << "\n K \n" << K <<std::endl;
+
+	// std::cout << "\n z \n" << z <<std::endl;
+	// std::cout << "\n 88888 xHat ls \n" << xHat <<std::endl;
+	// std::cout << "\n z-xHat \n" << (z-xHat.segment(0,7)) <<std::endl;
+	// std::cout << "\n K*(z-xHat) \n" << (K*(z-xHat.segment(0,7))).segment(0,7) <<std::endl;
+
+	// std::cout << std::endl << xHat.segment(0,7) << std::endl;
+	// std::cout << std::endl << P << std::endl;
+
+	// std::cout << "\n XHat " << XHat << std::endl;
+	// std::cout << std::endl << "----------------" << std::endl;
+	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
+	// P = (Eigen::Matrix<float,6,6>::Identity() - K*H)*P;
+
+	// std::cout << "\n P " << P << std::endl;
 
 	// build and publish odom message for body
 	float normqHat = sqrtf(XHat(2)*XHat(2)+XHat(3)*XHat(3));
@@ -197,11 +249,11 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	bodyOdomMsg.pose.pose.orientation.x = 0.0;
 	bodyOdomMsg.pose.pose.orientation.y = 0.0;
 	bodyOdomMsg.pose.pose.orientation.z = XHat(3)/normqHat;
-	bodyOdomMsg.twist.twist.linear.x = vxHat;
+	bodyOdomMsg.twist.twist.linear.x = XHat(4);
 	bodyOdomMsg.twist.twist.linear.y = 0.0;
 	bodyOdomMsg.twist.twist.linear.z = 0.0;
 	bodyOdomMsg.twist.twist.angular.x = 0.0;
 	bodyOdomMsg.twist.twist.angular.y = 0.0;
-	bodyOdomMsg.twist.twist.angular.z = wzHat;
+	bodyOdomMsg.twist.twist.angular.z = XHat(5);
 	bodyOdomPub.publish(bodyOdomMsg);
 }

@@ -32,6 +32,8 @@ struct OdomEstimator
 	Eigen::Vector3f wcHat;
 	Eigen::Vector3f pbwHat;
 	Eigen::Vector4f qbwHat;
+	Eigen::Vector3f pbwMocap;
+	Eigen::Vector4f qbwMocap;
 	Eigen::Vector3f vbHat;
 	Eigen::Vector3f wbHat;
 	Eigen::Vector3f pcb;

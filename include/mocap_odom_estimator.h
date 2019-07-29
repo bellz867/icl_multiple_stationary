@@ -26,6 +26,7 @@ struct MocapOdomEstimator
 	Eigen::VectorXf XHat;
 	std::mutex poseMutex,velMutex;
 	float px,py,qw,qz,vx,wz;
+	float pxLast,pyLast;
 
   MocapOdomEstimator();
 

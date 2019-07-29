@@ -88,6 +88,7 @@ struct PatchEstimator
 	Eigen::Vector4f qcb;
 	bool firstImage;
 	bool allPtsKnown;
+	bool landmarkView;
 
 	~PatchEstimator();
 

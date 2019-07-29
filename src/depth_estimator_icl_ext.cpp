@@ -242,7 +242,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.5) && (Y.norm() > 0.15);
+    bool measgood = (U.norm() > 0.3) && (Y.norm() > 0.2);
     // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
