@@ -49,8 +49,8 @@ struct PatchEstimator
 	// image_transport::Publisher imagePub2;
 	cv::Mat kimage,pimage;
 	int keyInd,patchInd,partitionInd,partitionRows,partitionCols,minDistance,currentAvgPartition,numberFeaturesPerPartCol,numberFeaturesPerPartRow;
-  ros::Subscriber odomSub,roiSub;
-	ros::Publisher poseDeltaPub,roiPub,wallPub,pointCloudPub;
+  ros::Subscriber odomSub,roiSub,chessboardSub;
+	ros::Publisher poseDeltaPub,roiPub,wallPub,pointCloudPub,chessboardPub;
 	// ros::Publisher wallPub,poseDeltaPub,roiPub,odomPub,pointCloudPub,odomDelayedPub;
 	Eigen::Vector3f tkcHat;
 	Eigen::Vector3f nkHat;
@@ -65,7 +65,7 @@ struct PatchEstimator
 	std::vector<DepthEstimator*> depthEstimators;
 	std::deque<nav_msgs::Odometry> odomSync;
 	std::deque<nav_msgs::Odometry> markerOdomSync;
-	std::mutex odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex,findPointsMutex;
+	std::mutex odomCBMutex,odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex,findPointsMutex,chessboardMutex,destroyLock;
 	ros::Time tLast;
 	float pTau,qTau,tTau,nTau,dTau,GTau;
 	nav_msgs::Odometry keyOdom,imageOdom;
@@ -89,6 +89,10 @@ struct PatchEstimator
 	bool firstImage;
 	bool allPtsKnown;
 	bool landmarkView;
+	int numLandmarkCheck;
+	Eigen::Vector3f wcbHat;
+
+	VectorDerivativeEstimator qDotEstimator;
 
 	~PatchEstimator();
 
@@ -110,6 +114,8 @@ struct PatchEstimator
 	void roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg);
 
 	void imageCB(const sensor_msgs::Image::ConstPtr& msg);
+
+	void chessboardCB(const std_msgs::Time::ConstPtr& msg);
 
 	void match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::Vector3f wc, ros::Time t);
 

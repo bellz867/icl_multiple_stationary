@@ -10,6 +10,7 @@ DepthEstimatorICLExt::DepthEstimatorICLExt()
   dkKnown = false;
   numSaved = 0;
   numThrown = 0;
+  timeConverge = 0.0;
 }
 void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t)
 {
@@ -30,7 +31,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n hi4 \n";
 
   float kxi = 75.0;
-  float kX = 15.0;
+  float kX = 20.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
   Eigen::Vector3f uc = xHat.segment(0,3);
@@ -85,14 +86,24 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   float xixi = xiT*xi;
   float xirho = xiT*rho;
   float kxixiTilde = kxi*(xirho - xixi*dcHat);
-  float ucukc = ucT*ukc;
-  float ucRuk = ucT*Rkc*ukc;
-  Eigen::RowVector2f psiu(ucukc,ucRuk);
-  Eigen::Matrix<float,3,2> xipsiu = xi*psiu;
-  Eigen::Matrix<float,2,3> xipsiuT = xipsiu.transpose();
-  Eigen::Matrix2f xpxp = xipsiuT*xipsiu;
-  Eigen::Vector2f xprho = xipsiuT*rho;
-  Eigen::Vector2f kxpxpTilde = kxi*(xprho - xpxp*Eigen::Vector2f(dkcHat,dkHat));
+
+  Eigen::Matrix<float,3,2> Yk;
+  Eigen::Matrix<float,2,3> YkT;
+  Yk.block(0,0,3,1) = ukc;
+  Yk.block(0,1,3,1) = Rkc*uk;
+  YkT = Yk.transpose();
+  Eigen::Matrix2f YkYk = YkT*Yk;
+  Eigen::Vector2f Ykuc = YkT*uc;
+  Eigen::Vector2f kxpxpTilde = kxi*(Ykuc*dcHat - YkYk*Eigen::Vector2f(dkcHat,dkHat));
+
+  // float ucukc = ucT*ukc;
+  // float ucRuk = ucT*Rkc*ukc;
+  // Eigen::RowVector2f psiu(ucukc,ucRuk);
+  // Eigen::Matrix<float,3,2> xipsiu = xi*psiu;
+  // Eigen::Matrix<float,2,3> xipsiuT = xipsiu.transpose();
+  // Eigen::Matrix2f xpxp = xipsiuT*xipsiu;
+  // Eigen::Vector2f xprho = xipsiuT*rho;
+  // Eigen::Vector2f kxpxpTilde = kxi*(xprho - xpxp*Eigen::Vector2f(dkcHat,dkHat));
 
 
   // std::cout << "\n hi8 \n";
@@ -118,8 +129,13 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   psiDotInt += (psiDot*dt);
 
   // std::cout << "\n hi9 \n";
+  float lambdaa = 0.4;
+  float lambdat = 0.0001;
+  float dmin = 0.1;
+  float dmax = 6.0;
+  float timeConvergeMin = -1.0/(lambdaa*kX)*log(dmin/dmax);
 
-  if ((1.0-fabsf(ucT*ukc) < 0.4))
+  if ((1.0-fabsf(ucT*ukc) < lambdaa))
   {
     psiBuff.clear();
     psiDotBuff.clear();
@@ -307,9 +323,14 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n hi14 \n";
 
-  if (yysum > 0.0001)
+  if (yysum > lambdat)
   {
-    dkKnown = true;
+    timeConverge += dt;
+    if (timeConverge > timeConvergeMin)
+    {
+      dkKnown = true;
+    }
+
     float dkMed = yusum/yysum;
 
     // std::cout << "\n dkMed " << dkMed << std::endl;

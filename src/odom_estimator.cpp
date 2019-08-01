@@ -23,6 +23,11 @@ OdomEstimator::OdomEstimator()
 	qcb << qcbw,qcbx,qcby,qcbz;
 	qcb /= qcb.norm();
 
+	// Eigen::Vector4f qcbxx(cos(0.5*M_PI/2),sin(-0.5*M_PI/2),0.0,0.0);
+	// Eigen::Vector4f qcbyy(cos(-0.5*5.0*M_PI/180.0),0.0,sin(-0.5*5.0*M_PI/180.0),0.0);
+	// qcb = getqMat(qcbxx)*qcbyy;
+	// qcb /= qcb.norm();
+
 	float fp,fq,fv,fw;
 	nhp.param<float>("fp", fp, 1.0);
 	nhp.param<float>("fq", fq, 1.0);
@@ -105,8 +110,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float kv = dt/(vTau+dt);
 	float kw = dt/(wTau+dt);
 
-	vbHat += kv*(vb-vbHat);
-	wbHat += kw*(wb-wbHat);
+	vbHat += kv*(1.005*vb-vbHat);
+	wbHat += kw*(1.025*wb-wbHat);
 
 	// predict the estimates forward
 	pbwHat += (rotatevec(vbHat,qbwHat)*dt);
@@ -124,6 +129,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	poseDeltas.clear();
 	poseDeltaMutex.unlock();
 	int numMeas = poseDeltasRemove.size();
+	// int numMeas = 0;
 	if (numMeas > 0)
 	{
 		// weight the estimates
@@ -141,8 +147,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 			Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
 			if (landmarkViewi)
 			{
-				pbwTildei = pbwMocapLast - pbwHat;
-				qbwTildei = qbwMocapLast - qbwHat;
+				pbwTildei = 10.0*(pbwMocapLast - pbwHat);
+				qbwTildei = 10.0*(qbwMocapLast - qbwHat);
 			}
 			else
 			{

@@ -34,6 +34,7 @@ struct DepthEstimatorICLExt
   int numSaved,numThrown;
   VectorDerivativeEstimator uDotEstimator;
   VectorDerivativeEstimator psiDotEstimator;
+  float timeConverge;
 
   DepthEstimatorICLExt();
   void initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t);

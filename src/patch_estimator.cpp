@@ -2,6 +2,7 @@
 
 PatchEstimator::~PatchEstimator()
 {
+	destroyLock.lock();
 	if (saveExp)
 	{
 		std::cout << "\nsaving\n";
@@ -67,7 +68,31 @@ PatchEstimator::~PatchEstimator()
 		}
 		std::cout << "\nsaved\n";
 	}
+
+	std::cout << "\n hid10 \n";
+	imagePub.shutdown();
+	std::cout << "\n hid11 \n";
+	// imagePub2.shutdown();
+	imageSub.shutdown();
+	std::cout << "\n hid12 \n";
+	odomSub.shutdown();
+	std::cout << "\n hid13 \n";
+	roiSub.shutdown();
+	std::cout << "\n hid14 \n";
+	roiPub.shutdown();
+	std::cout << "\n hid15 \n";
+	poseDeltaPub.shutdown();
+	std::cout << "\n hid16 \n";
+	wallPub.shutdown();
+	std::cout << "\n hid17 \n";
+	pointCloudPub.shutdown();
+	std::cout << "\n hid18 \n";
+
+	chessboardPub.shutdown();
+	std::cout << "\n hid19 \n";
+	// chessboardSub.shutdown();
 	ROS_WARN("destroying \n");
+	destroyLock.unlock();
 }
 
 PatchEstimator::PatchEstimator() : it(nh)
@@ -100,6 +125,12 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int part
 	checkSizeBase = checkSizeBaseInit;
 	pcb = pcbInit;
 	qcb = qcbInit;
+	numLandmarkCheck = 0;
+
+	// Eigen::Vector4f qcbx(cos(0.5*M_PI/2),sin(-0.5*M_PI/2),0.0,0.0);
+	// Eigen::Vector4f qcby(cos(-0.5*5.0*M_PI/180.0),0.0,sin(-0.5*5.0*M_PI/180.0),0.0);
+	// qcb = getqMat(qcbx)*qcby;
+	// qcb /= qcb.norm();
 
 	patchShutdown = false;
 	firstOdomImageCB = true;
@@ -111,6 +142,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int part
  	qckHat = Eigen::Vector4f(1.0,0.0,0.0,0.0);
 	tkcDotEstimator.initialize(3);
 	qkcDotEstimator.initialize(4);
+	wcbHat = Eigen::Vector3f::Zero();
 
 	fx = fxInit;
 	fy = fyInit;
@@ -209,7 +241,9 @@ void PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 	roiPub = nh.advertise<icl_multiple_stationary::Roi>(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",1);
 	wallPub = nh.advertise<icl_multiple_stationary::Wall>("/wall_points",1);
 	roiSub = nh.subscribe(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/roi",1, &PatchEstimator::roiCB,this);
-	pointCloudPub = nh.advertise<PointCloud> ("patch_map", 1);
+	pointCloudPub = nh.advertise<PointCloud>("patch_map", 1);
+	chessboardPub = nh.advertise<std_msgs::Time>(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/chessboard", 1);
+	chessboardSub = nh.subscribe(cameraName+"/"+std::to_string(keyInd)+"/"+std::to_string(patchInd)+"/chessboard",1, &PatchEstimator::chessboardCB,this);
 
 	keyOdom = imageOdom;
 	kimage = image.clone();
@@ -252,19 +286,24 @@ void PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 
 void PatchEstimator::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
 {
+	odomCBMutex.lock();
 	if (patchShutdown)
 	{
+		odomCBMutex.unlock();
 		return;
 	}
-	std::lock_guard<std::mutex> odomMutexGuard(odomMutex);
 	odomSync.push_back(*msg);
+	odomCBMutex.unlock();
 }
 
 //roi CB
 void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 {
+	roiMutex.lock();
+	ROS_WARN("\n\n ************** ROI START ************** \n\n");
 	if (patchShutdown)
 	{
+		roiMutex.unlock();
 		return;
 	}
 
@@ -275,7 +314,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	qcw /= qcw.norm();
 
 	//estimate the plane using the points by normalizing by the z element of the normal
-	roiMutex.lock();
+
 	// Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 	// Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
 	int numberPts = int(depthEstimators.size());
@@ -380,19 +419,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 			int rowsReduce = std::round(rows/reduceFactor);
 			cv::Mat roiimageReduce(cv::Size(colsReduce,rowsReduce),CV_8U);
 			cv::resize(roiimage,roiimageReduce,roiimageReduce.size(),fx,fy,cv::INTER_AREA);
-			clock_t chessTime = clock();
 
-			cv::Size patternSize(8,6);
-			std::vector<cv::Point2f> ptsCheckerBoard;
-			landmarkView = cv::findChessboardCorners(roiimage,patternSize,ptsCheckerBoard,cv::CALIB_CB_FAST_CHECK);
-
-			ROS_WARN("chessboard time %2.4f",float(clock()-chessTime)/CLOCKS_PER_SEC);
-
-
-			if (landmarkView)
-			{
-				std::cout << "\n saw landmark \n";
-			}
 			roiMutex.unlock();
 
 
@@ -610,7 +637,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				{
 					ROS_WARN("ROI patch not shutdown");
 					// if (allPtsKnown && (acos(nyICL) > (70.0*3.1415/180.0)) && (acos(nxICL) > (70.0*3.1415/180.0)))
-					if (allPtsKnown && (avgNumSaved >= 3) && (acos(nzICL) < (30.0*3.1415/180.0)))
+					if (allPtsKnown && (avgNumSaved >= 1) && (acos(nzICL) < (30.0*3.1415/180.0)))
 					{
 						icl_multiple_stationary::Wall wallMsg;
 						wallMsg.header.stamp = t;
@@ -651,16 +678,21 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 		roiMutex.unlock();
 		ROS_ERROR("wall points failed roi to large");
 	}
+
+	ROS_WARN("\n\n ************** ROI STOP ************** \n\n");
 }
 
 //image callback
 void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 {
+	odomMutex.lock();
 	ROS_WARN("\n\n ************** IMAGE START ************** \n\n");
 	if (patchShutdown)
 	{
+		odomMutex.unlock();
 		return;
 	}
+	odomMutex.unlock();
 
 	clock_t callbackTime = clock();
 	clock_t processTime = clock();
@@ -761,8 +793,8 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
 	// qkcHat = getqInv(qckHat);
 	// qkcHat /= qkcHat.norm();
-	pkcHat += ((-vc-getss(wc)*pkcHat)*dt);
-	qkcHat += (-0.5*B(qkcHat)*wc*dt);
+	pkcHat += ((-vc-getss((wc+wcbHat))*pkcHat)*dt);
+	qkcHat += (-0.5*B(qkcHat)*(wc+wcbHat)*dt);
 	qkcHat /= qkcHat.norm();
 
 	// find the features
@@ -865,23 +897,6 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		std::cout << "\n hid9 \n";
 		depthEstimators.clear();
 		std::cout << "\n hid10 \n";
-		imagePub.shutdown();
-		std::cout << "\n hid11 \n";
-		// imagePub2.shutdown();
-		imageSub.shutdown();
-		std::cout << "\n hid12 \n";
-		odomSub.shutdown();
-		std::cout << "\n hid13 \n";
-		roiSub.shutdown();
-		std::cout << "\n hid14 \n";
-		roiPub.shutdown();
-		std::cout << "\n hid15 \n";
-		poseDeltaPub.shutdown();
-		std::cout << "\n hid16 \n";
-		wallPub.shutdown();
-		std::cout << "\n hid17 \n";
-		pointCloudPub.shutdown();
-		std::cout << "\n hid18 \n";
 
 		patchShutdown = true;
 		pubMutex.unlock();
@@ -990,10 +1005,50 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		roiMsg.poseHat.orientation.z = qcwHat(3);
 		roiPub.publish(roiMsg);
 
+		if (!landmarkView)
+		{
+			std_msgs::Time tMsg;
+			tMsg.data = t;
+			chessboardPub.publish(tMsg);
+		}
+
 		pubMutex.unlock();
 	}
 
 	ROS_WARN("IMAGE STOP cb time %2.4f",float(clock()-callbackTime)/CLOCKS_PER_SEC);
+}
+
+void PatchEstimator::chessboardCB(const std_msgs::Time::ConstPtr& msg)
+{
+	chessboardMutex.lock();
+	if (patchShutdown)
+	{
+		chessboardMutex.unlock();
+		return;
+	}
+
+	if (numLandmarkCheck < 3)
+	{
+		numLandmarkCheck++;
+		chessboardMutex.unlock();
+		return;
+	}
+	else
+	{
+		numLandmarkCheck = 0;
+	}
+
+	clock_t chessTime = clock();
+	ROS_WARN("chessboard time %2.4f",float(clock()-chessTime)/CLOCKS_PER_SEC);
+	cv::Size patternSize(8,6);
+	std::vector<cv::Point2f> ptsCheckerBoard;
+	landmarkView = cv::findChessboardCorners(pimage,patternSize,ptsCheckerBoard,cv::CALIB_CB_FAST_CHECK);
+	if (landmarkView)
+	{
+		std::cout << "\n saw landmark \n";
+		chessboardSub.shutdown();
+	}
+	chessboardMutex.unlock();
 }
 
 //finds the features in the previous image in the new image and matches the features
@@ -1106,12 +1161,12 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
 
 	bool normGood = true;
-	if (avgNumSaved >= 3)
+	if (allPtsKnown && (avgNumSaved >= 1))
 	{
 		normGood = (nDifAngRot < 15.0);
 	}
 
-	bool angGood = qAng < 45.0;
+	bool angGood = qAng < 20.0;
 
 	if (normGood && angGood)
 	{
@@ -1953,7 +2008,12 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkc,t);
 		qkcHat = xHatq.segment(0,4);
+		qkcHat(1) = 0.0;
+		qkcHat(3) = 0.0;
 		qkcHat /= qkcHat.norm();
+		Eigen::Vector4f qkcHatDot = xHatq.segment(4,4);
+		Eigen::Vector3f wcb = -2.0*B(qkcHat).transpose()*qkcHatDot - wc;
+		wcbHat += 0.25*(wcb-wcbHat);
 
 		Eigen::Matrix3f RkcHat = getqRot(qkcHat);
 
@@ -1962,7 +2022,11 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		if (tkcHat.norm() > 0.001)
 		{
-			tkcHat /= tkcHat.norm();
+			tkcHat(1) = 0.0;
+			if (tkcHat.norm() > 0.001)
+			{
+				tkcHat /= tkcHat.norm();
+			}
 		}
 	  // Eigen::Vector3f ucDot = xHatt.segment(3,3);
 
