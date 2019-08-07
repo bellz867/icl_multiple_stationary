@@ -86,8 +86,6 @@ void OdomEstimator::mocapPoseCB(const nav_msgs::Odometry::ConstPtr& msg)
 
 }
 
-
-
 void OdomEstimator::poseDeltaCB(const icl_multiple_stationary::PoseDelta::ConstPtr& msg)
 {
 	std::lock_guard<std::mutex> poseDeltaMutexGuard(poseDeltaMutex);
@@ -110,7 +108,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float kv = dt/(vTau+dt);
 	float kw = dt/(wTau+dt);
 
-	vbHat += kv*(1.005*vb-vbHat);
+	vbHat += kv*(0.99*vb-vbHat);
 	wbHat += kw*(1.025*wb-wbHat);
 
 	// predict the estimates forward
