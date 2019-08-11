@@ -15,7 +15,7 @@
 struct MocapOdomEstimator
 {
 	ros::NodeHandle nh;
-  ros::Publisher bodyOdomPub;
+  ros::Publisher bodyOdomPub,camOdomPub;
   ros::Subscriber velSub,poseSub;
   std::string bodyName;
 	ros::Time tLast;//last time
@@ -27,6 +27,9 @@ struct MocapOdomEstimator
 	std::mutex poseMutex,velMutex;
 	float px,py,qw,qz,vx,wz;
 	float pxLast,pyLast;
+
+	Eigen::Vector3f pcb;
+	Eigen::Vector4f qcb;
 
   MocapOdomEstimator();
 

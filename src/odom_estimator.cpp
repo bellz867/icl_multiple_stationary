@@ -108,7 +108,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float kv = dt/(vTau+dt);
 	float kw = dt/(wTau+dt);
 
-	vbHat += kv*(0.99*vb-vbHat);
+	vbHat += kv*(0.95*vb-vbHat);
 	wbHat += kw*(1.025*wb-wbHat);
 
 	// predict the estimates forward

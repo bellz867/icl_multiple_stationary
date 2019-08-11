@@ -12,7 +12,7 @@ int main(int argc, char** argv)
     // spinner.start();
     // ros::waitForShutdown();
 
-    ros::MultiThreadedSpinner spinner(4);
+    ros::MultiThreadedSpinner spinner(8);
     spinner.spin();
 
     // ros::spin();

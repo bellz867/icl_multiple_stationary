@@ -29,28 +29,25 @@ MocapOdomEstimator::MocapOdomEstimator()
 	velSub = nh.subscribe("/odom",5,&MocapOdomEstimator::velCB,this);
 	poseSub = nh.subscribe("/vrpn_client_node/turtlebot/pose",5, &MocapOdomEstimator::poseCB,this);
 
-	XHat = Eigen::VectorXf::Zero(6);//px,py,qw,qz,cv,cw
-	P = Eigen::MatrixXf::Zero(6,6);
-	Q = Eigen::MatrixXf::Zero(6,6);
+	XHat = Eigen::VectorXf::Zero(4);//px,py,qw,qz,vx,wz,ax,alz
+	P = Eigen::MatrixXf::Zero(4,4);
+	Q = Eigen::MatrixXf::Zero(4,4);
 	R = Eigen::MatrixXf::Zero(4,4);
-	F = Eigen::MatrixXf::Identity(6,6);
-	H = Eigen::MatrixXf::Zero(4,6);
-	H.block(0,0,4,4) = Eigen::MatrixXf::Identity(4,4);
+	F = Eigen::MatrixXf::Identity(4,4);
+	H = Eigen::MatrixXf::Identity(4,4);
 	HT = H.transpose();
+	Hb = Eigen::MatrixXf::Zero(2,8);
+	Hb.block(0,4,2,2) = Eigen::MatrixXf::Identity(2,2);
 
 	P(0,0) = 1.0;//px
 	P(1,1) = 1.0;//py
 	P(2,2) = 0.1;//qw
 	P(3,3) = 0.1;//qz
-	P(4,4) = 1.0;//cv
-	P(5,5) = 1.0;//cw
 
 	Q(0,0) = 2.5;//px
 	Q(1,1) = 2.5;//py
 	Q(2,2) = 0.7;//qw
 	Q(3,3) = 0.7;//qz
-	Q(4,4) = 1.0;//qw
-	Q(5,5) = 1.0;//qz
 
 	R(0,0) = 200.0;//px
 	R(1,1) = 200.0;//py
@@ -122,8 +119,6 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		XHat(1) = py;
 		XHat(2) = qw;
 		XHat(3) = qz;
-		XHat(4) = 1.0;
-		XHat(5) = 1.0;
 
 		tLast = t;
 		firstVel = false;
@@ -137,28 +132,22 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float pyHat = XHat(1);
 	float qwHat = XHat(2);
 	float qzHat = XHat(3);
-	float cvHat = XHat(4);
-	float cwHat = XHat(5);
 	float vxHat = vx;
 	float wzHat = wz;
 
-	Eigen::VectorXf DXHat = Eigen::VectorXf::Zero(6);
-	DXHat(0) = (qwHat*vxHat*cvHat*qwHat - qzHat*vxHat*cvHat*qzHat)*dt;
-	DXHat(1) = 2.0*qzHat*vxHat*cvHat*qwHat*dt;
-	DXHat(2) = -0.5*qzHat*wzHat*cwHat*dt;
-	DXHat(3) = 0.5*qwHat*wzHat*cwHat*dt;
+	Eigen::VectorXf DXHat = Eigen::VectorXf::Zero(4);
+	DXHat(0) = (qwHat*vxHat*qwHat - qzHat*vxHat*qzHat)*dt;
+	DXHat(1) = 2.0*qzHat*vxHat*qwHat*dt;
+	DXHat(2) = -0.5*qzHat*wzHat*dt;
+	DXHat(3) = 0.5*qwHat*wzHat*dt;
 
 	//process jacobian
 	F(0,2) = 2.0*qwHat*vxHat*dt;
 	F(0,3) = -2.0*qzHat*vxHat*dt;
-	F(0,4) = (qwHat*vxHat*qwHat - qzHat*vxHat*qzHat)*dt;
 	F(1,2) = 2.0*qzHat*vxHat*dt;
 	F(1,3) = 2.0*qwHat*vxHat*dt;
-	F(0,4) = 2.0*qzHat*vxHat*qwHat*dt;
 	F(2,3) = -0.5*wzHat*dt;
-	F(2,5) = -0.5*qzHat*wzHat*dt;
 	F(3,2) = 0.5*wzHat*dt;
-	F(3,5) = 0.5*qwHat*wzHat*dt;
 
 	XHat += DXHat;
 	P = (F*P*F.transpose() + Q);
@@ -192,7 +181,7 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	}
 	velMutex.unlock();
 
-	float distance = float((Z-XHat.segment(0,4)).norm());
+	float distance = float((Z-XHat).norm());
 
 	// std::cout << "\n XHat " << XHat << std::endl;
 	// std::cout << "\n Z " << Z << std::endl;
@@ -200,17 +189,15 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	if (measGood)
 	{
 		// std::cout << "\n F " << F << std::endl;
-		Eigen::MatrixXf S = P.block(0,0,4,4) + (1.0+25*distance)*R;
+		Eigen::MatrixXf S = P + (1.0+25*distance)*R;
 		Eigen::JacobiSVD<Eigen::MatrixXf> svdS(S, Eigen::ComputeThinU | Eigen::ComputeThinV);
 		Eigen::MatrixXf SI = svdS.solve(Eigen::MatrixXf::Identity(4,4));
 
 		// std::cout << "\n S " << S << std::endl;
-		Eigen::MatrixXf K = P.block(0,0,6,4)*SI;
-		XHat += (K*(Z-XHat.segment(0,4)));
-		P -= (K*H*P);
+		Eigen::MatrixXf K = P*SI;
+		XHat += (K*(Z-XHat));
+		P -= (K*P);
 	}
-
-	std::cout << "\n XHat " << XHat << std::endl;
 
 	// build and publish odom message for body
 	float normqHat = sqrtf(XHat(2)*XHat(2)+XHat(3)*XHat(3));
@@ -226,12 +213,12 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	bodyOdomMsg.pose.pose.orientation.x = 0.0;
 	bodyOdomMsg.pose.pose.orientation.y = 0.0;
 	bodyOdomMsg.pose.pose.orientation.z = XHat(3)/normqHat;
-	bodyOdomMsg.twist.twist.linear.x = vxHat*XHat(4);
+	bodyOdomMsg.twist.twist.linear.x = vxHat;
 	bodyOdomMsg.twist.twist.linear.y = 0.0;
 	bodyOdomMsg.twist.twist.linear.z = 0.0;
 	bodyOdomMsg.twist.twist.angular.x = 0.0;
 	bodyOdomMsg.twist.twist.angular.y = 0.0;
-	bodyOdomMsg.twist.twist.angular.z = wzHat*XHat(5);
+	bodyOdomMsg.twist.twist.angular.z = wzHat;
 	bodyOdomPub.publish(bodyOdomMsg);
 
 	Eigen::Vector3f pbwHat(XHat(0),XHat(1),0.0);

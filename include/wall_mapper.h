@@ -6,6 +6,7 @@
 #include <ctime>
 #include <vector>
 #include <queue>
+#include <mutex>
 
 #include <ros/ros.h>
 #include <ros/console.h>
@@ -61,6 +62,11 @@ struct WallMapper
     std::string cameraName;
 
     PointCloudRGB cloud_true;
+
+    Eigen::Vector3f pcw;
+    Eigen::Vector4f qcw;
+
+    std::mutex odomMutex,wallMutex;
 
     // std::vector<std::vector<cv::Point2f>> wallPts;
     // std::vector<std::vector<geometry_msgs::Point32>> keyClouds;

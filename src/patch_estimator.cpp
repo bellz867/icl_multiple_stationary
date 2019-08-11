@@ -422,7 +422,6 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 
 			roiMutex.unlock();
 
-
 			Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
 			Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
 			float XYXYdet = float(XYXYICL.determinant());
@@ -577,8 +576,8 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					ptxyz.y = piw(1);
 					ptxyz.z = piw(2);
 					ptxyz.r = (*itI);
-					ptxyz.g = std::min((*itI)+100,255);
-					ptxyz.b = (*itI);
+					ptxyz.g = (*itI);
+					ptxyz.b = std::min((*itI)+100,255);
 					*cloudIt = ptxyz;
 					cloudIt++;
 
@@ -645,6 +644,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 						pcl::toROSMsg(cloud, wallMsg.cloud);
 						wallMsg.keyInd = keyInd;
 						wallMsg.patchInd = patchInd;
+						wallMsg.pose = msg->pose;
 						wallPub.publish(wallMsg);
 
 						icl_multiple_stationary::PoseDelta poseDeltaMsg;
@@ -1520,27 +1520,30 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 				std::cout << "\n hi44 \n";
 
-				// cv::Mat pSobel,cSobel;
-				// // cv::Sobel(ppatch,pSobel,CV_32F,1,1,3);
-				//
-				// /// Generate grad_x and grad_y
-				// cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
-				// cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
-				// /// Gradient X
-				// //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-				// cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 5);
-				// cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 5);
-				// cv::convertScaleAbs( pgrad_x, pabs_grad_x );
-				// cv::convertScaleAbs( pgrad_y, pabs_grad_y );
-				// cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
-				// cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 5);
-				// cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 5);
-				// cv::convertScaleAbs( cgrad_x, cabs_grad_x );
-				// cv::convertScaleAbs( cgrad_y, cabs_grad_y );
-				// cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
+				cv::Mat pSobel,cSobel;
+				// cv::Sobel(ppatch,pSobel,CV_32F,1,1,3);
+
+				/// Generate grad_x and grad_y
+				cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
+				cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
+				/// Gradient X
+				//Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+				cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 5);
+				cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 5);
+				cv::convertScaleAbs( pgrad_x, pabs_grad_x );
+				cv::convertScaleAbs( pgrad_y, pabs_grad_y );
+				cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
+				cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 5);
+				cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 5);
+				cv::convertScaleAbs( cgrad_x, cabs_grad_x );
+				cv::convertScaleAbs( cgrad_y, cabs_grad_y );
+				cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
 				/// Gradient Y
 				//Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
 
+				cv::Mat pCompare,cCompare;
+				cv::addWeighted( ppatch, 0.5, pSobel, 0.5, 0, pCompare);
+				cv::addWeighted( cpatch, 0.5, cSobel, 0.5, 0, cCompare);
 
 				/// Total Gradient (approximate)
 
@@ -1553,7 +1556,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				//use the patch as template and match in check patch
 				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
 				// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
-				cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
+				cv::matchTemplate(cCompare,pCompare,tmresult,cv::TM_CCOEFF_NORMED);
 
 				std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
 
@@ -1617,7 +1620,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
 
 
-				float alphapr = 0.95;
+				float alphapr = 0.975;
 				float avgx = (1.0-alphapr)*cptx+alphapr*std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x);
 				float avgy = (1.0-alphapr)*cpty+alphapr*std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
 				if (ppatchRectC.width%2 == 0)

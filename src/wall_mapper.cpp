@@ -13,7 +13,7 @@ WallMapper::WallMapper() : it(nh)
 	nhp.param<float>("maxheight", maxheight, 25.0);
 
 	wallSub = nh.subscribe("/wall_points",100,&WallMapper::wallCB,this);
-	odomSub = nh.subscribe(cameraName+"/body/odom",1,&WallMapper::odomCB,this);
+	odomSub = nh.subscribe("/mocap/body/odom",1,&WallMapper::odomCB,this);
 	// wallPub = it.advertise("wall_image",1);
 	pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
 	pointCloudTruePub = nh.advertise<PointCloud> ("wall_map_true", 1);
@@ -71,6 +71,10 @@ WallMapper::WallMapper() : it(nh)
 	cloud_true.at(6) = trR;
 	cloud_true.at(7) = tlR;
 
+	pcw = Eigen::Vector3f::Zero();
+	qcw = Eigen::Vector4f::Zero();
+	qcw(0) = 1.0;
+
 	//draw the lines between the walls
 	// for (PointCloudRGB::iterator cloudIt = cloud.begin(); cloudIt != cloud.end(); cloudIt++)
 	// {
@@ -80,9 +84,21 @@ WallMapper::WallMapper() : it(nh)
 
 void WallMapper::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
 {
-	Eigen::Vector3f pbwNew(msg->pose.pose.position.x,msg->pose.pose.position.y,msg->pose.pose.position.z);
-	Eigen::Vector4f qbwNew(msg->pose.pose.orientation.w,msg->pose.pose.orientation.x,msg->pose.pose.orientation.y,msg->pose.pose.orientation.z);
-	qbwNew /= qbwNew.norm();
+	Eigen::Vector3f pcwNew(msg->pose.pose.position.x,msg->pose.pose.position.y,msg->pose.pose.position.z);
+	Eigen::Vector4f qcwNew(msg->pose.pose.orientation.w,msg->pose.pose.orientation.x,msg->pose.pose.orientation.y,msg->pose.pose.orientation.z);
+	qcwNew /= qcwNew.norm();
+
+	odomMutex.lock();
+
+	pcw = pcwNew;
+	qcw = qcwNew;
+
+	if (firstOdom)
+	{
+		firstOdom = false;
+	}
+
+	odomMutex.unlock();
 
 	PointCloudRGB::Ptr map_true(new PointCloudRGB);
 	pcl_conversions::toPCL(msg->header.stamp,map_true->header.stamp);
@@ -117,10 +133,7 @@ void WallMapper::odomCB(const nav_msgs::Odometry::ConstPtr& msg)
 	// camCenter = camCenterNew;
 	// camEnd = camEndNew;
 
-	if (firstOdom)
-	{
-		firstOdom = false;
-	}
+
 
 	// // get all the points and draw them on the image
 	// // std::cout << "\n wall 1 \n";
@@ -188,6 +201,8 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	pcl::fromROSMsg(msg->cloud,cloud);
 	int keyInd = int(msg->keyInd);
 	int patchInd = int(msg->patchInd);
+	Eigen::Vector3f pcwHat(msg->pose.position.x,msg->pose.position.y,msg->pose.position.z);
+	Eigen::Vector4f qcwHat(msg->pose.orientation.w,msg->pose.orientation.x,msg->pose.orientation.y,msg->pose.orientation.z);
 
 	// std::cout << "\n keyInd " << keyInd << " patchInd " << patchInd << " keyframePlanes.size() " << keyframePlanes.size() << std::endl;
 
@@ -228,19 +243,23 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	// if it is on the wall update the points at the index otherwise add the set
 	if (keyOnWall)
 	{
+		wallMutex.lock();
 		if(patchOnWall)
 		{
-			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud);
+			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud,pcw,qcw,pcwHat,qcwHat);
 		}
 		else
 		{
-			keyframePlanes.at(keyIndInd)->addplane(patchInd,cloud);
+			keyframePlanes.at(keyIndInd)->addplane(patchInd,cloud,pcw,qcw,pcwHat,qcwHat);
 		}
+		wallMutex.unlock();
 	}
 	else
 	{
-		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud);
+		wallMutex.lock();
+		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud,pcw,qcw,pcwHat,qcwHat,cloud_true);
 		keyframePlanes.push_back(newKeyframePlanes);
+		wallMutex.unlock();
 	}
 
 	//plot the points
@@ -266,6 +285,7 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 		for (int j = 0; j < keyframePlanes.at(i)->planes.size(); j++)
 		{
 			*map += keyframePlanes.at(i)->planes.at(j);
+			*map += keyframePlanes.at(i)->planesTrue.at(j);
 			// //for each point on that plane
 			// for (int k = 0; k < keyframePlanes.at(i)->planesPoints.at(j).size(); k++)
 			// {

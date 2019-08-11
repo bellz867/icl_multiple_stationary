@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+
+<launch>
+  <node pkg="icl_multiple_stationary" type="mocap_odom_main_node" name="mocap_odom_main_node" output="screen">
+
+    <param name="pcbx" value="0.105638"/>
+	  <param name="pcby" value="0.0702751"/>
+	  <param name="pcbz" value="0.28"/>
+
+    <!-- <param name="qcbw" value="0.722352"/>
+    <param name="qcbx" value="-0.691162"/>
+    <param name="qcby" value="0.0217651"/>
+    <param name="qcbz" value="0.00289808"/> -->
+
+    <param name="qcbw" value="0.7071"/>
+    <param name="qcbx" value="-0.7071"/>
+    <param name="qcby" value="0.0"/>
+    <param name="qcbz" value="0.0"/>
+
+  </node>
+</launch>
