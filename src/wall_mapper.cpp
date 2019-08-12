@@ -198,6 +198,7 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 
 	ros::Time t = msg->header.stamp;
 	PointCloudRGB cloud;
+	cloud.clear();
 	pcl::fromROSMsg(msg->cloud,cloud);
 	int keyInd = int(msg->keyInd);
 	int patchInd = int(msg->patchInd);

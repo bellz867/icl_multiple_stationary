@@ -336,7 +336,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	int itIdx = 0;
 	float avgNumSaved = 0.0;
 
-	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
+	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin(); itD != depthEstimators.end(); itD++)
 	{
 		//add each point
 		Eigen::Vector3f mic = (*itD)->mc;
@@ -472,10 +472,11 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				// std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
 				// std::vector<uint8_t>::iterator colIt = wallColors.begin();
 				PointCloudRGB cloud;
+				cloud.clear();
 				cloud.height = 1;
-				cloud.width = 2*colsReduce*rowsReduce;
+				cloud.width = colsReduce*rowsReduce;
 				cloud.is_dense = true;
-				cloud.resize(2*colsReduce*rowsReduce);
+				cloud.resize(colsReduce*rowsReduce);
 				PointCloudRGB::iterator cloudIt = cloud.begin();
 				pcl::PointXYZRGB ptxyz;
 
@@ -572,6 +573,8 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					// zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
 					piw = pcw + rotatevec(pic,qcw);
 
+					std::cout << "piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2) << std::endl;
+
 					ptxyz.x = piw(0);
 					ptxyz.y = piw(1);
 					ptxyz.z = piw(2);
@@ -608,6 +611,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 
 
 				PointCloudRGB::Ptr map(new PointCloudRGB);
+				(*map).clear();
 				pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
 
 				// std::cout << "\n wall 1 1 \n";
@@ -793,8 +797,10 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
 	// qkcHat = getqInv(qckHat);
 	// qkcHat /= qkcHat.norm();
-	pkcHat += ((-vc-getss((wc+wcbHat))*pkcHat)*dt);
-	qkcHat += (-0.5*B(qkcHat)*(wc+wcbHat)*dt);
+	Eigen::Vector3f pckH = -rotatevec(pkcHat,getqInv(qkcHat)) + rotatevec(vc,getqInv(qkcHat))*dt;
+	pkcHat = -rotatevec(pckH,qkcHat);
+	// pkcHat += ((-vc-getss((wc))*pkcHat)*dt);
+	qkcHat += (-0.5*B(qkcHat)*(wc)*dt);
 	qkcHat /= qkcHat.norm();
 
 	// find the features

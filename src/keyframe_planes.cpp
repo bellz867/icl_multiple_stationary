@@ -52,20 +52,28 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
   float dic = 0;
   float dicmin = 0;
   std::vector<float> dics(6);
-  bool firstnu = true;
+
   PointCloudRGB cloudTrue;
+  cloudTrue.clear();
   cloudTrue.height = 1;
   cloudTrue.width = cloud.width;
   cloudTrue.is_dense = true;
   cloudTrue.resize(cloud.size());
+
+  std::cout << "\n cloud width " << cloud.width << " cloud true width " << cloudTrue.width;
+  std::cout << "\n cloud size " << cloud.size() << " cloud true size " << cloudTrue.size();
   PointCloudRGB::iterator itcT = cloudTrue.begin();
   pcl::PointXYZRGB ptxyz;
+  int numberPts = 0;
   for (PointCloudRGB::iterator itc = cloud.begin(); itc != cloud.end(); itc++)
   {
     //subtract off approximated position to get direction
     piw << (*itc).x,(*itc).y,(*itc).z;
     pic = piw - pcwHat;
     uic = pic/pic.norm();
+    bool firstnu = true;
+
+    std::cout << "\n piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2);
 
     // get the distance to each wall if the dot product is positive
     //BL
@@ -213,10 +221,16 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
     ptxyz.r = std::min((*itc).g+100,255);
     ptxyz.g = (*itc).g;
     ptxyz.b = (*itc).g;
-    *itcT = ptxyz;
-    itcT++;
+    std::cout << ", piwx " << piw(0) << ", piwy " << piw(1) << ", piwz " << piw(2) << std::endl;
+    if (!firstnu && (pic.norm() < 4.0))
+    {
+      *itcT = ptxyz;
+      itcT++;
+      numberPts++;
+    }
   }
 
+  cloudTrue.resize(numberPts);
   planesTrue.push_back(cloudTrue);
 
   // std::cout << "\n keyInd " << keyIndInit << " planeInd " << planeIndInit << " planesPoints size init " << planePointsInit.size() << std::endl;
@@ -238,6 +252,7 @@ void KeyframePlanes::addplane(int planeInd, PointCloudRGB& cloud, Eigen::Vector3
   std::vector<float> dics(6);
   bool firstnu = true;
   PointCloudRGB cloudTrue;
+  cloudTrue.clear();
   cloudTrue.height = 1;
   cloudTrue.width = cloud.width;
   cloudTrue.is_dense = true;
@@ -416,181 +431,181 @@ void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector
 {
   planes.at(planeIndInd) = cloud;
 
-  // approximate the true distance for each point to each wall
-  Eigen::Vector3f piw(0.0,0.0,0.0);
-  Eigen::Vector3f pic(0.0,0.0,0.0);
-  Eigen::Vector3f uic(0.0,0.0,0.0);
-  float nu = 0;
-  float dic = 0;
-  float dicmin = 0;
-  std::vector<float> dics(6);
-  bool firstnu = true;
-  PointCloudRGB cloudTrue;
-  cloudTrue.height = 1;
-  cloudTrue.width = cloud.width;
-  cloudTrue.is_dense = true;
-  cloudTrue.resize(cloud.size());
-  PointCloudRGB::iterator itcT = cloudTrue.begin();
-  pcl::PointXYZRGB ptxyz;
-  for (PointCloudRGB::iterator itc = cloud.begin(); itc != cloud.end(); itc++)
-  {
-    //subtract off approximated position to get direction
-    piw << (*itc).x,(*itc).y,(*itc).z;
-    pic = piw - pcwHat;
-    uic = pic/pic.norm();
-
-    // get the distance to each wall if the dot product is positive
-    //BL
-    nu = nBL(1)*uic(1);
-    if (nu > 0)
-    {
-      dic = fabsf(pcw(1)-wBL(1))/nu;
-      if (((pcw(0)+uic(0)*dic) <= wBL(0)) && ((pcw(0)+uic(0)*dic) >= wBL(2)))
-      {
-        dicmin = dic;
-        firstnu = false;
-      }
-    }
-
-    //CL
-    nu = nCL(0)*uic(0);
-    if (nu > 0)
-    {
-      dic = fabsf(pcw(0)-wCL(0))/nu;
-      if (firstnu)
-      {
-        if (((pcw(1)+uic(1)*dic) <= wCL(1)) && ((pcw(1)+uic(1)*dic) >= wCL(2)))
-        {
-          dicmin = dic;
-          firstnu = false;
-        }
-      }
-      else
-      {
-        if (dic < dicmin)
-        {
-          if (((pcw(1)+uic(1)*dic) <= wCL(1)) && ((pcw(1)+uic(1)*dic) >= wCL(2)))
-          {
-            dicmin = dic;
-          }
-        }
-      }
-    }
-
-    //TL
-    nu = nTL(1)*uic(1);
-    if (nu > 0)
-    {
-      dic = fabsf(pcw(1)-wTL(1))/nu;
-      if (firstnu)
-      {
-        if (((pcw(0)+uic(0)*dic) <= wTL(0)) && ((pcw(0)+uic(0)*dic) >= wTL(2)))
-        {
-          dicmin = dic;
-          firstnu = false;
-        }
-      }
-      else
-      {
-        if (dic < dicmin)
-        {
-          if (((pcw(0)+uic(0)*dic) <= wTL(0)) && ((pcw(0)+uic(0)*dic) >= wTL(2)))
-          {
-            dicmin = dic;
-          }
-        }
-      }
-    }
-
-    //TR
-    nu = nTR(1)*uic(1);
-    if (nu > 0)
-    {
-      dic = fabsf(pcw(1)-wTR(1))/nu;
-      if (firstnu)
-      {
-        if (((pcw(0)+uic(0)*dic) <= wTR(0)) && ((pcw(0)+uic(0)*dic) >= wTR(2)))
-        {
-          dicmin = dic;
-          firstnu = false;
-        }
-      }
-      else
-      {
-        if (dic < dicmin)
-        {
-          if (((pcw(0)+uic(0)*dic) <= wTR(0)) && ((pcw(0)+uic(0)*dic) >= wTR(2)))
-          {
-            dicmin = dic;
-          }
-        }
-      }
-    }
-
-    //CR
-    nu = nCR(0)*uic(0);
-    if (nu > 0)
-    {
-      dic = fabsf(pcw(0)-wCR(0))/nu;
-      if (firstnu)
-      {
-        if (((pcw(1)+uic(1)*dic) <= wCR(1)) && ((pcw(1)+uic(1)*dic) >= wCR(2)))
-        {
-          dicmin = dic;
-          firstnu = false;
-        }
-      }
-      else
-      {
-        if (dic < dicmin)
-        {
-          if (((pcw(1)+uic(1)*dic) <= wCR(1)) && ((pcw(1)+uic(1)*dic) >= wCR(2)))
-          {
-            dicmin = dic;
-          }
-        }
-      }
-    }
-
-    //BR
-    nu = nBR(1)*uic(1);
-    if (nu > 0)
-    {
-      dic = fabsf(pcw(1)-wBR(1))/nu;
-      if (firstnu)
-      {
-        if (((pcw(0)+uic(0)*dic) <= wBR(0)) && ((pcw(0)+uic(0)*dic) >= wBR(2)))
-        {
-          dicmin = dic;
-          firstnu = false;
-        }
-      }
-      else
-      {
-        if (dic < dicmin)
-        {
-          if (((pcw(0)+uic(0)*dic) <= wBR(0)) && ((pcw(0)+uic(0)*dic) >= wBR(2)))
-          {
-            dicmin = dic;
-          }
-        }
-      }
-    }
-
-
-    pic = uic*dicmin;
-    piw = pcw + pic;
-    ptxyz.x = piw(0);
-    ptxyz.y = piw(1);
-    ptxyz.z = piw(2);
-    ptxyz.r = std::min((*itc).g+100,255);
-    ptxyz.g = (*itc).g;
-    ptxyz.b = (*itc).g;
-    *itcT = ptxyz;
-    itcT++;
-  }
-
-  planesTrue.at(planeIndInd) = cloudTrue;
+  // // approximate the true distance for each point to each wall
+  // Eigen::Vector3f piw(0.0,0.0,0.0);
+  // Eigen::Vector3f pic(0.0,0.0,0.0);
+  // Eigen::Vector3f uic(0.0,0.0,0.0);
+  // float nu = 0;
+  // float dic = 0;
+  // float dicmin = 0;
+  // std::vector<float> dics(6);
+  // bool firstnu = true;
+  // PointCloudRGB cloudTrue;
+  // cloudTrue.height = 1;
+  // cloudTrue.width = cloud.width;
+  // cloudTrue.is_dense = true;
+  // cloudTrue.resize(cloud.size());
+  // PointCloudRGB::iterator itcT = cloudTrue.begin();
+  // pcl::PointXYZRGB ptxyz;
+  // for (PointCloudRGB::iterator itc = cloud.begin(); itc != cloud.end(); itc++)
+  // {
+  //   //subtract off approximated position to get direction
+  //   piw << (*itc).x,(*itc).y,(*itc).z;
+  //   pic = piw - pcwHat;
+  //   uic = pic/pic.norm();
+  //
+  //   // get the distance to each wall if the dot product is positive
+  //   //BL
+  //   nu = nBL(1)*uic(1);
+  //   if (nu > 0)
+  //   {
+  //     dic = fabsf(pcw(1)-wBL(1))/nu;
+  //     if (((pcw(0)+uic(0)*dic) <= wBL(0)) && ((pcw(0)+uic(0)*dic) >= wBL(2)))
+  //     {
+  //       dicmin = dic;
+  //       firstnu = false;
+  //     }
+  //   }
+  //
+  //   //CL
+  //   nu = nCL(0)*uic(0);
+  //   if (nu > 0)
+  //   {
+  //     dic = fabsf(pcw(0)-wCL(0))/nu;
+  //     if (firstnu)
+  //     {
+  //       if (((pcw(1)+uic(1)*dic) <= wCL(1)) && ((pcw(1)+uic(1)*dic) >= wCL(2)))
+  //       {
+  //         dicmin = dic;
+  //         firstnu = false;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       if (dic < dicmin)
+  //       {
+  //         if (((pcw(1)+uic(1)*dic) <= wCL(1)) && ((pcw(1)+uic(1)*dic) >= wCL(2)))
+  //         {
+  //           dicmin = dic;
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  //   //TL
+  //   nu = nTL(1)*uic(1);
+  //   if (nu > 0)
+  //   {
+  //     dic = fabsf(pcw(1)-wTL(1))/nu;
+  //     if (firstnu)
+  //     {
+  //       if (((pcw(0)+uic(0)*dic) <= wTL(0)) && ((pcw(0)+uic(0)*dic) >= wTL(2)))
+  //       {
+  //         dicmin = dic;
+  //         firstnu = false;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       if (dic < dicmin)
+  //       {
+  //         if (((pcw(0)+uic(0)*dic) <= wTL(0)) && ((pcw(0)+uic(0)*dic) >= wTL(2)))
+  //         {
+  //           dicmin = dic;
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  //   //TR
+  //   nu = nTR(1)*uic(1);
+  //   if (nu > 0)
+  //   {
+  //     dic = fabsf(pcw(1)-wTR(1))/nu;
+  //     if (firstnu)
+  //     {
+  //       if (((pcw(0)+uic(0)*dic) <= wTR(0)) && ((pcw(0)+uic(0)*dic) >= wTR(2)))
+  //       {
+  //         dicmin = dic;
+  //         firstnu = false;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       if (dic < dicmin)
+  //       {
+  //         if (((pcw(0)+uic(0)*dic) <= wTR(0)) && ((pcw(0)+uic(0)*dic) >= wTR(2)))
+  //         {
+  //           dicmin = dic;
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  //   //CR
+  //   nu = nCR(0)*uic(0);
+  //   if (nu > 0)
+  //   {
+  //     dic = fabsf(pcw(0)-wCR(0))/nu;
+  //     if (firstnu)
+  //     {
+  //       if (((pcw(1)+uic(1)*dic) <= wCR(1)) && ((pcw(1)+uic(1)*dic) >= wCR(2)))
+  //       {
+  //         dicmin = dic;
+  //         firstnu = false;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       if (dic < dicmin)
+  //       {
+  //         if (((pcw(1)+uic(1)*dic) <= wCR(1)) && ((pcw(1)+uic(1)*dic) >= wCR(2)))
+  //         {
+  //           dicmin = dic;
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  //   //BR
+  //   nu = nBR(1)*uic(1);
+  //   if (nu > 0)
+  //   {
+  //     dic = fabsf(pcw(1)-wBR(1))/nu;
+  //     if (firstnu)
+  //     {
+  //       if (((pcw(0)+uic(0)*dic) <= wBR(0)) && ((pcw(0)+uic(0)*dic) >= wBR(2)))
+  //       {
+  //         dicmin = dic;
+  //         firstnu = false;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       if (dic < dicmin)
+  //       {
+  //         if (((pcw(0)+uic(0)*dic) <= wBR(0)) && ((pcw(0)+uic(0)*dic) >= wBR(2)))
+  //         {
+  //           dicmin = dic;
+  //         }
+  //       }
+  //     }
+  //   }
+  //
+  //
+  //   pic = uic*dicmin;
+  //   piw = pcw + pic;
+  //   ptxyz.x = piw(0);
+  //   ptxyz.y = piw(1);
+  //   ptxyz.z = piw(2);
+  //   ptxyz.r = std::min((*itc).g+100,255);
+  //   ptxyz.g = (*itc).g;
+  //   ptxyz.b = (*itc).g;
+  //   *itcT = ptxyz;
+  //   itcT++;
+  // }
+  //
+  // planesTrue.at(planeIndInd) = cloudTrue;
 
   // std::cout << "\n keyInd " << keyInd << " planeInd " << planesInd.at(planeIndInd) << " planesPoints size update " << planesPoints.at(planeIndInd).size() << std::endl;
 }

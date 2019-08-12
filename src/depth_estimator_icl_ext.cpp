@@ -30,8 +30,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 {
   // std::cout << "\n hi4 \n";
 
-  float kxi = 75.0;
-  float kX = 20.0;
+  float kxi = 100.0;
+  float kX = 25.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
   Eigen::Vector3f uc = xHat.segment(0,3);
@@ -161,7 +161,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     std::cout << "\n v clear\n";
   }
 
-  if (pkc.norm() < 0.1)
+  if (pkc.norm() < 0.05)
   {
     psiBuff.clear();
     psiDotBuff.clear();
@@ -258,7 +258,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.3) && (Y.norm() > 0.2);
+    bool measgood = (U.norm() > 0.25) && (Y.norm() > 0.15);
     // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);

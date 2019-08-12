@@ -44,6 +44,11 @@ OdomEstimator::OdomEstimator()
 	vbHat = Eigen::Vector3f::Zero();
 	wbHat = Eigen::Vector3f::Zero();
 
+	cvHat = 0.98;
+	cwHat = 1.02;
+	kcv = 1.0;
+	kcw = 1.0;
+
 	// Get initial odom from mocap
 	if (useMocap)
 	{
@@ -69,7 +74,7 @@ OdomEstimator::OdomEstimator()
 
 void OdomEstimator::mocapPoseCB(const nav_msgs::Odometry::ConstPtr& msg)
 {
-	tVelLast = msg->header.stamp;
+	ros::Time t = msg->header.stamp;
 	pbwMocap = Eigen::Vector3f(msg->pose.pose.position.x,msg->pose.pose.position.y,msg->pose.pose.position.z);
 	qbwMocap = Eigen::Vector4f(msg->pose.pose.orientation.w,msg->pose.pose.orientation.x,msg->pose.pose.orientation.y,msg->pose.pose.orientation.z);
 	qbwMocap /= qbwMocap.norm();
@@ -80,6 +85,11 @@ void OdomEstimator::mocapPoseCB(const nav_msgs::Odometry::ConstPtr& msg)
 		qbwHat = qbwMocap;
 		vbHat = Eigen::Vector3f(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
 		wbHat = Eigen::Vector3f(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
+		pDotEstimator.initialize(3);
+		qDotEstimator.initialize(4);
+		vDotEstimator.initialize(3);
+		wDotEstimator.initialize(3);
+		tVelLast = t;
 		gotInitialPose = true;
 	}
 	// initialPoseSub.shutdown();
@@ -96,8 +106,13 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 {
 	//velocity is of turtlebot in body frame of turtlebot x forward, y to left, z up
 	ros::Time t = msg->header.stamp;
-	Eigen::Vector3f vb(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
-	Eigen::Vector3f wb(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
+	Eigen::Matrix<float,6,1> vDott = vDotEstimator.update(Eigen::Vector3f(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z),t);
+	Eigen::Matrix<float,6,1> wDott = wDotEstimator.update(Eigen::Vector3f(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z),t);
+	Eigen::Vector3f vb = vDott.segment(0,3);
+	Eigen::Vector3f wb = wDott.segment(0,3);
+
+	// Eigen::Vector3f vb(msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
+	// Eigen::Vector3f wb(msg->twist.twist.angular.x,msg->twist.twist.angular.y,msg->twist.twist.angular.z);
 
 	float dt = (t-tVelLast).toSec();
 	tVelLast = t;
@@ -108,8 +123,8 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	float kv = dt/(vTau+dt);
 	float kw = dt/(wTau+dt);
 
-	vbHat += kv*(0.95*vb-vbHat);
-	wbHat += kw*(1.025*wb-wbHat);
+	vbHat += kv*(cvHat*vb-vbHat);
+	wbHat += kw*(cwHat*wb-wbHat);
 
 	// predict the estimates forward
 	pbwHat += (rotatevec(vbHat,qbwHat)*dt);
@@ -225,6 +240,36 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	qcwHat /= qcwHat.norm();
 	vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
 	wcHat = rotatevec(wbHat,getqInv(qcb));
+
+
+	Eigen::Matrix<float,6,1> pHatt = pDotEstimator.update(pbwHat,t);
+	Eigen::Vector3f pHatDot = pHatt.segment(3,3);
+	Eigen::Vector3f vHat = rotatevec(pHatDot,getqInv(qbwHat));
+	std::cout << "\n dt " << dt << std::endl;
+	std::cout << "\n vHat \n" << vHat << std::endl;
+	std::cout << "\n vb \n" << vb << std::endl;
+
+	std::cout << std::endl;
+	std::cout << "cvb " << cvHat << ", cwb " << cwHat << std::endl;
+
+	float cvHatDot = kcv*(float(vb.transpose()*vHat) - float(vb.transpose()*vb)*cvHat);
+
+
+	Eigen::Matrix<float,8,1> qHatt = qDotEstimator.update(qbwHat,t);
+	std::cout << "\n qHatt \n" << qHatt << std::endl;
+	Eigen::Vector4f qHatDot = qHatt.segment(4,4);
+	Eigen::Vector3f wHat = 2.0*B(qbwHat).transpose()*qHatDot;
+	std::cout << "\n wHat \n" << wHat << std::endl;
+	std::cout << "\n wb \n" << wb << std::endl;
+	float cwHatDot = kcw*(float(wb.transpose()*wHat) - float(wb.transpose()*wb)*cwHat);
+
+	std::cout << std::endl;
+	// if (numMeas > 0)
+	// {
+	// 	cvHat += cvHatDot*dt;
+	// 	cwHat += cwHatDot*dt;
+	// }
+	std::cout << "cva " << cvHat << ", cwa " << cwHat << std::endl;
 
 	// build and publish odom message for camera
 	nav_msgs::Odometry camOdomMsg;

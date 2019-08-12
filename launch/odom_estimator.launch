@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <launch>
-  <node pkg="icl_multiple_stationary" type="odom_main_node" name="odom_main_node">
+  <node pkg="icl_multiple_stationary" type="odom_main_node" name="odom_main_node" output="screen">
 
 	  <param name="bodyName" value=""/>
     <param name="cameraName" value="camera"/>

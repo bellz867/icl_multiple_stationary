@@ -12,6 +12,7 @@
 
 #include <helper_functions.h>
 #include <icl_multiple_stationary/PoseDelta.h>
+#include <vector_derivative_estimator.h>
 
 struct OdomEstimator
 {
@@ -24,6 +25,8 @@ struct OdomEstimator
 	std::mutex poseDeltaMutex;
 	std::deque<icl_multiple_stationary::PoseDelta::ConstPtr> poseDeltas;
 	bool useMocap,gotInitialPose;
+	VectorDerivativeEstimator qDotEstimator,pDotEstimator,vDotEstimator,wDotEstimator;
+	float cvHat,cwHat,kcv,kcw;
 
 	bool firstVel;
 	Eigen::Vector3f pcwHat;
