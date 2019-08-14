@@ -3,8 +3,8 @@
 <launch>
 
   <!-- estimator node -->
-  <!-- <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen"> -->
-  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node">
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen">
+  <!-- <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node"> -->
 
 	  <!-- forward camera -->
 
@@ -22,12 +22,12 @@
 
     <param name="closeLoop" value="true"/>
     <param name="minFeaturesBad" value="8"/>
-    <param name="minDistance" value="200"/>
+    <param name="minDistance" value="150"/>
     <param name="partitionSide" value="1"/>
     <param name="numberFeaturesPerPartRow" value="3"/>
     <param name="numberFeaturesPerPartCol" value="3"/>
-    <param name="patchSizeBase" value="200"/>
-    <param name="checkSizeBase" value="250"/>
+    <param name="patchSizeBase" value="150"/>
+    <param name="checkSizeBase" value="200"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>

@@ -573,7 +573,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					// zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
 					piw = pcw + rotatevec(pic,qcw);
 
-					std::cout << "piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2) << std::endl;
+					// std::cout << "piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2) << std::endl;
 
 					ptxyz.x = piw(0);
 					ptxyz.y = piw(1);
@@ -808,6 +808,24 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	pubMutex.lock();
 	cv::Mat drawImage = image.clone();
+
+	// cv::Mat imageGrad;
+	// // cv::Sobel(ppatch,pSobel,CV_32F,1,1,3);
+	//
+	// /// Generate grad_x and grad_y
+	// cv::Mat imageGrad_x, imageGrad_y, imageGrad_xabs, imageGrad_yabs;
+	//
+	// /// Gradient X
+	// //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+	// cv::Sobel(drawImage, imageGrad_x, CV_32F, 1, 0, 5);
+	// cv::Sobel(drawImage, imageGrad_y, CV_32F, 0, 1, 5);
+	// cv::convertScaleAbs(imageGrad_x, imageGrad_xabs);
+	// cv::convertScaleAbs(imageGrad_y, imageGrad_yabs );
+	// cv::addWeighted( imageGrad_xabs, 0.5, imageGrad_yabs, 0.5, 0, imageGrad );
+
+	// cv::Mat pCompare,cCompare;
+	// cv::addWeighted( ppatch, 0.5, pSobel, 0.5, 0, pCompare);
+	// cv::addWeighted( cpatch, 0.5, cSobel, 0.5, 0, cCompare);
 
 	if (depthEstimators.size() > minFeaturesBad)
 	{
@@ -1616,7 +1634,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				//
 				// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
 
-				*itcPred = cv::Point2f(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x,pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
+				// *itcPred = cv::Point2f(pcheckRect.x+(ppatchRectC.width)/2.0+maxResultPt.x,pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
 
 				std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
 				std::cout << "\n pptx " << pptx << " ppty " << ppty << std::endl;
@@ -1626,7 +1644,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
 
 
-				float alphapr = 0.975;
+				float alphapr = 0.995;
 				float avgx = (1.0-alphapr)*cptx+alphapr*std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x);
 				float avgy = (1.0-alphapr)*cpty+alphapr*std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
 				if (ppatchRectC.width%2 == 0)
@@ -1689,6 +1707,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	// ROS_WARN("depthEstimatorsInPred size after predict1 %d",int(depthEstimatorsInPred.size()));
 	depthEstimators = depthEstimatorsInPred;
 	depthEstimatorsInPred.clear();
+	// cv::cornerSubPix(image,cPtsInPred,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 	cPts = cPtsInPred;
 	kPts = kPtsInPred;
 	cPtsInPred.clear();
@@ -1732,6 +1751,59 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 	{
 		assert(kPts.size()>0);
 		assert(cPts.size()>0);
+
+		Eigen::Vector4f qkcPnP;
+		Eigen::Vector3f tkcPnP;
+		bool usePnP = false;
+		if (allPtsKnown)
+		{
+			std::cout << "\n tryingPnP \n" << std::endl;
+			std::vector<cv::Point3f> kPts3(depthEstimators.size());
+			std::vector<cv::Point3f>::iterator kPts3it = kPts3.begin();
+			for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
+			{
+				float dkHati = (*itD)->dkHatICLExt;
+				(*kPts3it).x = (*itD)->uk(0)*dkHati;
+				(*kPts3it).y = (*itD)->uk(1)*dkHati;
+				(*kPts3it).z = (*itD)->uk(2)*dkHati;
+				kPts3it++;
+			}
+
+			Eigen::Matrix3f RkcHatPnPf = getqRot(qkcHat);
+			cv::Mat RkcHatPnP;
+			cv::eigen2cv(RkcHatPnPf,RkcHatPnP);
+			cv::Mat rvec(cv::Size(1,3),CV_32F);
+			cv::Mat tvec(cv::Size(1,3),CV_32F);
+			cv::Rodrigues(RkcHatPnP,rvec);
+			cv::eigen2cv(pkcHat,tvec);
+			std::cout << "rvecPnPb \n" << rvec << std::endl;
+			std::cout << "tvecPnPb \n" << tvec << std::endl;
+			usePnP = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			// usePnP = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,1000,1.0,0.99,cv::Mat(),cv::SOLVEPNP_ITERATIVE);
+			std::cout << "rvecPnPa \n" << rvec << std::endl;
+			std::cout << "tvecPnPa \n" << tvec << std::endl;
+
+
+			if (usePnP)
+			{
+				cv::Rodrigues(rvec,RkcHatPnP);
+				cv::cv2eigen(RkcHatPnP,RkcHatPnPf);
+				Eigen::Quaternionf qkcPnPq(RkcHatPnPf);// convert to quaternion
+				Eigen::Vector4f qkcPnP;
+				qkcPnP << qkcPnPq.w(),qkcPnPq.x(),qkcPnPq.y(),qkcPnPq.z();
+				Eigen::Vector3f tkcPnP;
+				cv::cv2eigen(tvec,tkcPnP);
+				float tkcPnPNorm = tkcPnP.norm();
+				if (tkcPnPNorm>0.001)
+				{
+					tkcPnP /= tkcPnPNorm;
+				}
+				std::cout << std::endl;
+				std::cout << "dkcPnP \n" << tkcPnPNorm << std::endl;
+				std::cout << "tkcPnP \n" << tkcPnP << std::endl;
+				std::cout << "qkcPnP \n" << qkcPnP << std::endl;
+			}
+		}
 
 		// cv::Mat inliersG;
 		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 0.05, inliersG1, 2000, 0.99);//calculate homography using RANSAC
@@ -1785,6 +1857,21 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				std::vector<Eigen::Vector3f> tkcs;
 				std::vector<Eigen::Vector4f> qkcs;
 				std::vector<float> errors;
+
+				if (usePnP)
+				{
+					qkcs.push_back(qkcPnP);
+					if ((tkcPnP.norm() > 0.001) && (pkcHat.norm() > 0.001))
+					{
+						errors.push_back((qkcHat - qkcPnP).norm()+(pkcHat/pkcHat.norm()-tkcPnP).norm());
+						tkcs.push_back(tkcPnP);
+					}
+					else
+					{
+						errors.push_back((qkcHat - qkcPnP).norm());
+						tkcs.push_back(Eigen::Vector3f::Zero());
+					}
+				}
 
 				if (!F.empty())
 				{
@@ -1975,8 +2062,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		std::cout << "\n b tkc \n" << tkc << std::endl;
 
 		//use kinematric constraints, can only rotate about z, can only translate camera in xy plane
-		qkc(1) = 0.0;
-		qkc(3) = 0.0;
+		// qkc(1) = 0.0;
+		// qkc(3) = 0.0;
 		qkc /= qkc.norm();
 
 		// Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
@@ -2003,7 +2090,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		if (tkc.norm() > 0.001)
 		{
 			// Eigen::Vector3f tckm = rotatevec(rotatevec(-tkc,qckm),qkw);
-			tkc(1) = 0.0;
+			// tkc(1) = 0.0;
 			if (tkc.norm() > 0.001)
 			{
 				tkc /= tkc.norm();
@@ -2017,8 +2104,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkc,t);
 		qkcHat = xHatq.segment(0,4);
-		qkcHat(1) = 0.0;
-		qkcHat(3) = 0.0;
+		// qkcHat(1) = 0.0;
+		// qkcHat(3) = 0.0;
 		qkcHat /= qkcHat.norm();
 		Eigen::Vector4f qkcHatDot = xHatq.segment(4,4);
 		Eigen::Vector3f wcb = -2.0*B(qkcHat).transpose()*qkcHatDot - wc;
@@ -2031,7 +2118,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		if (tkcHat.norm() > 0.001)
 		{
-			tkcHat(1) = 0.0;
+			// tkcHat(1) = 0.0;
 			if (tkcHat.norm() > 0.001)
 			{
 				tkcHat /= tkcHat.norm();
