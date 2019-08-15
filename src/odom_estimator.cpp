@@ -245,31 +245,31 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	Eigen::Matrix<float,6,1> pHatt = pDotEstimator.update(pbwHat,t);
 	Eigen::Vector3f pHatDot = pHatt.segment(3,3);
 	Eigen::Vector3f vHat = rotatevec(pHatDot,getqInv(qbwHat));
-	std::cout << "\n dt " << dt << std::endl;
-	std::cout << "\n vHat \n" << vHat << std::endl;
-	std::cout << "\n vb \n" << vb << std::endl;
+	// std::cout << "\n dt " << dt << std::endl;
+	// std::cout << "\n vHat \n" << vHat << std::endl;
+	// std::cout << "\n vb \n" << vb << std::endl;
 
-	std::cout << std::endl;
-	std::cout << "cvb " << cvHat << ", cwb " << cwHat << std::endl;
+	// std::cout << std::endl;
+	// std::cout << "cvb " << cvHat << ", cwb " << cwHat << std::endl;
 
 	float cvHatDot = kcv*(float(vb.transpose()*vHat) - float(vb.transpose()*vb)*cvHat);
 
 
 	Eigen::Matrix<float,8,1> qHatt = qDotEstimator.update(qbwHat,t);
-	std::cout << "\n qHatt \n" << qHatt << std::endl;
+	// std::cout << "\n qHatt \n" << qHatt << std::endl;
 	Eigen::Vector4f qHatDot = qHatt.segment(4,4);
 	Eigen::Vector3f wHat = 2.0*B(qbwHat).transpose()*qHatDot;
-	std::cout << "\n wHat \n" << wHat << std::endl;
-	std::cout << "\n wb \n" << wb << std::endl;
+	// std::cout << "\n wHat \n" << wHat << std::endl;
+	// std::cout << "\n wb \n" << wb << std::endl;
 	float cwHatDot = kcw*(float(wb.transpose()*wHat) - float(wb.transpose()*wb)*cwHat);
 
-	std::cout << std::endl;
+	// std::cout << std::endl;
 	// if (numMeas > 0)
 	// {
 	// 	cvHat += cvHatDot*dt;
 	// 	cwHat += cwHatDot*dt;
 	// }
-	std::cout << "cva " << cvHat << ", cwa " << cwHat << std::endl;
+	// std::cout << "cva " << cvHat << ", cwa " << cwHat << std::endl;
 
 	// build and publish odom message for camera
 	nav_msgs::Odometry camOdomMsg;

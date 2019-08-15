@@ -41,6 +41,11 @@ void DepthEstimatorEKF::initialize(Eigen::Vector2f m, float zminInit, float zmax
 	xHat(2) = 1.0/zInit;
 }
 
+Eigen::Vector3f DepthEstimatorEKF::current()
+{
+	return Eigen::Vector3f(xHat(0),xHat(1),1.0);
+}
+
 //predict the kalman
 Eigen::Vector3f DepthEstimatorEKF::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
 {

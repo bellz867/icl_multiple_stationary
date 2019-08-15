@@ -26,6 +26,47 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
     psiDotEstimator.initialize(2);
 }
 
+Eigen::Vector3f DepthEstimatorICLExt::current()
+{
+  Eigen::Vector3f uc = uDotEstimator.xHat.segment(0,3);
+  if (uc.norm()>0.001)
+  {
+    uc /= uc.norm();
+    uc /= uc(2);
+    return uc;
+  }
+  else
+  {
+    return Eigen::Vector3f::Zero();
+  }
+}
+
+Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
+{
+  Eigen::Vector3f uc = uDotEstimator.xHat.segment(0,3);
+  if (uc.norm()>0.001)
+  {
+    uc /= uc.norm();
+  }
+  else
+  {
+    return Eigen::Vector3f::Zero();
+  }
+  Eigen::RowVector3f ucT = uc.transpose();
+  Eigen::Vector3f ucDot = -getss(w)*uc + (1.0/dcHat)*(uc*ucT - Eigen::Matrix3f::Identity())*v;
+  Eigen::Vector3f ucDotf = uDotEstimator.xHat.segment(3,3);
+  std::cout << "\n dcHat " << dcHat << std::endl;
+  std::cout << "\n ucDot " << ucDot << std::endl;
+  std::cout << "\n ucDotf " << ucDotf << std::endl;
+  std::cout << "\n ucb " << uc << std::endl;
+  float ucDotalp = 0.6;
+  uc += (ucDot*dt);
+  uc /= uc.norm();
+  std::cout << "\n uca " << uc << std::endl;
+  uc /= uc(2);
+  return uc;
+}
+
 Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, Eigen::Vector3f pkc, ros::Time t, float dt)
 {
   // std::cout << "\n hi4 \n";
@@ -110,13 +151,25 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n vx " << v(0) << " vy " << v(1) << " vz " << v(2) << std::endl;
   // std::cout << "\n tx " << tkc(0) << " ty " << tkc(1) << " tz " << tkc(2) << std::endl;
-  // std::cout << "\n ux " << ukc(0) << " uy " << ukc(1) << " uz " << ukc(2) << std::endl;
+  std::cout << "\n ucx " << uc(0) << " ucy " << uc(1) << " ucz " << uc(2) << std::endl;
+  std::cout << "\n ucDotx " << ucDot(0) << " ucDoty " << ucDot(1) << " ucDotz " << ucDot(2) << std::endl;
+  std::cout << "\n ukcx " << ukc(0) << " ukcy " << ukc(1) << " ukcz " << ukc(2) << std::endl;
   // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
 
 
-  dcHat += ((dcDot+kxixiTilde)*dt);
-  dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
-  dkHat += (kxpxpTilde(1)*dt);
+  if (pkc.norm() < 0.05)
+  {
+    dcHat += (dcDot*dt);
+    dkcHat += (dkcDot*dt);
+  }
+  else
+  {
+    dcHat += ((dcDot+kxixiTilde)*dt);
+    dkcHat += (dkcDot*dt);
+    // dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
+    // dkHat += (kxpxpTilde(1)*dt);
+  }
+
   // dkcHat += ((dkcDot)*dt);
   // dkHat += (kxpxpTilde(1)*dt);
 

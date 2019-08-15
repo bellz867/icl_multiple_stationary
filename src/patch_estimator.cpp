@@ -92,7 +92,10 @@ PatchEstimator::~PatchEstimator()
 	std::cout << "\n hid19 \n";
 	// chessboardSub.shutdown();
 	ROS_WARN("destroying \n");
+
 	destroyLock.unlock();
+
+	// ros::shutdown();
 }
 
 PatchEstimator::PatchEstimator() : it(nh)
@@ -1099,7 +1102,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	//get the points from the previous image
 	std::vector<cv::Point2f> pPts(numberPts),cPts(numberPts),kPts(numberPts);
 	std::vector<cv::Point2f> kPtsInPred(numberPts),cPtsInPred(numberPts);//,cPtPsInPred(depthEstimators.size());
-	Eigen::Vector3f mcc;
+	Eigen::Vector3f mpp,mcc;
 	std::vector<cv::Point2f>::iterator itp = pPts.begin();
 	std::vector<cv::Point2f>::iterator itc = cPts.begin();
 	std::vector<cv::Point2f>::iterator itk = kPts.begin();
@@ -1110,7 +1113,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 	{
 		*itk = cv::Point2f((*itD)->ptk(0),(*itD)->ptk(1));
-	  *itp = cv::Point2f(fx*((*itD)->mc(0))+cx,fy*((*itD)->mc(1))+cy);
+		mpp = (*itD)->current();
+	  *itp = cv::Point2f(fx*mpp(0)+cx,fy*mpp(1)+cy);
 	  mcc = (*itD)->predict(vc,wc,dt);
 	  *itc = cv::Point2f(fx*mcc(0)+cx,fy*mcc(1)+cy);
 		avgNumSaved += float((*itD)->depthEstimatorICLExt.numSaved);
@@ -1566,8 +1570,8 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				//Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
 
 				cv::Mat pCompare,cCompare;
-				cv::addWeighted( ppatch, 0.5, pSobel, 0.5, 0, pCompare);
-				cv::addWeighted( cpatch, 0.5, cSobel, 0.5, 0, cCompare);
+				cv::addWeighted( ppatch, 0.7, pSobel, 0.3, 0, pCompare);
+				cv::addWeighted( cpatch, 0.7, cSobel, 0.3, 0, cCompare);
 
 				/// Total Gradient (approximate)
 
@@ -1639,20 +1643,24 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
 				std::cout << "\n pptx " << pptx << " ppty " << ppty << std::endl;
 				std::cout << "\n cptx " << cptx << " cpty " << cpty << std::endl;
+				std::cout << "\n (*itc).x " << (*itc).x << " (*itc).y " << (*itc).y << std::endl;
+
 				// std::cout << "\n maxResultValx " << maxResultVal << std::endl;
 				//
-				// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
+				std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
 
 
-				float alphapr = 0.995;
-				float avgx = (1.0-alphapr)*cptx+alphapr*std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x);
-				float avgy = (1.0-alphapr)*cpty+alphapr*std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
-				if (ppatchRectC.width%2 == 0)
-				{
-					avgx += alphapr;
-					avgy += alphapr;
-					// *itcPred = cv::Point2f(std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x),std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y));
-				}
+				float alphapr = 0.9;
+				// float avgx = (1.0-alphapr)*cptx+alphapr*(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x);
+				// float avgy = (1.0-alphapr)*cpty+alphapr*(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
+				float avgx = (1.0-alphapr)*cptx+alphapr*(cptx-checkSize/2.0+ppatchRectC.width/2.0+maxResultPt.x);
+				float avgy = (1.0-alphapr)*cpty+alphapr*(cpty-checkSize/2.0+ppatchRectC.width/2.0+maxResultPt.y);
+				// if (ppatchRectC.width%2 == 0)
+				// {
+				// 	avgx += alphapr;
+				// 	avgy += alphapr;
+				// 	// *itcPred = cv::Point2f(std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x),std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y));
+				// }
 				// else
 				// {
 				// 	*itcPred = cv::Point2f(std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x+1.0),std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y+1.0));

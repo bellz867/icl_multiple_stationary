@@ -24,10 +24,21 @@ DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Tim
   depthEstimatorICLExt.initialize(uk,zmin,zmax,zInit,tau,t);
 }
 
+Eigen::Vector3f DepthEstimator::current()
+{
+  Eigen::Vector3f mcEKF = depthEstimatorEKF.current();
+  Eigen::Vector3f mcICL = depthEstimatorICLExt.current();
+  return mcICL;
+}
+
 Eigen::Vector3f DepthEstimator::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
 {
-  return (depthEstimatorEKF.predict(v,w,dt));
+  Eigen::Vector3f mcEKF = depthEstimatorEKF.predict(v,w,dt);
+  Eigen::Vector3f mcICL = depthEstimatorICLExt.predict(v,w,dt);
+  return mcICL;
 }
+
+
 
 float DepthEstimator::update(Eigen::Vector3f mcMeas, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {

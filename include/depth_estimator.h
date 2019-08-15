@@ -28,6 +28,7 @@ struct DepthEstimator
 
   DepthEstimator();
   DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zmin, float zmax, float zInit, float tau, float fx, float fy, float cx, float cy);
+  Eigen::Vector3f current();
   Eigen::Vector3f predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt);
   float update(Eigen::Vector3f mcMeas, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, Eigen::Vector3f pkc, Eigen::Vector4f qkc);
 };
