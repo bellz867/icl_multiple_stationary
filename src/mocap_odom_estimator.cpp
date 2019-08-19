@@ -210,7 +210,7 @@ void MocapOdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		P -= (K*H*P);
 	}
 
-	std::cout << "\n XHat " << XHat << std::endl;
+	// std::cout << "\n XHat " << XHat << std::endl;
 
 	// build and publish odom message for body
 	float normqHat = sqrtf(XHat(2)*XHat(2)+XHat(3)*XHat(3));

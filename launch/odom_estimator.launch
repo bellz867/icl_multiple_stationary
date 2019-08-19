@@ -23,8 +23,8 @@
     <param name="qcbz" value="0.0"/>
 
     <!-- cutoff frequencies -->
-    <param name="fp" value="15.0"/>
-    <param name="fq" value="15.0"/>
+    <param name="fp" value="30.0"/>
+    <param name="fq" value="30.0"/>
     <param name="fv" value="50.0"/>
     <param name="fw" value="50.0"/>
 

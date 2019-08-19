@@ -60,8 +60,8 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
   cloudTrue.is_dense = true;
   cloudTrue.resize(cloud.size());
 
-  std::cout << "\n cloud width " << cloud.width << " cloud true width " << cloudTrue.width;
-  std::cout << "\n cloud size " << cloud.size() << " cloud true size " << cloudTrue.size();
+  // std::cout << "\n cloud width " << cloud.width << " cloud true width " << cloudTrue.width;
+  // std::cout << "\n cloud size " << cloud.size() << " cloud true size " << cloudTrue.size();
   PointCloudRGB::iterator itcT = cloudTrue.begin();
   pcl::PointXYZRGB ptxyz;
   int numberPts = 0;
@@ -73,7 +73,7 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
     uic = pic/pic.norm();
     bool firstnu = true;
 
-    std::cout << "\n piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2);
+    // std::cout << "\n piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2);
 
     // get the distance to each wall if the dot product is positive
     //BL
@@ -221,7 +221,7 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
     ptxyz.r = std::min((*itc).g+100,255);
     ptxyz.g = (*itc).g;
     ptxyz.b = (*itc).g;
-    std::cout << ", piwx " << piw(0) << ", piwy " << piw(1) << ", piwz " << piw(2) << std::endl;
+    // std::cout << ", piwx " << piw(0) << ", piwy " << piw(1) << ", piwz " << piw(2) << std::endl;
     if (!firstnu && (pic.norm() < 4.0))
     {
       *itcT = ptxyz;

@@ -12,7 +12,8 @@ DepthEstimatorICLExt::DepthEstimatorICLExt()
   numThrown = 0;
   timeConverge = 0.0;
 }
-void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t)
+void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit,
+                                      float tauInit, ros::Time t, float fxInit, float fyInit, float cxInit, float cyInit)
 {
     uk = uInit;
     zmin = zminInit;
@@ -24,6 +25,11 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
     uDotEstimator.initialize(3);
   	uDotEstimator.update(uk,t);
     psiDotEstimator.initialize(2);
+    fx = fxInit;
+    fy = fyInit;
+    cx = cxInit;
+    cy = cyInit;
+    startTime = t;
 }
 
 Eigen::Vector3f DepthEstimatorICLExt::current()
@@ -41,33 +47,53 @@ Eigen::Vector3f DepthEstimatorICLExt::current()
   }
 }
 
-Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
+Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
-  Eigen::Vector3f uc = uDotEstimator.xHat.segment(0,3);
-  if (uc.norm()>0.001)
+  Eigen::Vector3f pcProj = pkc + rotatevec(uk*dkHat,qkc);
+  Eigen::Vector3f mcProj = pcProj/pcProj(2);
+
+  Eigen::Vector3f mp = current();
+  Eigen::Vector3f ucEst = uDotEstimator.xHat.segment(0,3);
+  if (ucEst.norm()>0.001)
   {
-    uc /= uc.norm();
+    ucEst /= ucEst.norm();
   }
   else
   {
-    return Eigen::Vector3f::Zero();
+    return mcProj;
   }
-  Eigen::RowVector3f ucT = uc.transpose();
-  Eigen::Vector3f ucDot = -getss(w)*uc + (1.0/dcHat)*(uc*ucT - Eigen::Matrix3f::Identity())*v;
-  Eigen::Vector3f ucDotf = uDotEstimator.xHat.segment(3,3);
-  std::cout << "\n dcHat " << dcHat << std::endl;
-  std::cout << "\n ucDot " << ucDot << std::endl;
-  std::cout << "\n ucDotf " << ucDotf << std::endl;
-  std::cout << "\n ucb " << uc << std::endl;
-  float ucDotalp = 0.6;
-  uc += (ucDot*dt);
-  uc /= uc.norm();
-  std::cout << "\n uca " << uc << std::endl;
-  uc /= uc(2);
-  return uc;
+
+  Eigen::RowVector3f ucEstT = ucEst.transpose();
+  Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
+  Eigen::Vector3f ucDotEst = uDotEstimator.xHat.segment(3,3);
+  // std::cout << "\n dcHat " << dcHat << std::endl;
+  std::cout << "\n ucDot " << ucEstDot << std::endl;
+  // std::cout << "\n ucDotf " << ucDotEst << std::endl;
+  // std::cout << "\n ucb " << ucEst << std::endl;
+  ucEst += (ucEstDot*dt);
+  ucEst /= ucEst.norm();
+  // std::cout << "\n uca " << ucEst << std::endl;
+  Eigen::Vector3f mcEst = ucEst /= ucEst(2);
+  float mcalpha = 0.8;
+  Eigen::Vector3f mcComb = mcalpha*mcEst + (1.0-mcalpha)*mcProj;
+  mcComb(2) = 1.0;
+
+  std::cout << std::endl << "dkKnown " << int(dkKnown) << ", mcProjx " << mcProj(0) << ", mcProjy " << mcProj(1)
+            << ", mcEstx " << mcEst(0) << ", mcEsty " << mcEst(1)
+            << ", mcCombx " << mcComb(0) << ", mcComby " << mcComb(1)
+            << ", mpx " << mp(0) << ", mpy " << mp(1) << std::endl;
+
+  if (dkKnown)
+  {
+    return mcComb;
+  }
+  else
+  {
+    return mcEst;
+  }
 }
 
-Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, Eigen::Vector3f pkc, ros::Time t, float dt)
+Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
   // std::cout << "\n hi4 \n";
 
@@ -81,6 +107,14 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   {
     uc /= uc.norm();
   }
+
+  Eigen::Vector3f mc = uc;
+  if (fabsf(mc(2))>0.001)
+  {
+    mc /= mc(2);
+  }
+
+  Eigen::Vector2f cPt(fx*mc(0)+cx,fy*mc(1)+cy);
 
   Eigen::Vector3f ucDot = xHat.segment(3,3);
   Eigen::RowVector3f ucT = uc.transpose();
@@ -264,7 +298,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     }
 
     bool enoughTime = false;
-    if ((tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() > (0.25*tau))
+    if ((tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() > timeConvergeMin)
     {
       enoughTime = true;
     }
@@ -311,7 +345,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.25) && (Y.norm() > 0.15);
+    bool measgood = (U.norm() > 0.2) && (Y.norm() > 0.1);
     // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
@@ -325,6 +359,54 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     //   uvInt = Eigen::Vector2f::Zero();
     //   numThrown++;
     // }
+
+    if (measgood)
+    {
+      //chi^2 test for reprojection error using dk
+      // assume pixel standard deviation of 2 implying variance of 4
+      float cPtSig = 10;
+      float cPtSig2 = cPtSig*cPtSig;
+      Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
+      Eigen::Vector3f mcProj = pcProj/pcProj(2);
+      Eigen::Vector2f cPtProj(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+      // float chi2 = 3.84; //chi^2 for 95%
+      float chi2 = 6.63; //chi^2 for 99%
+      Eigen::Vector2f cPtD = cPtProj - cPt;
+      float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+
+      std::cout << std::endl;
+      std::cout << "cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
+      std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
+      std::cout << std::endl;
+
+      //if the value is outside the acceptable then reject
+      if (chiTestVal > chi2)
+      {
+        //if the test failed with the first dk try the second
+        pcProj = pkc + rotatevec(uk*dk2,qkc);
+        mcProj = pcProj/pcProj(2);
+        cPtProj = Eigen::Vector2f(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+        // float chi2 = 3.84; //chi^2 for 95%
+        // float chi2 = 6.63; //chi^2 for 99%
+        cPtD = cPtProj - cPt;
+        chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+
+        std::cout << std::endl;
+        std::cout << "cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
+        std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal;
+        std::cout << std::endl;
+
+        if (chiTestVal > chi2)
+        {
+          measgood = false;
+        }
+        else
+        {
+          dk = dk2;
+        }
+      }
+    }
+
 
 
     bool dirGoodzBad = false;

@@ -21,7 +21,7 @@ DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Tim
   startt = t;
 
   depthEstimatorEKF.initialize(mk.segment(0,2),zmin,zmax,zInit);
-  depthEstimatorICLExt.initialize(uk,zmin,zmax,zInit,tau,t);
+  depthEstimatorICLExt.initialize(uk,zmin,zmax,zInit,tau,t,fx,fy,cx,cy);
 }
 
 Eigen::Vector3f DepthEstimator::current()
@@ -31,14 +31,12 @@ Eigen::Vector3f DepthEstimator::current()
   return mcICL;
 }
 
-Eigen::Vector3f DepthEstimator::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt)
+Eigen::Vector3f DepthEstimator::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
   Eigen::Vector3f mcEKF = depthEstimatorEKF.predict(v,w,dt);
-  Eigen::Vector3f mcICL = depthEstimatorICLExt.predict(v,w,dt);
+  Eigen::Vector3f mcICL = depthEstimatorICLExt.predict(v,w,dt,pkc,qkc);
   return mcICL;
 }
-
-
 
 float DepthEstimator::update(Eigen::Vector3f mcMeas, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
@@ -69,7 +67,7 @@ float DepthEstimator::update(Eigen::Vector3f mcMeas, Eigen::Vector3f tkc, Eigen:
 
   // std::cout << "\n hi3 \n";
 
-  Eigen::Vector3f dkdcdkcICLExt = depthEstimatorICLExt.update(uc,tkc,Rkc,v,w,pkc,t,dt);
+  Eigen::Vector3f dkdcdkcICLExt = depthEstimatorICLExt.update(uc,tkc,Rkc,v,w,t,dt,pkc,qkc);
   dkHatICLExt = dkdcdkcICLExt(0);
   dcHatICLExt = dkdcdkcICLExt(1);
   dkcHatICLExt = dkdcdkcICLExt(2);
