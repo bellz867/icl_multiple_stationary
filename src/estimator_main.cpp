@@ -8,12 +8,12 @@ int main(int argc, char** argv)
 
     ImageReceiver imageReceiver;
 
-    // ros::AsyncSpinner spinner(4);
-    // spinner.start();
-    // ros::waitForShutdown();
+    ros::AsyncSpinner spinner(8);
+    spinner.start();
+    ros::waitForShutdown();
 
-    ros::MultiThreadedSpinner spinner(8);
-    spinner.spin();
+    // ros::MultiThreadedSpinner spinner(8);
+    // spinner.spin();
 
     // ros::spin();
     return 0;

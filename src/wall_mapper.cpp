@@ -13,7 +13,7 @@ WallMapper::WallMapper() : it(nh)
 	nhp.param<float>("maxheight", maxheight, 25.0);
 
 	wallSub = nh.subscribe("/wall_points",100,&WallMapper::wallCB,this);
-	odomSub = nh.subscribe("/mocap/body/odom",1,&WallMapper::odomCB,this);
+	odomSub = nh.subscribe("/mocap/camera/odom",1,&WallMapper::odomCB,this);
 	// wallPub = it.advertise("wall_image",1);
 	pointCloudPub = nh.advertise<PointCloud> ("wall_map", 1);
 	pointCloudTruePub = nh.advertise<PointCloud> ("wall_map_true", 1);

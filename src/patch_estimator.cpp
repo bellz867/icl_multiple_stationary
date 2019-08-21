@@ -69,29 +69,29 @@ PatchEstimator::~PatchEstimator()
 		std::cout << "\nsaved\n";
 	}
 
-	std::cout << "\n hid10 \n";
+	// std::cout << "\n hid10 \n";
 	imagePub.shutdown();
-	std::cout << "\n hid11 \n";
+	// std::cout << "\n hid11 \n";
 	// imagePub2.shutdown();
 	imageSub.shutdown();
-	std::cout << "\n hid12 \n";
+	// std::cout << "\n hid12 \n";
 	odomSub.shutdown();
-	std::cout << "\n hid13 \n";
+	// std::cout << "\n hid13 \n";
 	roiSub.shutdown();
-	std::cout << "\n hid14 \n";
+	// std::cout << "\n hid14 \n";
 	roiPub.shutdown();
-	std::cout << "\n hid15 \n";
+	// std::cout << "\n hid15 \n";
 	poseDeltaPub.shutdown();
-	std::cout << "\n hid16 \n";
+	// std::cout << "\n hid16 \n";
 	wallPub.shutdown();
-	std::cout << "\n hid17 \n";
+	// std::cout << "\n hid17 \n";
 	pointCloudPub.shutdown();
-	std::cout << "\n hid18 \n";
+	// std::cout << "\n hid18 \n";
 
 	chessboardPub.shutdown();
-	std::cout << "\n hid19 \n";
+	// std::cout << "\n hid19 \n";
 	// chessboardSub.shutdown();
-	ROS_WARN("destroying \n");
+	// ROS_WARN("destroying \n");
 
 	destroyLock.unlock();
 
@@ -146,6 +146,11 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int part
 	tkcDotEstimator.initialize(3);
 	qkcDotEstimator.initialize(4);
 	wcbHat = Eigen::Vector3f::Zero();
+	qkcHat = Eigen::Vector4f(1.0,0.0,0.0,0.0);
+	pkcHat = Eigen::Vector3f::Zero();
+	pkp = Eigen::Vector3f::Zero();
+	qkp = Eigen::Vector4f(1.0,0.0,0.0,0.0);
+	firstkp = true;
 
 	fx = fxInit;
 	fy = fyInit;
@@ -262,7 +267,7 @@ void PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 	// get the center of each partition and place uniform spacing of points using minDistance
 	std::vector<cv::Point2f> pts;
 	int colc = partitionInd%partitionCols*partitionWidth + partitionWidth/2;
-	int rowc = partitionInd/partitionCols*partitionHeight + partitionHeight/2;
+	int rowc = partitionInd/partitionCols*partitionHeight + partitionHeight/2 - minDistance;
 	int coltl = colc - (numberFeaturesPerPartCol-1)*minDistance/2;
 	int rowtl = rowc - (numberFeaturesPerPartRow-1)*minDistance/2;
 
@@ -346,17 +351,17 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	PointCloudRGB kcloud;
 	kcloud.clear();
 	kcloud.height = 1;
-	kcloud.width = 9;
+	kcloud.width = numberPts;
 	kcloud.is_dense = true;
-	kcloud.resize(9);
+	kcloud.resize(numberPts);
 	PointCloudRGB::iterator kcloudIt = kcloud.begin();
 
 	PointCloudRGB ccloud;
 	ccloud.clear();
 	ccloud.height = 1;
-	ccloud.width = 9;
+	ccloud.width = numberPts;
 	ccloud.is_dense = true;
-	ccloud.resize(9);
+	ccloud.resize(numberPts);
 	PointCloudRGB::iterator ccloudIt = ccloud.begin();
 
 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin(); itD != depthEstimators.end(); itD++)
@@ -478,177 +483,81 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 
 			if (XYXYdet > 0.001)
 			{
-				Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
-				Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
-				Eigen::Vector3f ncICL(dnzICL(0),dnzICL(1),1.0);
-				ncICL /= ncICL.norm();
-				float nxICL = ncICL(0);
-				float nyICL = ncICL(1);
-				float nzICL = ncICL(2);
-				float dcICL = -dnzICL(2)*nzICL;
+				// Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
+				// Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
+				// Eigen::Vector3f ncICL(dnzICL(0),dnzICL(1),1.0);
+				// ncICL /= ncICL.norm();
+				// float nxICL = ncICL(0);
+				// float nyICL = ncICL(1);
+				// float nzICL = ncICL(2);
+				// float dcICL = -dnzICL(2)*nzICL;
+				//
+				// Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYEKF(XYXYEKF, Eigen::ComputeThinU | Eigen::ComputeThinV);
+				// Eigen::Vector3f dnzEKF = svdXYXYEKF.solve(XYNZEKF);
+				// Eigen::Vector3f ncEKF(dnzEKF(0),dnzEKF(1),1.0);
+				// ncEKF /= ncEKF.norm();
+				// float nxEKF = ncEKF(0);
+				// float nyEKF = ncEKF(1);
+				// float nzEKF = ncEKF(2);
+				// float dcEKF = -dnzEKF(2)*nzEKF;
+				//
+				// ROS_WARN("roi get normal time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
+				// processTime = clock();
+				//
+				// //get the estimated point for each pixel in the roi
+				// int plotInd = 0;
+				// PointCloudRGB cloud;
+				// cloud.clear();
+				// cloud.height = 1;
+				// cloud.width = colsReduce*rowsReduce;
+				// cloud.is_dense = true;
+				// cloud.resize(colsReduce*rowsReduce);
+				// PointCloudRGB::iterator cloudIt = cloud.begin();
+				// pcl::PointXYZRGB ptxyz;
+				//
+				// int rowj = 0;
+				// int colj = 0;
+				//
+				// float mxj = 0;
+				// float myj = 0;
+				// float xjcICL = 0;
+				// float yjcICL = 0;
+				// float zjcICL = 0;
+				// Eigen::Vector3f piw(0.0,0.0,0.0);
+				// Eigen::Vector3f pic(0.0,0.0,0.0);
+				//
+				// for (cv::MatIterator_<uchar> itI = roiimageReduce.begin<uchar>(); itI != roiimageReduce.end<uchar>(); itI++)
+				// {
+				// 	rowj = rowtl + reduceFactor*(plotInd/colsReduce);
+				// 	colj = coltl + reduceFactor*(plotInd%colsReduce);
+				//
+				// 	// *colIt = uint8_t(*itI);
+				// 	mxj = (colj - cx)/fx;
+				// 	myj = (rowj - cy)/fy;
+				// 	zjcICL = dcICL/(nxICL*mxj+nyICL*myj+nzICL);
+				// 	xjcICL = zjcICL*mxj;
+				// 	yjcICL = zjcICL*myj;
+				//
+				// 	pic(0) = xjcICL;
+				// 	pic(1) = yjcICL;
+				// 	pic(2) = zjcICL;
+				//
+				// 	piw = pcw + rotatevec(pic,qcw);
+				//
+				// 	ptxyz.x = piw(0);
+				// 	ptxyz.y = piw(1);
+				// 	ptxyz.z = piw(2);
+				// 	ptxyz.r = (*itI);
+				// 	ptxyz.g = (*itI);
+				// 	ptxyz.b = std::min((*itI)+100,255);
+				// 	*cloudIt = ptxyz;
+				// 	cloudIt++;
+				//
+				// 	plotInd++;
+				// }
 
-				Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYEKF(XYXYEKF, Eigen::ComputeThinU | Eigen::ComputeThinV);
-				Eigen::Vector3f dnzEKF = svdXYXYEKF.solve(XYNZEKF);
-				Eigen::Vector3f ncEKF(dnzEKF(0),dnzEKF(1),1.0);
-				ncEKF /= ncEKF.norm();
-				float nxEKF = ncEKF(0);
-				float nyEKF = ncEKF(1);
-				float nzEKF = ncEKF(2);
-				float dcEKF = -dnzEKF(2)*nzEKF;
-
-				ROS_WARN("roi get normal time %2.4f",float(clock()-processTime)/CLOCKS_PER_SEC);
-				processTime = clock();
-
-				//get the estimated point for each pixel in the roi
-				int plotInd = 0;
-
-				// PointCloudRGB::Ptr map(new PointCloudRGB);
-				// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
-				// map->header.frame_id = "world";
-				// map->height = rows;
-				// map->width = cols;
-				// map->is_dense = true;
-				// map->points.clear();
-				// map->points.resize(rows*cols);
-
-				// std::vector<geometry_msgs::Point32> wallPts(colsReduce*rowsReduce);
-				// std::vector<uint8_t> wallColors(colsReduce*rowsReduce);
-				// std::vector<geometry_msgs::Point32>::iterator ptIt = wallPts.begin();
-				// std::vector<uint8_t>::iterator colIt = wallColors.begin();
-				PointCloudRGB cloud;
-				cloud.clear();
-				cloud.height = 1;
-				cloud.width = colsReduce*rowsReduce;
-				cloud.is_dense = true;
-				cloud.resize(colsReduce*rowsReduce);
-				PointCloudRGB::iterator cloudIt = cloud.begin();
-				pcl::PointXYZRGB ptxyz;
-
-				//convert into body frame
-				// Eigen::Vector3f pbw = rotatevec(pcw,qcb)-pcb;
-				// pbw(2) = 0.0;
-				// Eigen::Vector4f qbw = getqMat(qcw)*getqInv(qcb);
-				// qbw /= qbw.norm();
-				// qbw(1) = 0.0;
-				// qbw(2) = 0.0;
-				// qbw /= qbw.norm();
-				// qcw = getqMat(qbw)*qcb;
-				// qcw /= qcw.norm();
-				// Eigen::Vector3f pcbw = rotatevec(pcb,qbw);
-
-
-				int rowj = 0;
-				int colj = 0;
-
-				// *colIt = uint8_t(*itI);
-				float mxj = 0;
-				float myj = 0;
-				// Eigen::Vector4f pjw4(0.0,0.0,0.0,0.0);
-				// Eigen::Vector3f pjwc(0.0,0.0,0.0);
-				// Eigen::Matrix4f qjw4M;
-				// float xb
-				// float xc = pcwInitcbInit(0);
-				// float yc = pcwInitcbInit(1);
-				// float zc = pcwInitcbInit(2);
-				// float qw = qcwcwInit(0);
-				// float qx = qcwcwInit(1);
-				// float qy = qcwcwInit(2);
-				// float qz = qcwcwInit(3);
-				// float qwI = qcwcwInitI(0);
-				// float qxI = qcwcwInitI(1);
-				// float qyI = qcwcwInitI(2);
-				// float qzI = qcwcwInitI(3);
-				float xjcICL = 0;
-				float yjcICL = 0;
-				float zjcICL = 0;
-				Eigen::Vector3f piw(0.0,0.0,0.0);
-				Eigen::Vector3f pic(0.0,0.0,0.0);
-				// float wjwICL = 0;
-				// float xjwICL = 0;
-				// float yjwICL = 0;
-				// float zjwICL = 0;
-				// float xjcEKF = 0;
-				// float yjcEKF = 0;
-				// float zjcEKF = 0;
-				// float wjwEKF = 0;
-				// float xjwEKF = 0;
-				// float yjwEKF = 0;
-				// float zjwEKF = 0;
-				// Eigen::Vector3f pjw(0.0,0.0,0.0);
-				for (cv::MatIterator_<uchar> itI = roiimageReduce.begin<uchar>(); itI != roiimageReduce.end<uchar>(); itI++)
-				{
-					rowj = rowtl + reduceFactor*(plotInd/colsReduce);
-					colj = coltl + reduceFactor*(plotInd%colsReduce);
-
-					// *colIt = uint8_t(*itI);
-					mxj = (colj - cx)/fx;
-					myj = (rowj - cy)/fy;
-					zjcICL = dcICL/(nxICL*mxj+nyICL*myj+nzICL);
-					xjcICL = zjcICL*mxj;
-					yjcICL = zjcICL*myj;
-
-					pic(0) = xjcICL;
-					pic(1) = yjcICL;
-					pic(2) = zjcICL;
-
-					// zjcEKF = dcEKF/(nxEKF*mxj+nyEKF*myj+nzEKF);
-					// xjcEKF = zjcEKF*mxj;
-					// yjcEKF = zjcEKF*myj;
-					// Eigen::Vector3f pjc(zjc*mxj,zjc*myj,zjc);
-
-					// //rotate the point into the world frame
-					// Eigen::Vector3f pjw = pcw + rotatevec(pjc,qcw);
-					//
-					// Eigen::Vector4f qcwInit(cos(3.1415/4.0),sin(3.1415/4.0),0.0,0.0);
-					// qcwInit /= qcwInit.norm();
-					// pjw = rotatevec(pjw-rotatevec(pcb,getqInv(qcb)),getqInv(qcwInit));
-
-					//rotate the point into the world frame
-					// pjw4 = getqMat(qcwcwInitMatR*pjwc)*qcwcwInitI;
-
-					// wjwICL = -qx*xjcICL-qy*yjcICL-qz*zjcICL;
-					// xjwICL = qw*xjcICL-qz*yjcICL+qy*zjcICL;
-					// yjwICL = qz*xjcICL+qw*yjcICL-qx*zjcICL;
-					// zjwICL = -qy*xjcICL+qx*yjcICL+qw*zjcICL;
-
-					// wjwEKF = -qx*xjcEKF-qy*yjcEKF-qz*zjcEKF;
-					// xjwEKF = qw*xjcEKF-qz*yjcEKF+qy*zjcEKF;
-					// yjwEKF = qz*xjcEKF+qw*yjcEKF-qx*zjcEKF;
-					// zjwEKF = -qy*xjcEKF+qx*yjcEKF+qw*zjcEKF;
-					piw = pcw + rotatevec(pic,qcw);
-
-					// std::cout << "piwHatx " << piw(0) << ", piwHaty " << piw(1) << ", piwHatz " << piw(2) << std::endl;
-
-					ptxyz.x = piw(0);
-					ptxyz.y = piw(1);
-					ptxyz.z = piw(2);
-					ptxyz.r = (*itI);
-					ptxyz.g = (*itI);
-					ptxyz.b = std::min((*itI)+100,255);
-					*cloudIt = ptxyz;
-					cloudIt++;
-
-					// ptxyz.x = xc+xjwEKF*qwI+wjwEKF*qxI-zjwEKF*qyI+yjwEKF*qzI;
-					// ptxyz.y = yc+yjwEKF*qwI+zjwEKF*qxI+wjwEKF*qyI-xjwEKF*qzI;
-					// ptxyz.z = zc+zjwEKF*qwI-yjwEKF*qxI+xjwEKF*qyI+wjwEKF*qzI;
-					// ptxyz.r = (*itI);
-					// ptxyz.g = (*itI);
-					// ptxyz.b = std::min((*itI)+100,255);
-					// *cloudIt = ptxyz;
-					// cloudIt++;
-
-					// geometry_msgs::Point32 pjwMsg;
-					// pjwMsg.x = pjw(0);
-					// pjwMsg.y = pjw(1);
-					// pjwMsg.z = pjw(2);
-					// *ptIt = pjwMsg;
-					plotInd++;
-					// ptIt++;
-					// colIt++;
-				}
-
-				ROS_WARN("roi get points time %2.4f, plotInd %d",float(clock()-processTime)/CLOCKS_PER_SEC,plotInd);
-				processTime = clock();
+				// ROS_WARN("roi get points time %2.4f, plotInd %d",float(clock()-processTime)/CLOCKS_PER_SEC,plotInd);
+				// processTime = clock();
 
 				// map->points = cloud;
 				//publish the features
@@ -669,21 +578,22 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				mappatch->width = mappatch->points.size();
 
 
-				PointCloudRGB::Ptr map(new PointCloudRGB);
-				(*map).clear();
-				pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
-
-				// std::cout << "\n wall 1 1 \n";
-				map->header.frame_id = "world";
-
-				// std::cout << "\n wall 1 2 \n";
-				map->height = 1;
-				map->is_dense = true;
-				map->points.clear();
-				*map += cloud;
-				map->width = map->points.size();
-
-				ROS_WARN("patch map->width %d",int(map->width));
+				// PointCloudRGB::Ptr map(new PointCloudRGB);
+				// (*map).clear();
+				// pcl_conversions::toPCL(msg->header.stamp,map->header.stamp);
+				//
+				// // std::cout << "\n wall 1 1 \n";
+				// map->header.frame_id = "world";
+				//
+				// // std::cout << "\n wall 1 2 \n";
+				// map->height = 1;
+				// map->is_dense = true;
+				// map->points.clear();
+				// // *map += cloud;
+				// *map += ccloud;
+				// map->width = map->points.size();
+				//
+				// ROS_WARN("patch map->width %d",int(map->width));
 				// std::cout << "\n wall 3 \n";
 
 
@@ -699,12 +609,14 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				{
 					ROS_WARN("ROI patch not shutdown");
 					// if (allPtsKnown && (acos(nyICL) > (70.0*3.1415/180.0)) && (acos(nxICL) > (70.0*3.1415/180.0)))
-					if (allPtsKnown && (avgNumSaved >= 1) && (acos(nzICL) < (30.0*3.1415/180.0)))
+					// if (allPtsKnown && (avgNumSaved >= 1) && (acos(nzICL) < (30.0*3.1415/180.0)))
+					if (allPtsKnown && (avgNumSaved >= 1))
 					{
 						icl_multiple_stationary::Wall wallMsg;
 						wallMsg.header.stamp = t;
 						// wallMsg.wallPts = wallPts;
-						pcl::toROSMsg(cloud, wallMsg.cloud);
+						// pcl::toROSMsg(cloud, wallMsg.cloud);
+						pcl::toROSMsg(kcloud, wallMsg.cloud);
 						wallMsg.keyInd = keyInd;
 						wallMsg.patchInd = patchInd;
 						wallMsg.pose = msg->pose;
@@ -865,16 +777,26 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	qkcHat += (-0.5*B(qkcHat)*(wc)*dt);
 	qkcHat /= qkcHat.norm();
 
-	Eigen::Vector4f qpcHat = getqMat(qkcHat)*getqInv(qkpHat);
-	qpcHat /= qpcHat.norm();
-	Eigen::Vector3f ppcHat = pkcHat - rotatevec(pkpHat,qpcHat);
-
 	Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 	Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
 
 	Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
 	qkc /= qkc.norm();
 	Eigen::Vector3f pkc = rotatevec(pkw-pcw,getqInv(qcw));
+
+	if (firstkp)
+	{
+		pkp = pkc;
+		qkp = qkc;
+		firstkp = false;
+	}
+
+	Eigen::Vector4f qpcHat = getqMat(qkc)*getqInv(qkp);
+	qpcHat /= qpcHat.norm();
+	Eigen::Vector3f ppcHat = pkc - rotatevec(pkp,qpcHat);
+
+	pkp = pkc;
+	qkp = qkc;
 
 	// find the features
 	match(image,dt,vc,wc,t,ppcHat,qpcHat,pkc,qkc);
@@ -902,7 +824,6 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	if (depthEstimators.size() > minFeaturesBad)
 	{
-
 		for (uint16_t ii = 0; ii < depthEstimators.size(); ii++)
 		{
 			//get the points after update
@@ -986,14 +907,14 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	{
 		pubMutex.lock();
 
-		std::cout << "\n hid8 \n";
+		// std::cout << "\n hid8 \n";
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			delete *itD;
 		}
-		std::cout << "\n hid9 \n";
+		// std::cout << "\n hid9 \n";
 		depthEstimators.clear();
-		std::cout << "\n hid10 \n";
+		// std::cout << "\n hid10 \n";
 
 		patchShutdown = true;
 		pubMutex.unlock();
@@ -1007,7 +928,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	}
 	else
 	{
-		std::cout << "\n hi9 \n";
+		// std::cout << "\n hi9 \n";
 
 		// std::cout << "\n dt \n" << dt << std::endl;
 		// std::cout << "\n vc \n" << vc << std::endl;
@@ -1072,12 +993,12 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		// qbwk(2) = 0.0;
 		// qbwk /= qbwk.norm();
 
-		std::cout << "\n pbwHat \n" << pbwHat << std::endl;
-		std::cout << "\n qbwHat \n" << qbwHat << std::endl;
+		// std::cout << "\n pbwHat \n" << pbwHat << std::endl;
+		// std::cout << "\n qbwHat \n" << qbwHat << std::endl;
 		// std::cout << "\n pbwk \n" << pbwk << std::endl;
 		// std::cout << "\n qbwk \n" << qbwk << std::endl;
-		std::cout << "\n pbw \n" << pbw << std::endl;
-		std::cout << "\n qbw \n" << qbw << std::endl;
+		// std::cout << "\n pbw \n" << pbw << std::endl;
+		// std::cout << "\n qbw \n" << qbw << std::endl;
 		// std::cout << "\n pcw \n" << pcw << std::endl;
 		// std::cout << "\n qcw \n" << qcw << std::endl;
 		// std::cout << "\n pkw \n" << pkw << std::endl;
@@ -1121,7 +1042,7 @@ void PatchEstimator::chessboardCB(const std_msgs::Time::ConstPtr& msg)
 		return;
 	}
 
-	if (numLandmarkCheck < 10)
+	if (numLandmarkCheck < 20)
 	{
 		numLandmarkCheck++;
 		chessboardMutex.unlock();
@@ -1187,6 +1108,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		avgNumSaved += float((*itD)->depthEstimatorICLExt.numSaved);
 		avgNumThrown += float((*itD)->depthEstimatorICLExt.numThrown);
 
+		std::cout << " ptix " << (*itp).x << " ptiy " << (*itp).y << std::endl;
 		std::cout << " ctix " << (*itc).x << " ctiy " << (*itc).y << std::endl;
 
 		//add each point
@@ -1243,11 +1165,14 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		GICLf /= GICLf(2,2);
 	}
 
+	// GICLf = camMatf*((ppcHat*np.transpose())/dp + getqRot(qpcHat))*camMatIf;
+	// GICLf /= GICLf(2,2);
+
 	Eigen::Vector3f nkRot = rotatevec(nk,qkcHat);
 	nkRot /= nkRot.norm();
 	float nDifAngRot = 180.0/3.1415*acos(float(np.transpose()*nkRot));
 	float nDifAng = 180.0/3.1415*acos(float(np.transpose()*nk));
-	float qAng = 180.0/3.1415*acos(qkcHat(0))*2.0;
+	float qAng = 180.0/3.1415*acos(qkc(0))*2.0;
 
 	// std::cout << "\n XY1ICL \n" << XY1ICL << std::endl;
 	// std::cout << "\n XY1ICLk \n" << XY1ICLk << std::endl;
@@ -1275,7 +1200,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 	bool angGood = qAng < 45.0;
 
-	if (normGood && angGood)
+	// if (normGood && angGood)
+	if (angGood)
 	{
 		try
 		{
@@ -1343,7 +1269,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 			// std::vector<cv::Point2f> ppts;
 			// ppts.clear();
-			findPoints(image,kPts,pPts,cPts,G);
+			findPoints(image,kPts,pPts,cPts,GICL);
 			kPtsInPred = kPts;
 			cPtsInPred = cPts;
 
@@ -1507,13 +1433,13 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	{
 		try
 		{
-			std::cout << "\n\n\n --------- next start --------- \n";
+			// std::cout << "\n\n\n --------- next start --------- \n";
 			// get center point in new image, find the patch box around it, transform into previous image,
 			// check to ensure it fits in previous image
 			// if patch does fit, extract the patch then transform extracted patch back and perform search
 			// if patch does not fit, skip the point so partition is deleted
 
-			std::cout << "\n hi1 \n";
+			// std::cout << "\n hi1 \n";
 
 			//predicted patch center in new image
 			pptx = (*itpp).x;
@@ -1536,7 +1462,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			cv::perspectiveTransform(ppatchCornersC,ppatchCornersP,GI);
 			ppatchRectP = cv::boundingRect(ppatchCornersP);
 
-			std::cout << "\n hi2 \n";
+			// std::cout << "\n hi2 \n";
 
 			//assign the new corners as the bounding rect corners
 			ppatchBoundCornersP.at(0) = cv::Point2f(ppatchRectP.x,ppatchRectP.y);//tl
@@ -1566,7 +1492,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 					ppatchBoundP = pimage(ppatchRectP).clone();
 				}
 
-				std::cout << "\n hi3 \n";
+				// std::cout << "\n hi3 \n";
 
 				//extract and transform bounding patch
 				cv::warpPerspective(ppatchBoundP,ppatchBoundC,G,ppatchBoundP.size(),cv::INTER_LINEAR,cv::BORDER_CONSTANT,cv::Scalar(255,255,255));
@@ -1604,8 +1530,8 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				ppatchRectC.width = patchSizeC;
 				ppatchRectC.height = patchSizeC;
 
-				std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
-				std::cout << "\n cDx " << cDx << " cDy " << cDy << " patchSize " << patchSize << "  ppatchBoundC.cols " <<  ppatchBoundC.cols << "  ppatchBoundC.rows " <<  ppatchBoundC.rows << std::endl;
+				// std::cout << "\n ppatchRectC " << ppatchRectC << std::endl;
+				// std::cout << "\n cDx " << cDx << " cDy " << cDy << " patchSize " << patchSize << "  ppatchBoundC.cols " <<  ppatchBoundC.cols << "  ppatchBoundC.rows " <<  ppatchBoundC.rows << std::endl;
 
 
 				if ((ppatchRectC.x >= 0) && (ppatchRectC.y >= 0) && (ppatchRectC.x < ppatchBoundC.cols) && (ppatchRectC.y < ppatchBoundC.rows)
@@ -1617,47 +1543,47 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			}
 
 			//if the bounding rectangle points are within the previous image
-			if ((acos(qkcHat(0))*2.0 < 45.0*3.1415/180.0) && warpGood
+			// if ((acos(qkcHat(0))*2.0 < 45.0*3.1415/180.0) && warpGood
+			if (warpGood
 					&& (pcheckRect.x > 0) && (pcheckRect.y > 0)
 					&& ((pcheckRect.x+checkSize) < (imageWidth)) && ((pcheckRect.y+checkSize) < (imageHeight)))
 			{
-				std::cout << "\n hi33 \n";
+				// std::cout << "\n hi33 \n";
 
 				ppatch = ppatchBoundC(ppatchRectC).clone();
 
 				// ppatch = ppatchBoundC.clone();
 
-				std::cout << "\n hi4 \n";
+				// std::cout << "\n hi4 \n";
 
 				//extract the check image
 				cpatch = image(pcheckRect).clone();
 
-				std::cout << "\n hi44 \n";
+				// std::cout << "\n hi44 \n";
 
-				cv::Mat pSobel,cSobel;
-				// cv::Sobel(ppatch,pSobel,CV_32F,1,1,3);
-
-				/// Generate grad_x and grad_y
-				cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
-				cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
-				/// Gradient X
-				//Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-				cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 3);
-				cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 3);
-				cv::convertScaleAbs( pgrad_x, pabs_grad_x );
-				cv::convertScaleAbs( pgrad_y, pabs_grad_y );
-				cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
-				cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 3);
-				cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 3);
-				cv::convertScaleAbs( cgrad_x, cabs_grad_x );
-				cv::convertScaleAbs( cgrad_y, cabs_grad_y );
-				cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
-				/// Gradient Y
-				//Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-
-				cv::Mat pCompare,cCompare;
-				cv::addWeighted( ppatch, 0.75, pSobel, 0.25, 0, pCompare);
-				cv::addWeighted( cpatch, 0.75, cSobel, 0.25, 0, cCompare);
+				// cv::Mat pSobel,cSobel;
+				//
+				// /// Generate grad_x and grad_y
+				// cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
+				// cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
+				// /// Gradient X
+				// //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+				// cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 3);
+				// cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 3);
+				// cv::convertScaleAbs( pgrad_x, pabs_grad_x );
+				// cv::convertScaleAbs( pgrad_y, pabs_grad_y );
+				// cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
+				// cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 3);
+				// cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 3);
+				// cv::convertScaleAbs( cgrad_x, cabs_grad_x );
+				// cv::convertScaleAbs( cgrad_y, cabs_grad_y );
+				// cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
+				// /// Gradient Y
+				// //Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+				//
+				// cv::Mat pCompare,cCompare;
+				// cv::addWeighted( ppatch, 0.75, pSobel, 0.25, 0, pCompare);
+				// cv::addWeighted( cpatch, 0.75, cSobel, 0.25, 0, cCompare);
 
 				/// Total Gradient (approximate)
 
@@ -1665,19 +1591,20 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 
 
-				std::cout << "\n cpatch.size() " << cpatch.size() << " ppatch.size() " << ppatch.size() << std::endl;
+				// std::cout << "\n cpatch.size() " << cpatch.size() << " ppatch.size() " << ppatch.size() << std::endl;
 
 				//use the patch as template and match in check patch
 				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
 				// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
-				cv::matchTemplate(cCompare,pCompare,tmresult,cv::TM_CCOEFF_NORMED);
+				// cv::matchTemplate(cCompare,pCompare,tmresult,cv::TM_CCOEFF_NORMED);
+				cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
 
-				std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
+				// std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
 
 				cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
 				cv::minMaxLoc(tmresult,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
 
-				std::cout << "\n hi5 \n";
+				// std::cout << "\n hi5 \n";
 
 				// if (isFirstPt)
 				// {
@@ -1726,14 +1653,14 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 				// *itcPred = cv::Point2f(pcheckRect.x+(ppatchRectC.width)/2.0+maxResultPt.x,pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
 
-				std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
-				std::cout << "\n pptx " << pptx << " ppty " << ppty << std::endl;
-				std::cout << "\n cptx " << cptx << " cpty " << cpty << std::endl;
-				std::cout << "\n (*itc).x " << (*itc).x << " (*itc).y " << (*itc).y << std::endl;
+				// std::cout << "\n maxx " << maxResultPt.x << " maxy " << maxResultPt.y << std::endl;
+				// std::cout << "\n pptx " << pptx << " ppty " << ppty << std::endl;
+				// std::cout << "\n cptx " << cptx << " cpty " << cpty << std::endl;
+				// std::cout << "\n (*itc).x " << (*itc).x << " (*itc).y " << (*itc).y << std::endl;
 
 				// std::cout << "\n maxResultValx " << maxResultVal << std::endl;
 				//
-				std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
+				// std::cout << "\n mx " << pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x << " my " << pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y << std::endl;
 
 
 				float alphapr = 0.9;
@@ -1756,9 +1683,9 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 
 
-				std::cout << "\n pcheckRect.x " << pcheckRect.x << " pcheckRect.y " << pcheckRect.y << std::endl;
-				std::cout << "\n ppatchRectC.width/2.0 " << ppatchRectC.width/2.0 << " ppatchRectC.width/2.0 " << ppatchRectC.width/2.0 << std::endl;
-				std::cout << "\n (*itcPred).x " << (*itcPred).x << " (*itcPred).y " << (*itcPred).y << std::endl;
+				// std::cout << "\n pcheckRect.x " << pcheckRect.x << " pcheckRect.y " << pcheckRect.y << std::endl;
+				// std::cout << "\n ppatchRectC.width/2.0 " << ppatchRectC.width/2.0 << " ppatchRectC.width/2.0 " << ppatchRectC.width/2.0 << std::endl;
+				// std::cout << "\n (*itcPred).x " << (*itcPred).x << " (*itcPred).y " << (*itcPred).y << std::endl;
 
 				// *itcPred = cv::Point2f(std::round(ppatchRectC.x)+(ppatchRectC.width-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round(ppatchRectC.y)+(ppatchRectC.height-1)/2-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
 				// *itcPPred = cv::Point2f(std::round((*itpp).x)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.x,std::round((*itpp).y)-(checkSize-1)/2+(patchSize-1)/2+maxResultPt.y);
@@ -1772,7 +1699,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				// itppIdx++;
 				// ROS_WARN("check 7 %2.5f",float(clock()-timeCheck)/CLOCKS_PER_SEC);
 				// timeCheck = clock();
-				std::cout << "\n --------- next end --------- \n\n\n";
+				// std::cout << "\n --------- next end --------- \n\n\n";
 			}
 			else
 			{
@@ -1845,12 +1772,15 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		assert(kPts.size()>0);
 		assert(cPts.size()>0);
 
-		Eigen::Vector4f qkcPnP;
-		Eigen::Vector3f tkcPnP;
-		bool usePnP = false;
+		Eigen::Vector4f qkcPnPc;
+		Eigen::Vector3f tkcPnPc;
+		Eigen::Vector4f qkcPnPk;
+		Eigen::Vector3f tkcPnPk;
+		bool usePnPc = false;
+		bool usePnPk = false;
 		if (allPtsKnown)
 		{
-			std::cout << "\n tryingPnP \n" << std::endl;
+			// std::cout << "\n tryingPnPk \n" << std::endl;
 			std::vector<cv::Point3f> kPts3(depthEstimators.size());
 			std::vector<cv::Point3f>::iterator kPts3it = kPts3.begin();
 			for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
@@ -1869,35 +1799,36 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			cv::Mat tvec(cv::Size(1,3),CV_32F);
 			cv::Rodrigues(RkcHatPnP,rvec);
 			cv::eigen2cv(pkc,tvec);
-			std::cout << "rvecPnPb \n" << rvec << std::endl;
-			std::cout << "tvecPnPb \n" << tvec << std::endl;
-			usePnP = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-			// usePnP = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,1000,1.0,0.99,cv::Mat(),cv::SOLVEPNP_ITERATIVE);
-			std::cout << "rvecPnPa \n" << rvec << std::endl;
-			std::cout << "tvecPnPa \n" << tvec << std::endl;
+			// std::cout << "rvecPnPkb \n" << rvec << std::endl;
+			// std::cout << "tvecPnPkb \n" << tvec << std::endl;
+			usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			// usePnP = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true);
+			// std::cout << "rvecPnPka \n" << rvec << std::endl;
+			// std::cout << "tvecPnPka \n" << tvec << std::endl;
 
 
-			if (usePnP)
+			if (usePnPk)
 			{
 				cv::Rodrigues(rvec,RkcHatPnP);
 				cv::cv2eigen(RkcHatPnP,RkcHatPnPf);
 				Eigen::Quaternionf qkcPnPq(RkcHatPnPf);// convert to quaternion
-				qkcPnP << qkcPnPq.w(),qkcPnPq.x(),qkcPnPq.y(),qkcPnPq.z();
-				cv::cv2eigen(tvec,tkcPnP);
-				float tkcPnPNorm = tkcPnP.norm();
+				qkcPnPk << qkcPnPq.w(),qkcPnPq.x(),qkcPnPq.y(),qkcPnPq.z();
+				qkcPnPk /= qkcPnPk.norm();
+				cv::cv2eigen(tvec,tkcPnPk);
+				float tkcPnPNorm = tkcPnPk.norm();
 				if (tkcPnPNorm>0.001)
 				{
-					tkcPnP /= tkcPnPNorm;
+					tkcPnPk /= tkcPnPNorm;
 				}
 				std::cout << std::endl;
-				std::cout << "dkcPnP \n" << tkcPnPNorm << std::endl;
-				std::cout << "tkcPnP \n" << tkcPnP << std::endl;
-				std::cout << "qkcPnP \n" << qkcPnP << std::endl;
+				// std::cout << "dkcPnPk \n" << tkcPnPNorm << std::endl;
+				// std::cout << "tkcPnPk \n" << tkcPnPk << std::endl;
+				// std::cout << "qkcPnPk \n" << qkcPnPk << std::endl;
 			}
 		}
-		else
+
 		{
-			std::cout << "\n tryingPnP current \n" << std::endl;
+			// std::cout << "\n tryingPnP current \n" << std::endl;
 			std::vector<cv::Point3f> cPts3(depthEstimators.size());
 			std::vector<cv::Point3f>::iterator cPts3it = cPts3.begin();
 			std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
@@ -1922,42 +1853,42 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			cv::Rodrigues(RckHatPnP,rvec);
 			Eigen::Vector3f pck = -rotatevec(pkc,getqInv(qkc));
 			cv::eigen2cv(pck,tvec);
-			std::cout << "rvecPnPcb \n" << rvec << std::endl;
-			std::cout << "tvecPnPcb \n" << tvec << std::endl;
-			usePnP = cv::solvePnP(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-			// usePnP = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,1000,1.0,0.99,cv::Mat(),cv::SOLVEPNP_ITERATIVE);
-			std::cout << "rvecPnPca \n" << rvec << std::endl;
-			std::cout << "tvecPnPca \n" << tvec << std::endl;
+			// std::cout << "rvecPnPcb \n" << rvec << std::endl;
+			// std::cout << "tvecPnPcb \n" << tvec << std::endl;
+			usePnPc = cv::solvePnP(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			// usePnP = cv::solvePnPRansac(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true);
+			// std::cout << "rvecPnPca \n" << rvec << std::endl;
+			// std::cout << "tvecPnPca \n" << tvec << std::endl;
 
 
-			if (usePnP)
+			if (usePnPc)
 			{
 				cv::Rodrigues(rvec,RckHatPnP);
 				cv::cv2eigen(RckHatPnP,RckHatPnPf);
 				Eigen::Quaternionf qckPnPq(RckHatPnPf);// convert to quaternion
 				Eigen::Vector4f qckPnP;
 				qckPnP << qckPnPq.w(),qckPnPq.x(),qckPnPq.y(),qckPnPq.z();
-				qkcPnP = getqInv(qckPnP);
-				qkcPnP /= qkcPnP.norm();
+				qkcPnPc = getqInv(qckPnP);
+				qkcPnPc /= qkcPnPc.norm();
 				Eigen::Vector3f tckPnP;
 				cv::cv2eigen(tvec,tckPnP);
-				tkcPnP = -rotatevec(tckPnP,qkcPnP);
-				float tkcPnPNorm = tkcPnP.norm();
+				tkcPnPc = -rotatevec(tckPnP,qkcPnPc);
+				float tkcPnPNorm = tkcPnPc.norm();
 				if (tkcPnPNorm>0.001)
 				{
-					tkcPnP /= tkcPnPNorm;
+					tkcPnPc /= tkcPnPNorm;
 				}
 				std::cout << std::endl;
-				std::cout << "dkcPnP \n" << tkcPnPNorm << std::endl;
-				std::cout << "tkcPnP \n" << tkcPnP << std::endl;
-				std::cout << "qkcPnP \n" << qkcPnP << std::endl;
+				// std::cout << "dkcPnPc \n" << tkcPnPNorm << std::endl;
+				// std::cout << "tkcPnPc \n" << tkcPnPc << std::endl;
+				// std::cout << "qkcPnPc \n" << qkcPnPc << std::endl;
 			}
 		}
 
-		// cv::Mat inliersG;
-		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 0.05, inliersG1, 2000, 0.99);//calculate homography using RANSAC
+		// cv::Mat inliersG1;
+		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 0.05);//calculate homography using RANSAC
 		cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
-		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,0.05,0.99);
+		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,0.05);
 		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
 		cv::Mat E = camMatD.t()*F*camMatD;
 		cv::Mat R1,R2,tt;
@@ -2007,22 +1938,42 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				std::vector<Eigen::Vector4f> qkcs;
 				std::vector<float> errors;
 
-				if (usePnP)
+				if (usePnPk)
 				{
-					if ((qkc + qkcPnP).norm() < (qkc - qkcPnP).norm())
+					if ((qkc + qkcPnPk).norm() < (qkc - qkcPnPk).norm())
 					{
-						qkcPnP *= -1.0;
+						qkcPnPk *= -1.0;
 					}
 
-					qkcs.push_back(qkcPnP);
-					if ((tkcPnP.norm() > 0.001) && (pkc.norm() > 0.001))
+					qkcs.push_back(qkcPnPk);
+					if ((tkcPnPk.norm() > 0.001) && (pkc.norm() > 0.001))
 					{
-						errors.push_back((qkc - qkcPnP).norm()+(pkc/pkc.norm()-tkcPnP).norm());
-						tkcs.push_back(tkcPnP);
+						errors.push_back((qkc - qkcPnPk).norm()+(pkc/pkc.norm()-tkcPnPk).norm());
+						tkcs.push_back(tkcPnPk);
 					}
 					else
 					{
-						errors.push_back((qkc - qkcPnP).norm());
+						errors.push_back((qkc - qkcPnPk).norm());
+						tkcs.push_back(Eigen::Vector3f::Zero());
+					}
+				}
+
+				if (usePnPc)
+				{
+					if ((qkc + qkcPnPc).norm() < (qkc - qkcPnPc).norm())
+					{
+						qkcPnPc *= -1.0;
+					}
+
+					qkcs.push_back(qkcPnPc);
+					if ((tkcPnPc.norm() > 0.001) && (pkc.norm() > 0.001))
+					{
+						errors.push_back((qkc - qkcPnPc).norm()+(pkc/pkc.norm()-tkcPnPc).norm());
+						tkcs.push_back(tkcPnPc);
+					}
+					else
+					{
+						errors.push_back((qkc - qkcPnPc).norm());
 						tkcs.push_back(Eigen::Vector3f::Zero());
 					}
 				}
@@ -2211,100 +2162,37 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		// qkcHat += kq*(qkc - qkcHat);
 		// qkcHat /= qkcHat.norm();
-
-		std::cout << "\n qkc \n" << qkc << std::endl;
-		std::cout << "\n tkc \n" << pkc/pkc.norm() << std::endl;
-		std::cout << "\n qkcEst \n" << qkcEst << std::endl;
-		std::cout << "\n tkcEst \n" << tkcEst << std::endl;
-
-		//use kinematric constraints, can only rotate about z, can only translate camera in xy plane
-		// qkc(1) = 0.0;
-		// qkc(3) = 0.0;
-		qkcEst /= qkcEst.norm();
-
-		// Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
-		// Eigen::Vector4f qck = getqInv(qkc);
-		// Eigen::Vector4f qbwm = getqMat(getqMat(qkw)*getqInv(qkc))*getqInv(qcb);
-		// qbwm /= qbwm.norm();
-		// qbwm(1) = 0.0;
-		// qbwm(2) = 0.0;
-		// qbwm /= qbwm.norm();
-		// Eigen::Vector4f qckm = getqMat(getqMat(getqInv(qkw))*qbwm)*qcb;
-		// qckm /= qckm.norm();
-		// qkc = getqInv(qckm);
-
-
-		// Eigen::Vector4f qbk = getqMat(getqMat(qcb)*qck)*;
-		// qbk /= qbk.norm();
-		// qbk(1) = 0.0;
-		// qbk(2) = 0.0;
-		// qbk /= qbk.norm();
-		// qck = getqMat(getqMat(getqInv(qcb))*qbk)*qcb;
-		// qck /= qck.norm();
-		// qkc = getqInv(qck);
-
-		if (tkcEst.norm() > 0.001)
+		Eigen::Vector3f tkc = Eigen::Vector3f::Zero();
+		if (pkc.norm() > 0.001)
 		{
-			// Eigen::Vector3f tckm = rotatevec(rotatevec(-tkc,qckm),qkw);
-			// tkc(1) = 0.0;
-			if (tkcEst.norm() > 0.001)
-			{
-				tkcEst /= tkcEst.norm();
-				// Eigen::Vector3f tkct = -rotatevec(rotatevec(tckm,getqInv(qkw)),qkc);
-				// tkc = tkct/tkct.norm();
-			}
+			tkc =  pkc/pkc.norm();
 		}
 
-		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t);
+		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t,qkc);
 		qkcHat = xHatq.segment(0,4);
-		// qkcHat(1) = 0.0;
-		// qkcHat(3) = 0.0;
 		qkcHat /= qkcHat.norm();
-		Eigen::Vector4f qkcHatDot = xHatq.segment(4,4);
-		Eigen::Vector3f wcb = -2.0*B(qkcHat).transpose()*qkcHatDot - wc;
-		wcbHat += 0.25*(wcb-wcbHat);
 
 		Eigen::Matrix3f RkcHat = getqRot(qkcHat);
+		Eigen::Matrix3f Rkc = getqRot(qkc);
 
-		Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t);
-	  tkcHat = xHatt.segment(0,3);
+		Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t,tkc);
+		tkcHat = xHatt.segment(0,3);
 
 		if (tkcHat.norm() > 0.001)
 		{
-			// tkcHat(1) = 0.0;
-			if (tkcHat.norm() > 0.001)
-			{
-				tkcHat /= tkcHat.norm();
-			}
+			tkcHat /= tkcHat.norm();
 		}
-	  // Eigen::Vector3f ucDot = xHatt.segment(3,3);
 
-		// tkcHat += kt*(tkc - tkcHat);
+		std::cout << "\n qkc \n" << qkc << std::endl;
+		std::cout << "\n tkc \n" << tkc << std::endl;
+		std::cout << "\n pkc \n" << pkc << std::endl;
+		std::cout << "\n qkcEst \n" << qkcEst << std::endl;
+		std::cout << "\n tkcEst \n" << tkcEst << std::endl;
+		std::cout << "\n qkcHat \n" << qkcHat << std::endl;
+		std::cout << "\n pkcHat \n" << pkcHat << std::endl;
 
-		// float alphank = 0.75;
-		// nk = (alphank*nk + (1.0-alphank)*(Eigen::Vector3f(0.0,0.0,1.0)));
-		// nk /= nk.norm();
-		// nkHat += kn*(nk - nkHat);
-		// nkHat /= nkHat.norm();
-
-		ROS_WARN("time for update tnq %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
+		ROS_WARN("time for update uq %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
-
-		// Eigen::RowVector3f nkHatT = nkHat.transpose();
-		// Eigen::Matrix3f H = RkcHat+tkcHat*nkHatT;
-		// Eigen::Matrix3f Gf = Eigen::Matrix3f::Zero();
-		// for (int ii = 0; ii < 9; ii++)
-		// {
-		// 	Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
-		// }
-		//
-		// // Eigen::Matrix3f H = camMatIf*Gf*camMatf;
-		// // Eigen::Matrix<float,2,3> H12 = H.block(0,0,2,3);
-		// // Eigen::RowVector3f H3 = H.block(2,0,1,3);
-		//
-		// // std::cout << "\nH\n" << H << std::endl;
-		// // std::cout << "\nHc\n" << (camMatIf*Gf*camMatf) << std::endl;
-		// // Eigen::RowVector3f Gp3 = Gpf.block(2,0,1,3);
 
 		//remove the outliers
 		std::vector<float> dkcs;
@@ -2338,7 +2226,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// 	(*itc).x = betakc*(*itkc).x + (1.0-betakc)*(*itc).x;
 			// 	(*itc).y = betakc*(*itkc).y + (1.0-betakc)*(*itc).y;
 			// }
-			float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkcHat,RkcHat,vc,wc,t,pkc,qkc);
+			// float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkcHat,RkcHat,vc,wc,t,pkc,qkc);
+			float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkc,Rkc,vc,wc,t,pkc,qkc);
 			dkcs.push_back(dkcHati);
 			depthEstimatorsInHomog.push_back(*itD);
 			// if (bool(*itIn))

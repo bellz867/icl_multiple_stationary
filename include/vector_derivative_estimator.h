@@ -25,6 +25,8 @@ struct VectorDerivativeEstimator
 
     Eigen::VectorXf update(Eigen::VectorXf newMeasure, ros::Time newTime);
 
+    Eigen::VectorXf update(Eigen::VectorXf newMeasure, ros::Time newTime, Eigen::VectorXf newMeasureExpected);
+
     Eigen::VectorXf xDot(Eigen::VectorXf x);
 };
 

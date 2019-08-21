@@ -12,6 +12,7 @@
 //depth estimator
 struct DepthEstimatorICLExt
 {
+  std::deque<Eigen::Vector3f> pkcBuff;
   std::deque<Eigen::Vector2f> psiBuff;
   std::deque<Eigen::Vector2f> psiDotBuff;
   std::deque<Eigen::Vector2f> uvBuff;
@@ -37,6 +38,7 @@ struct DepthEstimatorICLExt
   float timeConverge;
   float fx,fy,cx,cy;
   ros::Time startTime;
+  Eigen::Vector3f up;
 
   DepthEstimatorICLExt();
   void initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t,

@@ -16,6 +16,8 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
                                       float tauInit, ros::Time t, float fxInit, float fyInit, float cxInit, float cyInit)
 {
     uk = uInit;
+    uk /= uk.norm();
+    up = uk;
     zmin = zminInit;
     zmax = zmaxInit;
     dkHat = zInit;
@@ -23,7 +25,7 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
     dkcHat = 0.0;
     tau = tauInit;
     uDotEstimator.initialize(3);
-  	uDotEstimator.update(uk,t);
+  	// uDotEstimator.update(uk,t);
     psiDotEstimator.initialize(2);
     fx = fxInit;
     fy = fyInit;
@@ -34,7 +36,8 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
 
 Eigen::Vector3f DepthEstimatorICLExt::current()
 {
-  Eigen::Vector3f uc = uDotEstimator.xHat.segment(0,3);
+  // Eigen::Vector3f uc = uDotEstimator.xHat.segment(0,3);
+  Eigen::Vector3f uc = up;
   if (uc.norm()>0.001)
   {
     uc /= uc.norm();
@@ -51,9 +54,12 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
 {
   Eigen::Vector3f pcProj = pkc + rotatevec(uk*dkHat,qkc);
   Eigen::Vector3f mcProj = pcProj/pcProj(2);
+  Eigen::Vector2f cPtProj(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
 
   Eigen::Vector3f mp = current();
-  Eigen::Vector3f ucEst = uDotEstimator.xHat.segment(0,3);
+  Eigen::Vector2f pPt(mp(0)*fx+cx,mp(1)*fy+cy);
+
+  Eigen::Vector3f ucEst = up;
   if (ucEst.norm()>0.001)
   {
     ucEst /= ucEst.norm();
@@ -65,32 +71,41 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
 
   Eigen::RowVector3f ucEstT = ucEst.transpose();
   Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
-  Eigen::Vector3f ucDotEst = uDotEstimator.xHat.segment(3,3);
+  // Eigen::Vector3f ucDotEst = uDotEstimator.xHat.segment(3,3);
   // std::cout << "\n dcHat " << dcHat << std::endl;
-  std::cout << "\n ucDot " << ucEstDot << std::endl;
+  // std::cout << "\n ucDot " << ucEstDot << std::endl;
   // std::cout << "\n ucDotf " << ucDotEst << std::endl;
   // std::cout << "\n ucb " << ucEst << std::endl;
   ucEst += (ucEstDot*dt);
   ucEst /= ucEst.norm();
   // std::cout << "\n uca " << ucEst << std::endl;
   Eigen::Vector3f mcEst = ucEst /= ucEst(2);
-  float mcalpha = 0.8;
-  Eigen::Vector3f mcComb = mcalpha*mcEst + (1.0-mcalpha)*mcProj;
-  mcComb(2) = 1.0;
+  Eigen::Vector2f cPtEst(mcEst(0)*fx+cx,mcEst(1)*fy+cy);
 
-  std::cout << std::endl << "dkKnown " << int(dkKnown) << ", mcProjx " << mcProj(0) << ", mcProjy " << mcProj(1)
-            << ", mcEstx " << mcEst(0) << ", mcEsty " << mcEst(1)
-            << ", mcCombx " << mcComb(0) << ", mcComby " << mcComb(1)
-            << ", mpx " << mp(0) << ", mpy " << mp(1) << std::endl;
+  float cPtSig = 5;
+  float cPtSig2 = cPtSig*cPtSig;
+  // float chi2 = 3.84; //chi^2 for 95%
+  float chi2 = 6.63; //chi^2 for 99%
+  Eigen::Vector2f cPtD = cPtProj - cPtEst;
+  float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+  float cPtAlpha = 1.0/(2.0 + chiTestVal*chiTestVal);
+  Eigen::Vector2f cPtComb((1.0-cPtAlpha)*cPtEst(0)+cPtAlpha*cPtProj(0),(1.0-cPtAlpha)*cPtEst(1)+cPtAlpha*cPtProj(1));
 
-  if (dkKnown)
-  {
-    return mcComb;
-  }
-  else
+  std::cout << std::endl << "dkKnown " << int(dkKnown) << ", chiTestVal " << chiTestVal;
+  std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
+  std::cout << ", cPtEstx " << cPtEst(0) << ", cPtEsty " << cPtEst(1);
+  std::cout << ", cPtCombx " << cPtComb(0) << ", cPtComby " << cPtComb(1);
+  std::cout << ", pPtx " << pPt(0) << ", pPty " << pPt(1);
+  std::cout << std::endl;
+
+  Eigen::Vector3f mcComb((cPtComb(0)-cx)/fx,(cPtComb(1)-cy)/fy,1.0);
+
+  if (chiTestVal > chi2)
   {
     return mcEst;
   }
+
+  return mcComb;
 }
 
 Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
@@ -113,6 +128,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   {
     mc /= mc(2);
   }
+  up = uc;
 
   Eigen::Vector2f cPt(fx*mc(0)+cx,fy*mc(1)+cy);
 
@@ -122,19 +138,29 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n hi5 \n";
 
-  Eigen::Matrix<float,3,2> Yc;
+  float ucukc = ucT*ukc;
+  float YcYcdet = 1.0 - ucukc*ucukc;
+  Eigen::Matrix2f YcYc = Eigen::Matrix2f::Identity();
+  YcYc(0,1) = -ucukc;
+  YcYc(1,0) = -ucukc;
+  Eigen::Matrix2f YcYcI = Eigen::Matrix2f::Identity();;
+  float YcYcdetI = 1.0/YcYcdet;
+  YcYcI(0,1) = ucukc;
+  YcYcI(1,0) = ucukc;
+  YcYcI /= YcYcdet;
+  // Eigen::Matrix<float,3,2> Yc;
   Eigen::Matrix<float,2,3> YcT;
-  Yc.block(0,0,3,1) = uc;
-  Yc.block(0,1,3,1) = -ukc;
+  // Yc.block(0,0,3,1) = uc;
+  // Yc.block(0,1,3,1) = -ukc;
   YcT.block(0,0,1,3) = ucT;
   YcT.block(1,0,1,3) = -ukcT;
-  Eigen::Matrix2f YcYc = YcT*Yc;
-  float YcYcdet = YcYc(0,0)*YcYc(1,1) - YcYc(0,1)*YcYc(1,0);
-  Eigen::Matrix2f YcYcI;
-  YcYcI(0,0) = YcYc(1,1)/YcYcdet;
-  YcYcI(0,1) = -YcYc(0,1)/YcYcdet;
-  YcYcI(1,0) = -YcYc(1,0)/YcYcdet;
-  YcYcI(1,1) = YcYc(0,0)/YcYcdet;
+  // Eigen::Matrix2f YcYc = YcT*Yc;
+  // float YcYcdet = YcYc(0,0)*YcYc(1,1) - YcYc(0,1)*YcYc(1,0);
+  // Eigen::Matrix2f YcYcI;
+  // YcYcI(0,0) = YcYc(1,1)/YcYcdet;
+  // YcYcI(0,1) = -YcYc(0,1)/YcYcdet;
+  // YcYcI(1,0) = -YcYc(1,0)/YcYcdet;
+  // YcYcI(1,1) = YcYc(0,0)/YcYcdet;
 
   // std::cout << "\n hi6 \n";
 
@@ -169,7 +195,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   YkT = Yk.transpose();
   Eigen::Matrix2f YkYk = YkT*Yk;
   Eigen::Vector2f Ykuc = YkT*uc;
-  Eigen::Vector2f kxpxpTilde = kxi*(Ykuc*dcHat - YkYk*Eigen::Vector2f(dkcHat,dkHat));
+  Eigen::Vector2f kxpxpTilde = 0.1*kxi*(Ykuc*dcHat - YkYk*Eigen::Vector2f(dkcHat,dkHat));
 
   // float ucukc = ucT*ukc;
   // float ucRuk = ucT*Rkc*ukc;
@@ -185,9 +211,12 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n vx " << v(0) << " vy " << v(1) << " vz " << v(2) << std::endl;
   // std::cout << "\n tx " << tkc(0) << " ty " << tkc(1) << " tz " << tkc(2) << std::endl;
-  std::cout << "\n ucx " << uc(0) << " ucy " << uc(1) << " ucz " << uc(2) << std::endl;
-  std::cout << "\n ucDotx " << ucDot(0) << " ucDoty " << ucDot(1) << " ucDotz " << ucDot(2) << std::endl;
-  std::cout << "\n ukcx " << ukc(0) << " ukcy " << ukc(1) << " ukcz " << ukc(2) << std::endl;
+  // std::cout << "\n ucx " << uc(0) << " ucy " << uc(1) << " ucz " << uc(2) << std::endl;
+  // std::cout << "\n ucDotx " << ucDot(0) << " ucDoty " << ucDot(1) << " ucDotz " << ucDot(2) << std::endl;
+  // std::cout << "\n ukcx " << ukc(0) << " ukcy " << ukc(1) << " ukcz " << ukc(2) << std::endl;
+  // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
+  // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
+  // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
   // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
 
 
@@ -199,9 +228,9 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   else
   {
     dcHat += ((dcDot+kxixiTilde)*dt);
-    dkcHat += (dkcDot*dt);
-    // dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
-    // dkHat += (kxpxpTilde(1)*dt);
+    // dkcHat += (dkcDot*dt);
+    dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
+    dkHat += (kxpxpTilde(1)*dt);
   }
 
   // dkcHat += ((dkcDot)*dt);
@@ -216,10 +245,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   psiDotInt += (psiDot*dt);
 
   // std::cout << "\n hi9 \n";
-  float lambdaa = 0.4;
+  float lambdaa = 0.25;
   float lambdat = 0.0001;
-  float dmin = 0.1;
-  float dmax = 6.0;
+  float dmin = 0.1*zmin;
+  float dmax = zmax;
   float timeConvergeMin = -1.0/(lambdaa*kX)*log(dmin/dmax);
 
   if ((1.0-fabsf(ucT*ukc) < lambdaa))
@@ -231,6 +260,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
     psiDotInt = Eigen::Vector2f::Zero();
+    // uDotEstimator.initialize(3);
+    // psiDotEstimator.initialize(2);
     numThrown++;
     std::cout << "\n eig clear\n";
   }
@@ -244,6 +275,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
     psiDotInt = Eigen::Vector2f::Zero();
+    // uDotEstimator.initialize(3);
+    // psiDotEstimator.initialize(2);
     numThrown++;
     std::cout << "\n v clear\n";
   }
@@ -257,11 +290,13 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dtBuff.clear();
     uvInt = Eigen::Vector2f::Zero();
     psiDotInt = Eigen::Vector2f::Zero();
+    // uDotEstimator.initialize(3);
+    // psiDotEstimator.initialize(2);
     // numThrown++;
     std::cout << "\n pkc clear\n";
   }
 
-  std::cout << "\n" << "dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat << ", dkcdd " << (ukcT*uc*dcHat-ukcT*Rkc*uk*dkHat);
+  std::cout << "\n" << "N " << numSaved << ", dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat << ", dkcdd " << (ukcT*uc*dcHat-ukcT*Rkc*uk*dkHat);
 
   // std::cout << "\n hi10 \n";
 
@@ -297,19 +332,11 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       }
     }
 
-    bool enoughTime = false;
-    if ((tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() > timeConvergeMin)
-    {
-      enoughTime = true;
-    }
-
-    // std::cout << "\n hi11 \n";
-
     // Eigen::Vector2f Y = psiDotInt;
     Eigen::Vector2f Y = (psiBuff.at(psiBuff.size()-1)-psiBuff.at(0));
     Eigen::Vector2f U = uvInt;
 
-    std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1);
+    std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1) << ", U(0)  " << U(0) << ", U(1)  " << U(1);
 
     float Yx = Y(0);
     float Ux = U(0);
@@ -328,14 +355,34 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n (Ux/Yx) " << (Ux/Yx) << std::endl;
     // std::cout << "\n Yx " << Yx << std::endl;
     // std::cout << "\n Ux " << Ux << std::endl;
-    float yy = Yx*Yx + Yy*Yy;
-    float yy2 = Yx2*Yx2 + Yy2*Yy2;
-    float yu = Yx*Ux+Yy*Uy;
-    float yu2 = Yx2*Ux+Yy2*Uy;
+    // float yy = Yx*Yx + Yy*Yy;
+    // float yy2 = Yx2*Yx2 + Yy2*Yy2;
+    // float yu = Yx*Ux+Yy*Uy;
+    // float yu2 = Yx2*Ux+Yy2*Uy;
+    // float dk = yu/yy;
+    // float dk2 = yu2/yy2;
+    // float dkMed = yusum/yysum;;
+    float yy = Yy*Yy;
+    float yy2 = Yy2*Yy2;
+    float yu = Yy*Uy;
+    float yu2 = Yy2*Uy;
     float dk = yu/yy;
     float dk2 = yu2/yy2;
-    float dkMed = yusum/yysum;;
+    float dkMed = yusum/yysum;
 
+    Eigen::Vector3f Rkcuk = rotatevec(uk,qkc);
+    float ucRkcuk = ucT*Rkcuk;
+    float YtYtdet = 1.0 - ucRkcuk*ucRkcuk;
+    Eigen::Matrix2f YtYtI = Eigen::Matrix2f::Identity();
+    YtYtI(0,1) = ucRkcuk;
+    YtYtI(1,0) = ucRkcuk;
+    YtYtI /= YtYtdet;
+    Eigen::Matrix<float,2,3> YtT;
+    YtT.block(0,0,1,3) = ucT;
+    YtT.block(1,0,1,3) = -Rkcuk.transpose();
+    Eigen::Vector2f dcdkt = YtYtI*YtT*pkc;
+
+    std::cout << ", dct " << dcdkt(0) <<  ", dkt  " << dcdkt(1);
     std::cout << ", dkMed " << dkMed <<  ", dk  " << dk << ", dk2 " << dk2 << ", |Y| " << Y.norm() << ", |U| ";
     std::cout << U.norm() << ", psi(0)*dk " << psi(0)*dk << ", psi(1)*dk " << psi(1)*dk;
     std::cout << ", psi(0)*dkMed " << psi(0)*dkMed << ", psi(1)*dkMed " << psi(1)*dkMed << std::endl;
@@ -345,7 +392,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.2) && (Y.norm() > 0.1);
+    bool measgood = (fabsf(Uy) > 0.2) && (fabsf(Yy) > 0.1);
     // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
     // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
     // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
@@ -407,8 +454,6 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       }
     }
 
-
-
     bool dirGoodzBad = false;
 
     // std::cout << "\n hi13 \n";
@@ -449,6 +494,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       dtBuff.clear();
       uvInt = Eigen::Vector2f::Zero();
       psiDotInt = Eigen::Vector2f::Zero();
+      // uDotEstimator.initialize(3);
+      // psiDotEstimator.initialize(2);
     }
   }
   else

@@ -44,7 +44,7 @@ OdomEstimator::OdomEstimator()
 	vbHat = Eigen::Vector3f::Zero();
 	wbHat = Eigen::Vector3f::Zero();
 
-	cvHat = 0.98;
+	cvHat = 0.97;
 	cwHat = 1.02;
 	kcv = 1.0;
 	kcw = 1.0;
@@ -176,21 +176,27 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				qcwHati /= qcwHati.norm();
 
 				//convert into body frame
+				// Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
+				// qbwi /= qbwi.norm();
+				// qbwi(1) = 0.0;
+				// qbwi(2) = 0.0;
+				// qbwi /= qbwi.norm();
+				// Eigen::Vector3f pbwi = pcwi - rotatevec(pcb,qbwi);
+				// pbwi(2) = 0.0;
 				Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
 				qbwi /= qbwi.norm();
-				qbwi(1) = 0.0;
-				qbwi(2) = 0.0;
-				qbwi /= qbwi.norm();
 				Eigen::Vector3f pbwi = pcwi - rotatevec(pcb,qbwi);
-				pbwi(2) = 0.0;
 
+				// Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
+				// qbwHati /= qbwHati.norm();
+				// qbwHati(1) = 0.0;
+				// qbwHati(2) = 0.0;
+				// qbwHati /= qbwHati.norm();
+				// Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
+				// pbwHati(2) = 0.0;
 				Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
 				qbwHati /= qbwHati.norm();
-				qbwHati(1) = 0.0;
-				qbwHati(2) = 0.0;
-				qbwHati /= qbwHati.norm();
 				Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
-				pbwHati(2) = 0.0;
 
 				// get the difference between the estimate now and time i
 				Eigen::Vector3f pbwbwi = pbwHat - pbwi;
@@ -228,9 +234,10 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	}
 
 	poseDeltasRemove.clear();
-	qbwHat /= qbwHat.norm();
-	qbwHat(1) = 0.0;
-	qbwHat(2) = 0.0;
+	// qbwHat /= qbwHat.norm();
+	// qbwHat(1) = 0.0;
+	// qbwHat(2) = 0.0;
+	// qbwHat /= qbwHat.norm();
 	qbwHat /= qbwHat.norm();
 
 	// pcwHat = rotatevec(pbwHat + pcb,getqInv(qcb));

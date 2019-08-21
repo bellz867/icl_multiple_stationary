@@ -60,6 +60,9 @@ struct PatchEstimator
 	Eigen::Vector3f pkcHat;
 	Eigen::Vector3f pckHat;
 	Eigen::Vector4f qckHat;
+	Eigen::Vector3f pkp;
+	Eigen::Vector4f qkp;
+	bool firstkp;
 	VectorDerivativeEstimator tkcDotEstimator,qkcDotEstimator;
 	float dkcHat,tau,dkHat;
 	float fx,fy,cx,cy,zmin,zmax;

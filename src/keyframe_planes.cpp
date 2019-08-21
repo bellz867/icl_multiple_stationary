@@ -218,9 +218,9 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
     ptxyz.x = piw(0);
     ptxyz.y = piw(1);
     ptxyz.z = piw(2);
-    ptxyz.r = std::min((*itc).g+100,255);
-    ptxyz.g = (*itc).g;
-    ptxyz.b = (*itc).g;
+    ptxyz.r = 255;
+    ptxyz.g = 0.0;
+    ptxyz.b = 0.0;
     // std::cout << ", piwx " << piw(0) << ", piwy " << piw(1) << ", piwz " << piw(2) << std::endl;
     if (!firstnu && (pic.norm() < 4.0))
     {
@@ -410,9 +410,9 @@ void KeyframePlanes::addplane(int planeInd, PointCloudRGB& cloud, Eigen::Vector3
     ptxyz.x = piw(0);
     ptxyz.y = piw(1);
     ptxyz.z = piw(2);
-    ptxyz.r = std::min((*itc).g+100,255);
-    ptxyz.g = (*itc).g;
-    ptxyz.b = (*itc).g;
+    ptxyz.r = 255;
+    ptxyz.g = 0.0;
+    ptxyz.b = 0.0;
     *itcT = ptxyz;
     itcT++;
   }
