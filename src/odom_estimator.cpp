@@ -44,8 +44,8 @@ OdomEstimator::OdomEstimator()
 	vbHat = Eigen::Vector3f::Zero();
 	wbHat = Eigen::Vector3f::Zero();
 
-	cvHat = 0.97;
-	cwHat = 1.02;
+	cvHat = 0.975;
+	cwHat = 1.025;
 	kcv = 1.0;
 	kcw = 1.0;
 
@@ -142,29 +142,36 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	poseDeltas.clear();
 	poseDeltaMutex.unlock();
 	int numMeas = poseDeltasRemove.size();
+	//check if one saw landmark
+	bool landmarkView = false;
 	// int numMeas = 0;
 	if (numMeas > 0)
 	{
 		// weight the estimates
 		Eigen::Vector3f pbwTildeSum = Eigen::Vector3f::Zero();
 		Eigen::Vector4f qbwTildeSum = Eigen::Vector4f::Zero();
+
 		for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
 		{
-			// get the poses at time i
-			// geometry_msgs::Pose posei = poseDeltaSyncBuff.at(i).pose;
-			// geometry_msgs::Pose poseHati = poseDeltaSyncBuff.at(i).poseHat;
-			// int keyIndi = poseDeltaSyncBuff.at(i).keyInd;
-			bool landmarkViewi = (*it)->landmarkView;
-
-			Eigen::Vector3f pbwTildei = Eigen::Vector3f::Zero();
-			Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
-			if (landmarkViewi)
+			if (!landmarkView)
 			{
-				pbwTildei = 10.0*(pbwMocapLast - pbwHat);
-				qbwTildei = 10.0*(qbwMocapLast - qbwHat);
+				landmarkView = (*it)->landmarkView;
 			}
-			else
+		}
+
+		if (!landmarkView)
+		{
+			for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
 			{
+				// get the poses at time i
+				// geometry_msgs::Pose posei = poseDeltaSyncBuff.at(i).pose;
+				// geometry_msgs::Pose poseHati = poseDeltaSyncBuff.at(i).poseHat;
+				// int keyIndi = poseDeltaSyncBuff.at(i).keyInd;
+				// bool landmarkViewi = (*it)->landmarkView;
+
+				Eigen::Vector3f pbwTildei = Eigen::Vector3f::Zero();
+				Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
+
 				//convert what camera thought at time i to eigen
 				Eigen::Vector3f pcwi((*it)->pose.position.x,(*it)->pose.position.y,(*it)->pose.position.z);
 				Eigen::Vector4f qcwi((*it)->pose.orientation.w,(*it)->pose.orientation.x,(*it)->pose.orientation.y,(*it)->pose.orientation.z);
@@ -211,26 +218,34 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				// get the error for time i
 				pbwTildei = pbw - pbwHat;
 				qbwTildei = qbwi - qbwHat;
+
+				// add what the camera thought to the sum
+				pbwTildeSum += pbwTildei;
+				qbwTildeSum += qbwTildei;
+
+				// std::cout << "\n pbwi \n" << pbwi << std::endl;
+				// std::cout << "\n qbwi \n" << qbwi << std::endl;
+				// std::cout << "\n pbwHati \n" << pbwHati << std::endl;
+				// std::cout << "\n qbwHati \n" << qbwHati << std::endl;
+				// std::cout << "\n pbwHat \n" << pbwHat << std::endl;
+				// std::cout << "\n qbwHat \n" << qbwHat << std::endl;
+				// std::cout << "\n pRatioi \n" << pRatioi << std::endl;
+				// std::cout << "\n keyIndi \n" << keyIndi << std::endl;
+				// delete *it;
 			}
-
-			// add what the camera thought to the sum
-			pbwTildeSum += pbwTildei;
-			qbwTildeSum += qbwTildei;
-
-			// std::cout << "\n pbwi \n" << pbwi << std::endl;
-			// std::cout << "\n qbwi \n" << qbwi << std::endl;
-			// std::cout << "\n pbwHati \n" << pbwHati << std::endl;
-			// std::cout << "\n qbwHati \n" << qbwHati << std::endl;
-			// std::cout << "\n pbwHat \n" << pbwHat << std::endl;
-			// std::cout << "\n qbwHat \n" << qbwHat << std::endl;
-			// std::cout << "\n pRatioi \n" << pRatioi << std::endl;
-			// std::cout << "\n keyIndi \n" << keyIndi << std::endl;
-			// delete *it;
+			// new estimate is the weighted average
+			pbwHat += dt*kp/numMeas*pbwTildeSum;
+			qbwHat += dt*kq/numMeas*qbwTildeSum;
+		}
+		else
+		{
+			// pbwTildeSum = 10.0*(pbwMocapLast - pbwHat);
+			// qbwTildeSum = 10.0*(qbwMocapLast - qbwHat);
+			pbwHat = pbwMocapLast;
+			qbwHat = qbwMocapLast;
 		}
 
-		// new estimate is the weighted average
-		pbwHat += dt*kp/numMeas*pbwTildeSum;
-		qbwHat += dt*kq/numMeas*qbwTildeSum;
+
 	}
 
 	poseDeltasRemove.clear();
@@ -245,15 +260,13 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	pcwHat = pbwHat + rotatevec(pcb,qbwHat);
 	qcwHat = getqMat(qbwHat)*qcb;
 	qcwHat /= qcwHat.norm();
-	vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
-	wcHat = rotatevec(wbHat,getqInv(qcb));
 
 
 	Eigen::Matrix<float,6,1> pHatt = pDotEstimator.update(pbwHat,t);
 	Eigen::Vector3f pHatDot = pHatt.segment(3,3);
 	Eigen::Vector3f vHat = rotatevec(pHatDot,getqInv(qbwHat));
 	// std::cout << "\n dt " << dt << std::endl;
-	// std::cout << "\n vHat \n" << vHat << std::endl;
+	std::cout << "\n vHat \n" << vHat << std::endl;
 	// std::cout << "\n vb \n" << vb << std::endl;
 
 	// std::cout << std::endl;
@@ -266,9 +279,21 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	// std::cout << "\n qHatt \n" << qHatt << std::endl;
 	Eigen::Vector4f qHatDot = qHatt.segment(4,4);
 	Eigen::Vector3f wHat = 2.0*B(qbwHat).transpose()*qHatDot;
-	// std::cout << "\n wHat \n" << wHat << std::endl;
+	std::cout << "\n wHat \n" << wHat << std::endl;
 	// std::cout << "\n wb \n" << wb << std::endl;
 	float cwHatDot = kcw*(float(wb.transpose()*wHat) - float(wb.transpose()*wb)*cwHat);
+
+	if (landmarkView)
+	{
+		vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
+		wcHat = rotatevec(wbHat,getqInv(qcb));
+	}
+	else
+	{
+		vcHat = rotatevec((vHat+getss(wHat)*pcb),getqInv(qcb));
+		wcHat = rotatevec(wHat,getqInv(qcb));
+	}
+
 
 	// std::cout << std::endl;
 	// if (numMeas > 0)

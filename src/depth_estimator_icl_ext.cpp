@@ -82,14 +82,18 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   Eigen::Vector3f mcEst = ucEst /= ucEst(2);
   Eigen::Vector2f cPtEst(mcEst(0)*fx+cx,mcEst(1)*fy+cy);
 
-  float cPtSig = 5;
-  float cPtSig2 = cPtSig*cPtSig;
-  // float chi2 = 3.84; //chi^2 for 95%
+  float sigEst = 5;
+  float sigEst2 = sigEst*sigEst;
   float chi2 = 6.63; //chi^2 for 99%
   Eigen::Vector2f cPtD = cPtProj - cPtEst;
-  float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
-  float cPtAlpha = 1.0/(2.0 + chiTestVal*chiTestVal);
-  Eigen::Vector2f cPtComb((1.0-cPtAlpha)*cPtEst(0)+cPtAlpha*cPtProj(0),(1.0-cPtAlpha)*cPtEst(1)+cPtAlpha*cPtProj(1));
+  float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/sigEst2;
+  float sigProj = sigEst+chiTestVal;
+  float sigProj2 = sigProj*sigProj;
+  float sig2Sum = sigEst2+sigProj2;
+  // float chi2 = 3.84; //chi^2 for 95%
+
+  // float cPtAlpha = 1.0/(2.0 + chiTestVal);
+  Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
 
   std::cout << std::endl << "dkKnown " << int(dkKnown) << ", chiTestVal " << chiTestVal;
   std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
@@ -100,10 +104,10 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
 
   Eigen::Vector3f mcComb((cPtComb(0)-cx)/fx,(cPtComb(1)-cy)/fy,1.0);
 
-  if (chiTestVal > chi2)
-  {
-    return mcEst;
-  }
+  // if (chiTestVal > chi2)
+  // {
+  //   return mcEst;
+  // }
 
   return mcComb;
 }
@@ -112,7 +116,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 {
   // std::cout << "\n hi4 \n";
 
-  float kxi = 100.0;
+  float kxi = 250.0;
   float kX = 25.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
@@ -245,7 +249,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   psiDotInt += (psiDot*dt);
 
   // std::cout << "\n hi9 \n";
-  float lambdaa = 0.25;
+  float lambdaa = 0.5;
   float lambdat = 0.0001;
   float dmin = 0.1*zmin;
   float dmax = zmax;
@@ -411,7 +415,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     {
       //chi^2 test for reprojection error using dk
       // assume pixel standard deviation of 2 implying variance of 4
-      float cPtSig = 10;
+      float cPtSig = 30;
       float cPtSig2 = cPtSig*cPtSig;
       Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
       Eigen::Vector3f mcProj = pcProj/pcProj(2);

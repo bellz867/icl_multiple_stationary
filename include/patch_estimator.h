@@ -62,6 +62,8 @@ struct PatchEstimator
 	Eigen::Vector4f qckHat;
 	Eigen::Vector3f pkp;
 	Eigen::Vector4f qkp;
+	Eigen::Vector3f ppw;
+	Eigen::Vector4f qpw;
 	bool firstkp;
 	VectorDerivativeEstimator tkcDotEstimator,qkcDotEstimator;
 	float dkcHat,tau,dkHat;
@@ -110,7 +112,7 @@ struct PatchEstimator
 							   int patchSizeBaseInit,int checkSizeBaseInit,Eigen::Vector3f pcbInit, Eigen::Vector4f qcbInit,
 								 int numberFeaturesPerPartColInit, int numberFeaturesPerPartRowInit);
 
-	void initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ros::Time t);
+	bool initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ros::Time t);
 
 	void markerOdomCB(const nav_msgs::Odometry::ConstPtr& msg);
 

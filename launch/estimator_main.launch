@@ -3,7 +3,7 @@
 <launch>
 
   <!-- estimator node -->
-  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen">
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node">
   <!-- <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node"> -->
 
 	  <!-- forward camera -->
@@ -18,7 +18,7 @@
 	  <param name="minFeaturesDanger" value="50"/>
     <param name="patchRadius" value="50"/>
     <param name="partitionRows" value="1"/>
-    <param name="partitionCols" value="1"/>
+    <param name="partitionCols" value="2"/>
 
     <param name="closeLoop" value="true"/>
     <param name="minFeaturesBad" value="14"/>
@@ -27,7 +27,7 @@
     <param name="numberFeaturesPerPartRow" value="3"/>
     <param name="numberFeaturesPerPartCol" value="5"/>
     <param name="patchSizeBase" value="100"/>
-    <param name="checkSizeBase" value="125"/>
+    <param name="checkSizeBase" value="150"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>
@@ -43,7 +43,8 @@
 
     <param name="pcbx" value="0.105638"/>
     <param name="pcby" value="0.0702751"/>
-    <param name="pcbz" value="0.28"/>
+    <!-- <param name="pcbz" value="0.28"/> -->
+    <param name="pcbz" value="0.0414916"/>
 
     <!-- <param name="qcbw" value="0.722352"/>
     <param name="qcbx" value="-0.691162"/>

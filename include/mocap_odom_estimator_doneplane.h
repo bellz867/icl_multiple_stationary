@@ -25,9 +25,8 @@ struct MocapOdomEstimator
 	Eigen::MatrixXf P,Q,R,F,H,HT,Hb;
 	Eigen::VectorXf XHat;
 	std::mutex poseMutex,velMutex;
-	Eigen::Vector3f p,pLast;
-	Eigen::Vector4f q;
-	float vx,wz;
+	float px,py,qw,qz,vx,wz;
+	float pxLast,pyLast;
 
 	Eigen::Vector3f pcb;
 	Eigen::Vector4f qcb;
