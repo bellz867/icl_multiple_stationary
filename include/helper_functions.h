@@ -48,3 +48,15 @@ Eigen::Matrix3f gcuic(Eigen::Vector4f q);
 
 //gcqck
 Eigen::Matrix<float,3,4> gcqck(Eigen::Vector4f q, Eigen::Vector3f p);
+
+//reprojection into key image
+Eigen::Vector3f localBundleProjection(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p, bool usezik);
+
+//reprojection into key image
+Eigen::Vector2f localBundleProjection(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p);
+
+//local bundle jacobian for a feature
+Eigen::Matrix<float,3,10> localBundleJacobian(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p, bool usezik);
+
+//local bundle jacobian for a feature
+Eigen::Matrix<float,2,10> localBundleJacobian(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p);

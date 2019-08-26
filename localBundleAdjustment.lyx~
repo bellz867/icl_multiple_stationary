@@ -1211,7 +1211,7 @@ z_{i/k}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\righ
 
 \begin_inset Formula 
 \[
-\frac{\partial z_{i/k}}{\partial q_{z}}=2q_{x}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\right)+2q_{y}\left(\frac{\left(v_{i/c}-c_{y}\right)}{f_{y}}z_{i/c}-y_{k/c}\right)
+\frac{\partial z_{i/k}}{\partial q_{z}}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\right)+r_{23}\left(\frac{\left(v_{i/c}-c_{y}\right)}{f_{y}}z_{i/c}-y_{k/c}\right)+r_{33}\left(z_{i/c}-z_{k/c}\right)
 \]
 
 \end_inset
@@ -1219,7 +1219,7 @@ z_{i/k}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\righ
 
 \begin_inset Formula 
 \[
-\frac{\partial z_{i/k}}{\partial x_{k/c}}=-r_{13}
+\frac{\partial z_{i/k}}{\partial x_{k/c}}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\right)+r_{23}\left(\frac{\left(v_{i/c}-c_{y}\right)}{f_{y}}z_{i/c}-y_{k/c}\right)+r_{33}\left(z_{i/c}-z_{k/c}\right)
 \]
 
 \end_inset
@@ -1227,7 +1227,7 @@ z_{i/k}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\righ
 
 \begin_inset Formula 
 \[
-\frac{\partial z_{i/k}}{\partial y_{k/c}}=-r_{23}
+\frac{\partial z_{i/k}}{\partial y_{k/c}}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\right)+r_{23}\left(\frac{\left(v_{i/c}-c_{y}\right)}{f_{y}}z_{i/c}-y_{k/c}\right)+r_{33}\left(z_{i/c}-z_{k/c}\right)
 \]
 
 \end_inset
@@ -1235,7 +1235,7 @@ z_{i/k}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\righ
 
 \begin_inset Formula 
 \[
-\frac{\partial z_{i/k}}{\partial z_{k/c}}=-r_{33}
+\frac{\partial z_{i/k}}{\partial z_{k/c}}=r_{13}\left(\frac{\left(u_{i/c}-c_{x}\right)}{f_{x}}z_{i/c}-x_{k/c}\right)+r_{23}\left(\frac{\left(v_{i/c}-c_{y}\right)}{f_{y}}z_{i/c}-y_{k/c}\right)+r_{33}\left(z_{i/c}-z_{k/c}\right)
 \]
 
 \end_inset

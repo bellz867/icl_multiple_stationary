@@ -157,3 +157,153 @@ Eigen::Matrix<float,3,4> gcqck(Eigen::Vector4f q, Eigen::Vector3f p)
 {
 	return gpck(q,p);
 }
+
+
+//bundle adjust jacobian
+Eigen::Vector3f localBundleProjection(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p, bool usezik)
+{
+	// reprojection into key frame or generally, any previous frame
+	float xkc = p(0);
+	float ykc = p(1);
+	float zkc = p(2);
+	float qw = q(0);
+	float qx = q(1);
+	float qy = q(2);
+	float qz = q(3);
+	float r11 = 1.0-2.0*(qy*qy+qz*qz);
+	float r12 = 2.0*(qx*qy-qz*qw);
+	float r13 = 2.0*(qx*qz+qy*qw);
+	float r21 = 2.0*(qx*qy+qz*qw);
+	float r22 = 1.0-2.0*(qx*qx+qz*qz);
+	float r23 = 2.0*(qy*qz-qx*qw);
+	float r31 = 2.0*(qw*qz-qy*qw);
+	float r32 = 2.0*(qy*qz+qx*qw);
+	float r33 = 1.0-2.0*(qx*qx+qy*qy);
+	float xic = zic*(uic-cx)/fx;
+	float yic = zic*(vic-cy)/fy;
+	float xik = r11*(xic-xkc)+r21*(yic-ykc)+r31*(zic-zkc);
+	float yik = r12*(xic-xkc)+r22*(yic-ykc)+r32*(zic-zkc);
+	float zik = r13*(xic-xkc)+r23*(yic-ykc)+r33*(zic-zkc);
+
+	Eigen::Vector3f projectioni(fx*xik/zik+cx,fy*yik/zik+cy,zik);
+	return projectioni;
+}
+
+//bundle adjust jacobian
+Eigen::Vector2f localBundleProjection(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p)
+{
+	// reprojection into key frame or generally, any previous frame
+	float xkc = p(0);
+	float ykc = p(1);
+	float zkc = p(2);
+	float qw = q(0);
+	float qx = q(1);
+	float qy = q(2);
+	float qz = q(3);
+	float r11 = 1.0-2.0*(qy*qy+qz*qz);
+	float r12 = 2.0*(qx*qy-qz*qw);
+	float r13 = 2.0*(qx*qz+qy*qw);
+	float r21 = 2.0*(qx*qy+qz*qw);
+	float r22 = 1.0-2.0*(qx*qx+qz*qz);
+	float r23 = 2.0*(qy*qz-qx*qw);
+	float r31 = 2.0*(qw*qz-qy*qw);
+	float r32 = 2.0*(qy*qz+qx*qw);
+	float r33 = 1.0-2.0*(qx*qx+qy*qy);
+	float xic = zic*(uic-cx)/fx;
+	float yic = zic*(vic-cy)/fy;
+	float xik = r11*(xic-xkc)+r21*(yic-ykc)+r31*(zic-zkc);
+	float yik = r12*(xic-xkc)+r22*(yic-ykc)+r32*(zic-zkc);
+	float zik = r13*(xic-xkc)+r23*(yic-ykc)+r33*(zic-zkc);
+
+	Eigen::Vector2f projectioni(fx*xik/zik+cx,fy*yik/zik+cy);
+	return projectioni;
+}
+
+//bundle adjust jacobian
+Eigen::Matrix<float,3,10> localBundleJacobian(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p, bool usezik)
+{
+	Eigen::Matrix<float,3,10> Ji;
+	Ji.block(0,0,2,10) = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,q,p);
+	float xkc = p(0);
+	float ykc = p(1);
+	float zkc = p(2);
+	float qw = q(0);
+	float qx = q(1);
+	float qy = q(2);
+	float qz = q(3);
+	float r13 = 2.0*(qx*qz+qy*qw);
+	float r23 = 2.0*(qy*qz-qx*qw);
+	float r33 = 1.0-2.0*(qx*qx+qy*qy);
+	float xic = zic*(uic-cx)/fx;
+	float yic = zic*(vic-cy)/fy;
+	Ji(2,0) = r13*zic/fx;
+	Ji(2,1) = r23*zic/fy;
+	Ji(2,2) = r13*(uic-cx)/fx + r23*(vic-cy)/fy + r33;
+	Ji(2,3) = 2.0*qy*(xic -xkc) - 2.0*qx*(yic-ykc);
+	Ji(2,4) = 2.0*qz*(xic -xkc) - 2.0*qw*(yic-ykc) - 4.0*qx*(zic-zkc);
+	Ji(2,5) = 2.0*qw*(xic -xkc) + 2.0*qz*(yic-ykc) - 4.0*qy*(zic-zkc);
+	Ji(2,6) = 2.0*qx*(xic -xkc) + 2.0*qy*(yic-ykc);
+	Ji(2,7) = -r13;
+	Ji(2,8) = -r23;
+	Ji(2,9) = -r33;
+	return Ji;
+}
+
+//bundle adjust jacobian
+Eigen::Matrix<float,2,10> localBundleJacobian(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p)
+{
+	// jacobian for reprojection into key frame or generally, any previous frame
+	// minimize || f(x) - b ||^2 is equivalent to minimize f(x)^T*f(x)-2*b^T*f(x)
+	// find dEdx = 0 is equivalent to 2*J^T*f(x)-2*J^T*b = 0 where J = df(x)/dx
+	//expand around x f(x+Dx) = f(x)+J*Dx where Dx = (J^T*J)^-1*J^T*(b-f(x))
+	float xkc = p(0);
+	float ykc = p(1);
+	float zkc = p(2);
+	float qw = q(0);
+	float qx = q(1);
+	float qy = q(2);
+	float qz = q(3);
+	float r11 = 1.0-2.0*(qy*qy+qz*qz);
+	float r12 = 2.0*(qx*qy-qz*qw);
+	float r13 = 2.0*(qx*qz+qy*qw);
+	float r21 = 2.0*(qx*qy+qz*qw);
+	float r22 = 1.0-2.0*(qx*qx+qz*qz);
+	float r23 = 2.0*(qy*qz-qx*qw);
+	float r31 = 2.0*(qw*qz-qy*qw);
+	float r32 = 2.0*(qy*qz+qx*qw);
+	float r33 = 1.0-2.0*(qx*qx+qy*qy);
+	float xic = zic*(uic-cx)/fx;
+	float yic = zic*(vic-cy)/fy;
+	float xik = r11*(xic-xkc)+r21*(yic-ykc)+r31*(zic-zkc);
+	float yik = r12*(xic-xkc)+r22*(yic-ykc)+r32*(zic-zkc);
+	float zik = r13*(xic-xkc)+r23*(yic-ykc)+r33*(zic-zkc);
+
+	//partials of uik
+	float dukduc = fx*(zik*r11*zic/fx-xik*r13*zic/fx)/(zik*zik);
+	float dukdvc = fx*(zik*r21*zic/fy-xik*r23*zic/fy)/(zik*zik);
+	float dukdzc = fx*(zik*(r11*(uic-cx)/fx+r21*(vic-cy)/fy+r31)-xik*(r13*(uic-cx)/fx+r23*(vic-cy)/fy+r33))/(zik*zik);
+	float dukdqw = fx*(zik*((2.0*qz*(zic*(vic-cy)/fy-ykc))+2.0*(qz-qy)*(zic-zkc))-xik*(2.0*qy*(zic*(uic-cx)/fx-xkc)-2.0*qx*(zic*(vic-cy)/fy-ykc)))/(zik*zik);
+	float dukdqx = fx*(zik*(2.0*qy*(zic*(vic-cy)/fy-ykc))-xik*(2.0*qz*(zic*(uic-cx)/fx-xkc)-2.0*qw*(zic*(vic-cy)/fy-ykc)-4.0*qx*(zic-zkc)))/(zik*zik);
+	float dukdqy = fx*(zik*(-4.0*qy*(zic*(uic-cx)/fx-xkc)+2.0*qx*(zic*(vic-cy)/fy-ykc)-2.0*qw*(zic-zkc))-xik*(2.0*qw*(zic*(uic-cx)/fx-xkc)+2.0*qz*(zic*(vic-cy)/fy-ykc)-4.0*qy*(zic-zkc)))/(zik*zik);
+	float dukdqz = fx*(zik*(-4.0*qz*(zic*(uic-cx)/fx-xkc)+2.0*qw*(zic*(vic-cy)/fy-ykc)+2.0*qw*(zic-zkc))-xik*(2.0*qx*(zic*(uic-cx)/fx-xkc)+2.0*qy*(zic*(vic-cy)/fy-ykc)))/(zik*zik);
+	float dukdxkc = fx*(-r11*zik+r13*xik)/(zik*zik);
+	float dukdykc = fx*(-r21*zik+r23*xik)/(zik*zik);
+	float dukdzkc = fx*(-r31*zik+r33*xik)/(zik*zik);
+
+	//partials of vik
+	float dvkduc = fy*(zik*r12*zic/fx-yik*r13*zic/fx)/(zik*zik);
+	float dvkdvc = fy*(zik*r22*zic/fy-yik*r23*zic/fy)/(zik*zik);
+	float dvkdzc = fy*(zik*(r12*(uic-cx)/fx+r22*(vic-cy)/fy+r32)-yik*(r13*(uic-cx)/fx+r23*(vic-cy)/fy+r33))/(zik*zik);
+	float dvkdqw = fy*(zik*((-2.0*qz*(zic*(uic-cx)/fx-xkc))+2.0*qx*(zic-zkc))-yik*(2.0*qy*(zic*(uic-cx)/fx-xkc)-2.0*qx*(zic*(vic-cy)/fy-ykc)))/(zik*zik);
+	float dvkdqx = fy*(zik*(2.0*qy*(zic*(uic-cx)/fx-xkc)-4.0*qx*(zic*(vic-cy)/fy-ykc)+2.0*qw*(zic-zkc))-yik*(2.0*qz*(zic*(uic-cx)/fx-xkc)-2.0*qw*(zic*(vic-cy)/fy-ykc)-4.0*qx*(zic-zkc)))/(zik*zik);
+	float dvkdqy = fy*(zik*(2.0*qx*(zic*(uic-cx)/fx-xkc)+2.0*qz*(zic-zkc))-yik*(2.0*qw*(zic*(uic-cx)/fx-xkc)+2.0*qz*(zic*(vic-cy)/fy-ykc)-4.0*qy*(zic-zkc)))/(zik*zik);
+	float dvkdqz = fy*(zik*(-2.0*qw*(zic*(uic-cx)/fx-xkc)-4.0*qz*(zic*(vic-cy)/fy-ykc)+2.0*qy*(zic-zkc))-yik*(2.0*qx*(zic*(uic-cx)/fx-xkc)+2.0*qy*(zic*(vic-cy)/fy-ykc)))/(zik*zik);
+	float dvkdxkc = fy*(-r12*zik+r13*yik)/(zik*zik);
+	float dvkdykc = fy*(-r22*zik+r23*yik)/(zik*zik);
+	float dvkdzkc = fy*(-r32*zik+r33*yik)/(zik*zik);
+
+	Eigen::Matrix<float,2,10> Ji;
+	Ji << dukduc,dukdvc,dukdzc,dukdqw,dukdqx,dukdqy,dukdqz,dukdxkc,dukdykc,dukdzkc,
+	     dvkduc,dvkdvc,dvkdzc,dvkdqw,dvkdqx,dvkdqy,dvkdqz,dvkdxkc,dvkdykc,dvkdzkc;
+	return Ji;
+}

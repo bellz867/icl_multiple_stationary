@@ -1,3 +1,8 @@
+// jacobian for reprojection into key frame or generally, any previous frame
+// minimize || f(x) - b ||^2 is equivalent to minimize f(x)^T*f(x)-2*b^T*f(x)
+// find dEdx = 0 is equivalent to 2*J^T*f(x)-2*J^T*b = 0 where J = df(x)/dx
+//expand around x f(x+Dx) = f(x)+J*Dx where Dx = (J^T*J)^-1*J^T*(b-f(x))
+
 r11 = 1.0-2.0*(qy*qy+qz*qz);
 r12 = 2.0*(qx*qy-qz*qw);
 r13 = 2.0*(qx*qz+qy*qw);

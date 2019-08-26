@@ -283,16 +283,18 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	// std::cout << "\n wb \n" << wb << std::endl;
 	float cwHatDot = kcw*(float(wb.transpose()*wHat) - float(wb.transpose()*wb)*cwHat);
 
-	if (landmarkView)
-	{
-		vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
-		wcHat = rotatevec(wbHat,getqInv(qcb));
-	}
-	else
-	{
-		vcHat = rotatevec((vHat+getss(wHat)*pcb),getqInv(qcb));
-		wcHat = rotatevec(wHat,getqInv(qcb));
-	}
+	vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
+	wcHat = rotatevec(wbHat,getqInv(qcb));
+	// if (landmarkView)
+	// {
+	// 	vcHat = rotatevec((vbHat+getss(wbHat)*pcb),getqInv(qcb));
+	// 	wcHat = rotatevec(wbHat,getqInv(qcb));
+	// }
+	// else
+	// {
+	// 	vcHat = rotatevec((vHat+getss(wHat)*pcb),getqInv(qcb));
+	// 	wcHat = rotatevec(wHat,getqInv(qcb));
+	// }
 
 
 	// std::cout << std::endl;
