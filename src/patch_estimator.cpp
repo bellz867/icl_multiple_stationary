@@ -1694,29 +1694,29 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 				// std::cout << "\n hi44 \n";
 
-				cv::Mat pSobel,cSobel;
-
-				/// Generate grad_x and grad_y
-				cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
-				cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
-				/// Gradient X
-				//Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
-				cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 3);
-				cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 3);
-				cv::convertScaleAbs( pgrad_x, pabs_grad_x );
-				cv::convertScaleAbs( pgrad_y, pabs_grad_y );
-				cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
-				cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 3);
-				cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 3);
-				cv::convertScaleAbs( cgrad_x, cabs_grad_x );
-				cv::convertScaleAbs( cgrad_y, cabs_grad_y );
-				cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
-				/// Gradient Y
-				//Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
-
-				cv::Mat pCompare,cCompare;
-				cv::addWeighted( ppatch, 0.75, pSobel, 0.25, 0, pCompare);
-				cv::addWeighted( cpatch, 0.75, cSobel, 0.25, 0, cCompare);
+				// cv::Mat pSobel,cSobel;
+				//
+				// /// Generate grad_x and grad_y
+				// cv::Mat pgrad_x, pgrad_y, cgrad_x, cgrad_y;
+				// cv::Mat pabs_grad_x, pabs_grad_y, cabs_grad_x, cabs_grad_y;
+				// /// Gradient X
+				// //Scharr( src_gray, grad_x, ddepth, 1, 0, scale, delta, BORDER_DEFAULT );
+				// cv::Sobel( ppatch, pgrad_x, CV_32F, 1, 0, 3);
+				// cv::Sobel( ppatch, pgrad_y, CV_32F, 0, 1, 3);
+				// cv::convertScaleAbs( pgrad_x, pabs_grad_x );
+				// cv::convertScaleAbs( pgrad_y, pabs_grad_y );
+				// cv::addWeighted( pabs_grad_x, 0.5, pabs_grad_y, 0.5, 0, pSobel );
+				// cv::Sobel( cpatch, cgrad_x, CV_32F, 1, 0, 3);
+				// cv::Sobel( cpatch, cgrad_y, CV_32F, 0, 1, 3);
+				// cv::convertScaleAbs( cgrad_x, cabs_grad_x );
+				// cv::convertScaleAbs( cgrad_y, cabs_grad_y );
+				// cv::addWeighted( cabs_grad_x, 0.5, cabs_grad_y, 0.5, 0, cSobel );
+				// /// Gradient Y
+				// //Scharr( src_gray, grad_y, ddepth, 0, 1, scale, delta, BORDER_DEFAULT );
+				//
+				// cv::Mat pCompare,cCompare;
+				// cv::addWeighted( ppatch, 0.75, pSobel, 0.25, 0, pCompare);
+				// cv::addWeighted( cpatch, 0.75, cSobel, 0.25, 0, cCompare);
 
 				/// Total Gradient (approximate)
 
@@ -1729,12 +1729,12 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				//use the patch as template and match in check patch
 				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_SQDIFF_NORMED);
 				// cv::matchTemplate(cpatch,reducedWarp,tmresult,cv::TM_CCORR_NORMED);
-				cv::matchTemplate(cCompare,pCompare,tmresult,cv::TM_CCOEFF_NORMED);
-				// cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
+				// cv::matchTemplate(cCompare,pCompare,tmresult,cv::TM_CCOEFF_NORMED);
+				cv::matchTemplate(cpatch,ppatch,tmresult,cv::TM_CCOEFF_NORMED);
 
 				// std::cout << "\n tmresult.size() " << tmresult.size() << std::endl;
 
-				cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
+				// cv::GaussianBlur(tmresult,tmresultBlur,cv::Size(blurSize,blurSize),0);
 				cv::minMaxLoc(tmresult,&minResultVal,&maxResultVal,&minResultPt,&maxResultPt);
 
 				// std::cout << "\n hi5 \n";
@@ -2329,7 +2329,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
 			Eigen::VectorXf Eb,Xb;
 			int bundleIterations = 0;
-			if (allPtsKnown)
+			if (false)
 			{
 				Eigen::MatrixXf Jb = Eigen::MatrixXf::Zero(3*numPts,7+3*numPts);
 				Eigen::VectorXf fb = Eigen::VectorXf::Zero(3*numPts);

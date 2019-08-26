@@ -22,12 +22,12 @@
 
     <param name="closeLoop" value="true"/>
     <param name="minFeaturesBad" value="14"/>
-    <param name="minDistance" value="150"/>
+    <param name="minDistance" value="200"/>
     <param name="partitionSide" value="1"/>
     <param name="numberFeaturesPerPartRow" value="3"/>
     <param name="numberFeaturesPerPartCol" value="5"/>
-    <param name="patchSizeBase" value="100"/>
-    <param name="checkSizeBase" value="150"/>
+    <param name="patchSizeBase" value="75"/>
+    <param name="checkSizeBase" value="100"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>
