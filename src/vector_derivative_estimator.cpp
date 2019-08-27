@@ -31,11 +31,6 @@ void VectorDerivativeEstimator::initialize(int stateSizeInit)
 	HT = H.transpose();
 }
 
-// Eigen::VectorXf VectorDerivativeEstimator::predict(Eigen::VectorXf newMeasure, ros::Time newTime)
-// {
-//
-// }
-
 Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ros::Time newTime)
 {
 	ros::Time t = newTime;

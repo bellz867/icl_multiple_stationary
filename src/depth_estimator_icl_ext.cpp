@@ -82,17 +82,18 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   Eigen::Vector3f mcEst = ucEst /= ucEst(2);
   Eigen::Vector2f cPtEst(mcEst(0)*fx+cx,mcEst(1)*fy+cy);
 
-  float sigEst = 5;
+  float sigEst = 10;
   float sigEst2 = sigEst*sigEst;
   float chi2 = 6.63; //chi^2 for 99%
   Eigen::Vector2f cPtD = cPtProj - cPtEst;
   float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/sigEst2;
-  float sigProj = sigEst+chiTestVal;
+  float sigProj = 30/(0.1 + pkc.norm())+chiTestVal;
   float sigProj2 = sigProj*sigProj;
   float sig2Sum = sigEst2+sigProj2;
   // float chi2 = 3.84; //chi^2 for 95%
 
   // float cPtAlpha = 1.0/(2.0 + chiTestVal);
+  // Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
   Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
 
   std::cout << std::endl << "dkKnown " << int(dkKnown) << ", chiTestVal " << chiTestVal;
@@ -117,7 +118,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n hi4 \n";
 
   float kxi = 250.0;
-  float kX = 25.0;
+  float kX = 30.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
   Eigen::Vector3f uc = xHat.segment(0,3);
