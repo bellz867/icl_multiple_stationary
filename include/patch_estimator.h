@@ -70,6 +70,7 @@ struct PatchEstimator
 	float fx,fy,cx,cy,zmin,zmax;
 	DepthEstimator* newDepthEstimator;
 	std::vector<DepthEstimator*> depthEstimators;
+	std::vector<DepthEstimator*> depthEstimatorsSaved;
 	std::deque<nav_msgs::Odometry> odomSync;
 	std::deque<nav_msgs::Odometry> markerOdomSync;
 	std::mutex odomCBMutex,odomMutex,roiMutex,pubMutex,markerOdomMutex,featureMutex,findPointsMutex,chessboardMutex,destroyLock;

@@ -1,0 +1,803 @@
+#LyX 2.1 created this file. For more info see http://www.lyx.org/
+\lyxformat 474
+\begin_document
+\begin_header
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_math auto
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+Generally
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+E\left(X\right)=\underset{X}{\min}\left\Vert b-f\left(X\right)\right\Vert ^{2}\implies f\left(X\right)^{T}f\left(X\right)-2b^{T}f\left(X\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+wish to minimize the error so take the partial with respect to the state
+ and find where it is 0
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial E\left(X\right)}{\partial X}=2\frac{\partial f\left(X\right)}{\partial X}^{T}f\left(X\right)-2\frac{\partial f\left(X\right)}{\partial X}^{T}b=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+approximating 
+\begin_inset Formula $f\left(X\right)$
+\end_inset
+
+
+\begin_inset Formula 
+\[
+f\left(X+\Delta X\right)=f\left(X\right)+\frac{\partial f\left(X\right)}{\partial X}\Delta X
+\]
+
+\end_inset
+
+substituting in
+\begin_inset Formula 
+\[
+\frac{\partial f\left(X\right)}{\partial X}^{T}\left(f\left(X\right)+\frac{\partial f\left(X\right)}{\partial X}\Delta X\right)-\frac{\partial f\left(X\right)}{\partial X}^{T}b=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial f\left(X\right)}{\partial X}^{T}f\left(X\right)+\frac{\partial f\left(X\right)}{\partial X}^{T}\frac{\partial f\left(X\right)}{\partial X}\Delta X-\frac{\partial f\left(X\right)}{\partial X}^{T}b=0
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial f\left(X\right)}{\partial X}^{T}\frac{\partial f\left(X\right)}{\partial X}\Delta X=\frac{\partial f\left(X\right)}{\partial X}^{T}\left(b-f\left(X\right)\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+X_{k+1}=X_{k}+\Delta X
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Take the initial features and perform bundle adjustment to determine the
+ location in each new frame
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}\left(t\right)=\underline{p}_{k/c}\left(t\right)+R_{k/c}\left(t\right)\underline{p}_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+R_{k/c}\left(t\right)=\begin{bmatrix}r_{11} & r_{12} & r_{13}\\
+r_{21} & r_{22} & r_{23}\\
+r_{31} & r_{32} & r_{33}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+q_{k/c}\left(t\right)=\begin{bmatrix}q_{w}\left(t\right)\\
+q_{x}\left(t\right)\\
+q_{y}\left(t\right)\\
+q_{z}\left(t\right)
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\underline{p}_{k/c}\left(t\right)=\begin{bmatrix}x_{k/c}\left(t\right)\\
+y_{k/c}\left(t\right)\\
+z_{k/c}\left(t\right)
+\end{bmatrix}d_{k/c}\left(t\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{11}=1-2\left(q_{y}^{2}+q_{z}^{2}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{12}=2\left(q_{x}q_{y}-q_{z}q_{w}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{13}=2\left(q_{x}q_{z}+q_{y}q_{w}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{21}=2\left(q_{x}q_{y}+q_{z}q_{w}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{22}=1-2\left(q_{x}^{2}+q_{z}^{2}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{23}=2\left(q_{y}q_{z}-q_{x}q_{w}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{31}=2\left(q_{w}q_{z}-q_{y}q_{w}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{32}=2\left(q_{y}q_{z}+q_{x}q_{w}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+r_{33}=1-2\left(q_{x}^{2}+q_{y}^{2}\right)
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{bmatrix}x_{i/c}\left(t\right)\\
+y_{i/c}\left(t\right)\\
+z_{i/c}\left(t\right)
+\end{bmatrix}=\begin{bmatrix}x_{k/c}\left(t\right)\\
+y_{k/c}\left(t\right)\\
+z_{k/c}\left(t\right)
+\end{bmatrix}d_{k/c}\left(t\right)+\begin{bmatrix}r_{11} & r_{12} & r_{13}\\
+r_{21} & r_{22} & r_{23}\\
+r_{31} & r_{32} & r_{33}
+\end{bmatrix}\begin{bmatrix}x_{i/k}\\
+y_{i/k}\\
+z_{i/k}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{bmatrix}x_{i/c}\\
+y_{i/c}\\
+z_{i/c}
+\end{bmatrix}=\begin{bmatrix}x_{k/c}d_{k/c}\left(t\right)+r_{11}x_{i/k}+r_{12}y_{i/k}+r_{13}z_{i/k}\\
+y_{k/c}d_{k/c}\left(t\right)+r_{21}x_{i/k}+r_{22}y_{i/k}+r_{23}z_{i/k}\\
+z_{k/c}d_{k/c}\left(t\right)+r_{31}x_{i/k}+r_{32}y_{i/k}+r_{33}z_{i/k}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+or
+\end_layout
+
+\begin_layout Standard
+dropping the time for notational briefness
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+X=\begin{bmatrix}q_{w}\\
+q_{x}\\
+q_{y}\\
+q_{z}\\
+x_{k/c}\\
+y_{k/c}\\
+z_{k/c}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+J_{i}=\begin{bmatrix}\frac{\partial x_{i/c}}{\partial q_{w}} & \frac{\partial x_{i/c}}{\partial q_{x}} & \frac{\partial x_{i/c}}{\partial q_{y}} & \frac{\partial x_{i/c}}{\partial q_{z}} & \frac{\partial x_{i/c}}{\partial x_{k/c}} & \frac{\partial x_{i/c}}{\partial y_{k/c}} & \frac{\partial x_{i/c}}{\partial z_{k/c}}\\
+\frac{\partial y_{i/c}}{\partial q_{w}} & \frac{\partial y_{i/c}}{\partial q_{x}} & \frac{\partial y_{i/c}}{\partial q_{y}} & \frac{\partial y_{i/c}}{\partial q_{z}} & \frac{\partial y_{i/c}}{\partial x_{k/c}} & \frac{\partial y_{i/c}}{\partial y_{k/c}} & \frac{\partial y_{i/c}}{\partial z_{k/c}}\\
+\frac{\partial z_{i/c}}{\partial q_{w}} & \frac{\partial z_{i/c}}{\partial q_{x}} & \frac{\partial z_{i/c}}{\partial q_{y}} & \frac{\partial z_{i/c}}{\partial q_{z}} & \frac{\partial z_{i/c}}{\partial x_{k/c}} & \frac{\partial z_{i/c}}{\partial y_{k/c}} & \frac{\partial z_{i/c}}{\partial z_{k/c}}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+partials for rotation elements
+\end_layout
+
+\begin_layout Standard
+partials for x
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial r_{11}}{\partial q}=\begin{bmatrix}0 & 0 & -4q_{y} & -4q_{z}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial r_{12}}{\partial q}=\begin{bmatrix}-2q_{z} & 2q_{y} & 2q_{x} & -2q_{w}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial r_{13}}{\partial q}=\begin{bmatrix}2q_{y} & 2q_{z} & 2q_{w} & 2q_{x}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial q_{w}}=-2q_{z}y_{i/k}+2q_{y}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial q_{x}}=2q_{y}y_{i/k}+2q_{z}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial q_{y}}=-4q_{y}x_{i/k}+2q_{x}y_{i/k}+2q_{w}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial q_{z}}=-4q_{z}x_{i/k}-2q_{w}y_{i/k}+2q_{x}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial x_{k/c}}=d_{k/c}\left(t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial y_{k/c}}=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial x_{i/c}}{\partial z_{k/c}}=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+partials for y
+\begin_inset Formula 
+\[
+\frac{\partial r_{21}}{\partial q}=\begin{bmatrix}2q_{z} & 2q_{y} & 2q_{x} & 2q_{w}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial r_{22}}{\partial q}=\begin{bmatrix}0 & -4q_{x} & 0 & -4q_{z}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial r_{23}}{\partial q}=\begin{bmatrix}-2q_{x} & -2q_{w} & 2q_{z} & 2q_{y}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial q_{w}}=2q_{z}x_{i/k}-2q_{x}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial q_{x}}=2q_{y}x_{i/k}-4q_{x}y_{i/k}-2q_{w}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial q_{y}}=2q_{x}x_{i/k}+2q_{z}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial q_{z}}=2q_{w}x_{i/k}-4q_{z}y_{i/k}+2q_{y}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial x_{k/c}}=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial y_{k/c}}=d_{k/c}\left(t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial y_{i/c}}{\partial z_{k/c}}=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+partials for z
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial r_{31}}{\partial q}=\begin{bmatrix}2\left(q_{z}-q_{y}\right) & 0 & -2q_{w} & 2q_{w}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial r_{32}}{\partial q}=\begin{bmatrix}2q_{x} & 2q_{w} & 2q_{z} & 2q_{y}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial r_{33}}{\partial q}=\begin{bmatrix}0 & -4q_{x} & -4q_{y} & 0\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial q_{w}}=2\left(q_{z}-q_{y}\right)x_{i/k}+2q_{x}y_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial q_{x}}=2q_{w}y_{i/k}-4q_{x}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial q_{y}}=-2q_{w}x_{i/k}+2q_{z}y_{i/k}-4q_{y}z_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial q_{z}}=2q_{w}x_{i/k}+2q_{y}y_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial x_{k/c}}=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial y_{k/c}}=0
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\frac{\partial z_{i/c}}{\partial z_{k/c}}=d_{k/c}\left(t\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+stacking the partials across all features
+\begin_inset Formula 
+\[
+X_{i}=\begin{bmatrix}q_{w}\\
+q_{x}\\
+q_{y}\\
+q_{z}\\
+x_{k/c}\\
+y_{k/c}\\
+z_{k/c}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+J=\begin{bmatrix}\frac{\partial x_{i/c}}{\partial q_{w}} & \frac{\partial x_{i/c}}{\partial q_{x}} & \frac{\partial x_{i/c}}{\partial q_{y}} & \frac{\partial x_{i/c}}{\partial q_{z}} & \frac{\partial x_{i/c}}{\partial x_{k/c}} & \frac{\partial x_{i/c}}{\partial y_{k/c}} & \frac{\partial x_{i/c}}{\partial z_{k/c}}\\
+\frac{\partial y_{i/c}}{\partial q_{w}} & \frac{\partial y_{i/c}}{\partial q_{x}} & \frac{\partial y_{i/c}}{\partial q_{y}} & \frac{\partial y_{i/c}}{\partial q_{z}} & \frac{\partial y_{i/c}}{\partial x_{k/c}} & \frac{\partial y_{i/c}}{\partial y_{k/c}} & \frac{\partial y_{i/c}}{\partial z_{k/c}}\\
+\frac{\partial z_{i/c}}{\partial q_{w}} & \frac{\partial z_{i/c}}{\partial q_{x}} & \frac{\partial z_{i/c}}{\partial q_{y}} & \frac{\partial z_{i/c}}{\partial q_{z}} & \frac{\partial z_{i/c}}{\partial x_{k/c}} & \frac{\partial z_{i/c}}{\partial y_{k/c}} & \frac{\partial z_{i/c}}{\partial z_{k/c}}\\
+\vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots\\
+\frac{\partial x_{i/c}}{\partial q_{w}} & \frac{\partial x_{i/c}}{\partial q_{x}} & \frac{\partial x_{i/c}}{\partial q_{y}} & \frac{\partial x_{i/c}}{\partial q_{z}} & \frac{\partial x_{i/c}}{\partial x_{k/c}} & \frac{\partial x_{i/c}}{\partial y_{k/c}} & \frac{\partial x_{i/c}}{\partial z_{k/c}}\\
+\frac{\partial y_{i/c}}{\partial q_{w}} & \frac{\partial y_{i/c}}{\partial q_{x}} & \frac{\partial y_{i/c}}{\partial q_{y}} & \frac{\partial y_{i/c}}{\partial q_{z}} & \frac{\partial y_{i/c}}{\partial x_{k/c}} & \frac{\partial y_{i/c}}{\partial y_{k/c}} & \frac{\partial y_{i/c}}{\partial z_{k/c}}\\
+\frac{\partial z_{i/c}}{\partial q_{w}} & \frac{\partial z_{i/c}}{\partial q_{x}} & \frac{\partial z_{i/c}}{\partial q_{y}} & \frac{\partial z_{i/c}}{\partial q_{z}} & \frac{\partial z_{i/c}}{\partial x_{k/c}} & \frac{\partial z_{i/c}}{\partial y_{k/c}} & \frac{\partial z_{i/c}}{\partial z_{k/c}}
+\end{bmatrix}
+\]
+
+\end_inset
+
+additional relationships 
+\begin_inset Formula 
+\[
+q^{T}q=1
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+q_{w}^{2}+q_{x}^{2}+q_{y}^{2}+q_{z}^{2}=1
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+J=\begin{bmatrix}\frac{\partial}{\partial q_{w}} & \frac{\partial}{\partial q_{x}} & \frac{\partial}{\partial q_{y}} & \frac{\partial}{\partial q_{z}} & \frac{\partial}{\partial x_{k/c}} & \frac{\partial}{\partial y_{k/c}} & \frac{\partial}{\partial z_{k/c}}\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+2q_{w}+q_{x}^{2}+q_{y}^{2}+q_{z}^{2}=1
+\]
+
+\end_inset
+
+and 
+\begin_inset Formula 
+\[
+u^{T}u=1
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+dd
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\end_body
+\end_document

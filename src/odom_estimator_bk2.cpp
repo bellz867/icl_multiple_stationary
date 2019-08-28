@@ -161,16 +161,22 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 
 		if (!landmarkView)
 		{
+			std::vector<int> keyInds(poseDeltasRemove.size());
+			std::vector<float> pRatios(poseDeltasRemove.size());
+			std::vector<Eigen::Vector3f> pbws(poseDeltasRemove.size());
+			std::vector<Eigen::Vector4f> qbws(poseDeltasRemove.size());
+			int poseii = 0;
 			for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
 			{
 				// get the poses at time i
 				// geometry_msgs::Pose posei = poseDeltaSyncBuff.at(i).pose;
 				// geometry_msgs::Pose poseHati = poseDeltaSyncBuff.at(i).poseHat;
-				// int keyIndi = poseDeltaSyncBuff.at(i).keyInd;
+				keyInds.at(poseii) = (*it)->keyInd;
+				pRatios.at(poseii) = (*it)->pRatio;
 				// bool landmarkViewi = (*it)->landmarkView;
 
-				Eigen::Vector3f pbwTildei = Eigen::Vector3f::Zero();
-				Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
+				// Eigen::Vector3f pbwTildei = Eigen::Vector3f::Zero();
+				// Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
 
 				//convert what camera thought at time i to eigen
 				Eigen::Vector3f pcwi((*it)->pose.position.x,(*it)->pose.position.y,(*it)->pose.position.z);
@@ -194,34 +200,33 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				qbwi /= qbwi.norm();
 				Eigen::Vector3f pbwi = pcwi - rotatevec(pcb,qbwi);
 
-				// Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
-				// qbwHati /= qbwHati.norm();
-				// qbwHati(1) = 0.0;
-				// qbwHati(2) = 0.0;
-				// qbwHati /= qbwHati.norm();
-				// Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
-				// pbwHati(2) = 0.0;
 				Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
 				qbwHati /= qbwHati.norm();
 				Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
 
 				// get the difference between the estimate now and time i
-				Eigen::Vector3f pbwbwi = pbwHat - pbwi;
-				Eigen::Vector4f qbwbwi = getqMat(getqInv(qbwi))*qbwHat;
-				qbwbwi /= qbwbwi.norm();
+				Eigen::Vector3f pbbi = pbwHat - pbwi;
+				Eigen::Vector4f qbbi = getqMat(getqInv(qbwi))*qbwHat;
+				qbbi /= qbbi.norm();
 
 				// new measure is what the camera thought at time i plus the difference
-				Eigen::Vector3f pbw = pbwHati + pbwbwi;
-				Eigen::Vector4f qbw = getqMat(qbwHati)*qbwbwi;
+				Eigen::Vector3f pbw = pbwHati + pbbi;
+				Eigen::Vector4f qbw = getqMat(qbwHati)*qbbi;
 				qbw /= qbw.norm();
 
-				// get the error for time i
-				pbwTildei = pbw - pbwHat;
-				qbwTildei = qbw - qbwHat;
+				pbws.at(poseii) = pbw;
+				qbws.at(poseii) = qbw;
 
-				// add what the camera thought to the sum
-				pbwTildeSum += pbwTildei;
-				qbwTildeSum += qbwTildei;
+				// // get the error for time i
+				// pbwTildei = pbw - pbwHat;
+				// qbwTildei = qbw - qbwHat;
+
+				// // add what the camera thought to the sum
+				// pbwTildeSum += pbwTildei;
+				// qbwTildeSum += qbwTildei;
+
+				pbwTildeSum += (pbw-pbwHat);
+				qbwTildeSum += (qbw-qbwHat);
 
 				// std::cout << "\n pbwi \n" << pbwi << std::endl;
 				// std::cout << "\n qbwi \n" << qbwi << std::endl;
@@ -233,7 +238,33 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				// std::cout << "\n keyIndi \n" << keyIndi << std::endl;
 				// delete *it;
 			}
+
+			// float pRatioSum = 0.0;
+			// for (int ii = 0; ii < pRatios.size(); ii++)
+			// {
+			// 	pRatioSum += pRatios.at(ii);
+			// }
+			//
+			// if (pRatios.size() > 1)
+			// {
+			// 	std::vector<float> weights(pRatios.size());
+			// 	for (int ii = 0; ii < pRatios.size(); ii++)
+			// 	{
+			// 		float iisum = 0.0;
+			// 		for (int jj = 0; jj < pRatios.size(); jj++)
+			// 		{
+			// 			if (ii != jj)
+			// 			{
+			// 				iisum += pRatios.at(jj);
+			// 			}
+			// 		}
+			// 		weights.at(ii) = iisum/pRatioSum;
+			//
+			// 	}
+			// }
+
 			// new estimate is the weighted average
+
 			pbwHat += dt*kp/numMeas*pbwTildeSum;
 			qbwHat += dt*kq/numMeas*qbwTildeSum;
 		}

@@ -87,7 +87,7 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   float chi2 = 6.63; //chi^2 for 99%
   Eigen::Vector2f cPtD = cPtProj - cPtEst;
   float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/sigEst2;
-  float sigProj = 30/(0.1 + pkc.norm())+chiTestVal;
+  float sigProj = 100;
   float sigProj2 = sigProj*sigProj;
   float sig2Sum = sigEst2+sigProj2;
   // float chi2 = 3.84; //chi^2 for 95%
@@ -96,11 +96,11 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   // Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
   Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
 
-  std::cout << std::endl << "dkKnown " << int(dkKnown) << ", chiTestVal " << chiTestVal;
-  std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
-  std::cout << ", cPtEstx " << cPtEst(0) << ", cPtEsty " << cPtEst(1);
-  std::cout << ", cPtCombx " << cPtComb(0) << ", cPtComby " << cPtComb(1);
-  std::cout << ", pPtx " << pPt(0) << ", pPty " << pPt(1);
+  // std::cout << std::endl << "dkKnown " << int(dkKnown) << ", chiTestVal " << chiTestVal;
+  // std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
+  // std::cout << ", cPtEstx " << cPtEst(0) << ", cPtEsty " << cPtEst(1);
+  // std::cout << ", cPtCombx " << cPtComb(0) << ", cPtComby " << cPtComb(1);
+  // std::cout << ", pPtx " << pPt(0) << ", pPty " << pPt(1);
   std::cout << std::endl;
 
   Eigen::Vector3f mcComb((cPtComb(0)-cx)/fx,(cPtComb(1)-cy)/fy,1.0);
@@ -110,7 +110,7 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   //   return mcEst;
   // }
 
-  return mcComb;
+  return mcEst;
 }
 
 Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
@@ -301,7 +301,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     std::cout << "\n pkc clear\n";
   }
 
-  std::cout << "\n" << "N " << numSaved << ", dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat << ", dkcdd " << (ukcT*uc*dcHat-ukcT*Rkc*uk*dkHat);
+  // std::cout << "\n" << "N " << numSaved << ", dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat << ", dkcdd " << (ukcT*uc*dcHat-ukcT*Rkc*uk*dkHat);
 
   // std::cout << "\n hi10 \n";
 
@@ -341,7 +341,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     Eigen::Vector2f Y = (psiBuff.at(psiBuff.size()-1)-psiBuff.at(0));
     Eigen::Vector2f U = uvInt;
 
-    std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1) << ", U(0)  " << U(0) << ", U(1)  " << U(1);
+    // std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1) << ", U(0)  " << U(0) << ", U(1)  " << U(1);
 
     float Yx = Y(0);
     float Ux = U(0);
@@ -387,10 +387,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     YtT.block(1,0,1,3) = -Rkcuk.transpose();
     Eigen::Vector2f dcdkt = YtYtI*YtT*pkc;
 
-    std::cout << ", dct " << dcdkt(0) <<  ", dkt  " << dcdkt(1);
-    std::cout << ", dkMed " << dkMed <<  ", dk  " << dk << ", dk2 " << dk2 << ", |Y| " << Y.norm() << ", |U| ";
-    std::cout << U.norm() << ", psi(0)*dk " << psi(0)*dk << ", psi(1)*dk " << psi(1)*dk;
-    std::cout << ", psi(0)*dkMed " << psi(0)*dkMed << ", psi(1)*dkMed " << psi(1)*dkMed << std::endl;
+    // std::cout << ", dct " << dcdkt(0) <<  ", dkt  " << dcdkt(1);
+    // std::cout << ", dkMed " << dkMed <<  ", dk  " << dk << ", dk2 " << dk2 << ", |Y| " << Y.norm() << ", |U| ";
+    // std::cout << U.norm() << ", psi(0)*dk " << psi(0)*dk << ", psi(1)*dk " << psi(1)*dk;
+    // std::cout << ", psi(0)*dkMed " << psi(0)*dkMed << ", psi(1)*dkMed " << psi(1)*dkMed << std::endl;
     // std::cout << "\n yu " << yu << std::endl;
     // std::cout << "\n Y.norm() " << Y.norm() << std::endl;
     // std::cout << "\n U.norm() " << U.norm() << std::endl;
@@ -427,8 +427,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
 
       std::cout << std::endl;
-      std::cout << "cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
-      std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
+      // std::cout << "cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
+      // std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
       std::cout << std::endl;
 
       //if the value is outside the acceptable then reject
@@ -444,8 +444,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
         chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
 
         std::cout << std::endl;
-        std::cout << "cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
-        std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal;
+        // std::cout << "cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
+        // std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal;
         std::cout << std::endl;
 
         if (chiTestVal > chi2)
