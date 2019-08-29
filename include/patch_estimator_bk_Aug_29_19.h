@@ -89,8 +89,8 @@ struct PatchEstimator
 	std::string expName;
 	std::vector<DataSave*> data;
 	ros::Time tStart;
-	Eigen::Matrix<float,2,3> GfLast;
-	Eigen::Matrix3f GkfLast;
+	Eigen::Matrix<float,3,3> GfLast,GkfLast;
+	cv::Mat Gkcum;
 	int patchSizeBase,checkSizeBase;
 	Eigen::Vector3f pcb;
 	Eigen::Vector4f qcb;

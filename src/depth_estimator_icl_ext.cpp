@@ -268,7 +268,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // uDotEstimator.initialize(3);
     // psiDotEstimator.initialize(2);
     numThrown++;
-    std::cout << "\n eig clear\n";
+    // std::cout << "\n eig clear\n";
   }
 
   if (v.norm() < 0.1)
@@ -283,7 +283,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // uDotEstimator.initialize(3);
     // psiDotEstimator.initialize(2);
     numThrown++;
-    std::cout << "\n v clear\n";
+    // std::cout << "\n v clear\n";
   }
 
   if (pkc.norm() < 0.05)
@@ -298,7 +298,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // uDotEstimator.initialize(3);
     // psiDotEstimator.initialize(2);
     // numThrown++;
-    std::cout << "\n pkc clear\n";
+    // std::cout << "\n pkc clear\n";
   }
 
   // std::cout << "\n" << "N " << numSaved << ", dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat << ", dkcdd " << (ukcT*uc*dcHat-ukcT*Rkc*uk*dkHat);
@@ -416,7 +416,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     {
       //chi^2 test for reprojection error using dk
       // assume pixel standard deviation of 2 implying variance of 4
-      float cPtSig = 20;
+      float cPtSig = 10;
       float cPtSig2 = cPtSig*cPtSig;
       Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
       Eigen::Vector3f mcProj = pcProj/pcProj(2);
@@ -426,10 +426,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       Eigen::Vector2f cPtD = cPtProj - cPt;
       float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
 
-      std::cout << std::endl;
+      // std::cout << std::endl;
       // std::cout << "cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
       // std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
-      std::cout << std::endl;
+      // std::cout << std::endl;
 
       //if the value is outside the acceptable then reject
       if (chiTestVal > chi2)
@@ -443,10 +443,10 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
         cPtD = cPtProj - cPt;
         chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
 
-        std::cout << std::endl;
+        // std::cout << std::endl;
         // std::cout << "cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
         // std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal;
-        std::cout << std::endl;
+        // std::cout << std::endl;
 
         if (chiTestVal > chi2)
         {

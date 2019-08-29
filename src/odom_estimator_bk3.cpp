@@ -169,18 +169,18 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				// int keyIndi = poseDeltaSyncBuff.at(i).keyInd;
 				// bool landmarkViewi = (*it)->landmarkView;
 
-				// Eigen::Vector3f pbwTildei = Eigen::Vector3f::Zero();
-				// Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
-				//
-				// //convert what camera thought at time i to eigen
-				// Eigen::Vector3f pcwi((*it)->pose.position.x,(*it)->pose.position.y,(*it)->pose.position.z);
-				// Eigen::Vector4f qcwi((*it)->pose.orientation.w,(*it)->pose.orientation.x,(*it)->pose.orientation.y,(*it)->pose.orientation.z);
-				// qcwi /= qcwi.norm();
+				Eigen::Vector3f pbwTildei = Eigen::Vector3f::Zero();
+				Eigen::Vector4f qbwTildei = Eigen::Vector4f::Zero();
+
+				//convert what camera thought at time i to eigen
+				Eigen::Vector3f pcwi((*it)->pose.position.x,(*it)->pose.position.y,(*it)->pose.position.z);
+				Eigen::Vector4f qcwi((*it)->pose.orientation.w,(*it)->pose.orientation.x,(*it)->pose.orientation.y,(*it)->pose.orientation.z);
+				qcwi /= qcwi.norm();
 
 				//convert what estimate was at time i to eigen
-				Eigen::Vector3f pbwHati((*it)->poseBodyHat.position.x,(*it)->poseBodyHat.position.y,(*it)->poseBodyHat.position.z);
-				Eigen::Vector4f qbwHati((*it)->poseBodyHat.orientation.w,(*it)->poseBodyHat.orientation.x,(*it)->poseBodyHat.orientation.y,(*it)->poseBodyHat.orientation.z);
-				qbwHati /= qbwHati.norm();
+				Eigen::Vector3f pcwHati((*it)->poseHat.position.x,(*it)->poseHat.position.y,(*it)->poseHat.position.z);
+				Eigen::Vector4f qcwHati((*it)->poseHat.orientation.w,(*it)->poseHat.orientation.x,(*it)->poseHat.orientation.y,(*it)->poseHat.orientation.z);
+				qcwHati /= qcwHati.norm();
 
 				//convert into body frame
 				// Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
@@ -190,9 +190,9 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				// qbwi /= qbwi.norm();
 				// Eigen::Vector3f pbwi = pcwi - rotatevec(pcb,qbwi);
 				// pbwi(2) = 0.0;
-				// Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
-				// qbwi /= qbwi.norm();
-				// Eigen::Vector3f pbwi = pcwi - rotatevec(pcb,qbwi);
+				Eigen::Vector4f qbwi = getqMat(qcwi)*getqInv(qcb);
+				qbwi /= qbwi.norm();
+				Eigen::Vector3f pbwi = pcwi - rotatevec(pcb,qbwi);
 
 				// Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
 				// qbwHati /= qbwHati.norm();
@@ -201,23 +201,27 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 				// qbwHati /= qbwHati.norm();
 				// Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
 				// pbwHati(2) = 0.0;
-				// Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
-				// qbwHati /= qbwHati.norm();
-				// Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
+				Eigen::Vector4f qbwHati = getqMat(qcwHati)*getqInv(qcb);
+				qbwHati /= qbwHati.norm();
+				Eigen::Vector3f pbwHati = pcwHati - rotatevec(pcb,qbwHati);
 
-				// // get the difference between the estimate now and time i
-				// Eigen::Vector3f pbwbwi = pbwHat - pbwi;
-				// Eigen::Vector4f qbwbwi = getqMat(getqInv(qbwi))*qbwHat;
-				// qbwbwi /= qbwbwi.norm();
-				//
-				// // new measure is what the camera thought at time i plus the difference
-				// Eigen::Vector3f pbw = pbwHati + pbwbwi;
-				// Eigen::Vector4f qbw = getqMat(qbwHati)*qbwbwi;
-				// qbw /= qbw.norm();
+				// get the difference between the estimate now and time i
+				Eigen::Vector3f pbwbwi = pbwHat - pbwi;
+				Eigen::Vector4f qbwbwi = getqMat(getqInv(qbwi))*qbwHat;
+				qbwbwi /= qbwbwi.norm();
+
+				// new measure is what the camera thought at time i plus the difference
+				Eigen::Vector3f pbw = pbwHati + pbwbwi;
+				Eigen::Vector4f qbw = getqMat(qbwHati)*qbwbwi;
+				qbw /= qbw.norm();
+
+				// get the error for time i
+				pbwTildei = pbw - pbwHat;
+				qbwTildei = qbw - qbwHat;
 
 				// add what the camera thought to the sum
-				pbwTildeSum += (pbwHati - pbwHat);
-				qbwTildeSum += (qbwHati - qbwHat);
+				pbwTildeSum += pbwTildei;
+				qbwTildeSum += qbwTildei;
 
 				// std::cout << "\n pbwi \n" << pbwi << std::endl;
 				// std::cout << "\n qbwi \n" << qbwi << std::endl;

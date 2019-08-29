@@ -77,12 +77,12 @@ Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ro
 	float chiTestVal = zDx.transpose()*SI*zDx;
 	if (chiTestVal > chi2)
 	{
-		std::cout << "\n chiTest fail " << chiTestVal << " zDx " << zDx.transpose() << std::endl;
+		// std::cout << "\n chiTest fail " << chiTestVal << " zDx " << zDx.transpose() << std::endl;
 		return xHat;
 	}
 	else
 	{
-		std::cout << "\n chiTest pass " << chiTestVal << " zDx " << zDx.transpose() << std::endl;
+		// std::cout << "\n chiTest pass " << chiTestVal << " zDx " << zDx.transpose() << std::endl;
 	}
 
 	// Eigen::Matrix<float,6,3> K = P*HT*argKI;
@@ -139,12 +139,12 @@ Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ro
 	float chiTestVal = zDz.transpose()*SI*zDz;
 	if (chiTestVal > chi2)
 	{
-		std::cout << "\n chiTest fail " << chiTestVal << " zDz " << zDz.transpose() << std::endl;
+		// std::cout << "\n chiTest fail " << chiTestVal << " zDz " << zDz.transpose() << std::endl;
 		z = newMeasureExpected;
 	}
 	else
 	{
-		std::cout << "\n chiTest pass " << chiTestVal << " zDz " << zDz.transpose() << std::endl;
+		// std::cout << "\n chiTest pass " << chiTestVal << " zDz " << zDz.transpose() << std::endl;
 	}
 
 	Eigen::VectorXf zDx = z-xHat.segment(0,stateSize);
