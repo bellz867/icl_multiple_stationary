@@ -374,6 +374,103 @@ Eigen::Matrix<float,2,7> localBundleJacobianNorm(Eigen::Vector4f qkc, Eigen::Vec
 	return Ji;
 }
 
+Eigen::Vector2f localBundleJacobianPnPProject(float fx, float fy, float cx, float cy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc)
+{
+	float xkc = tkc(0);
+	float ykc = tkc(1);
+	float zkc = tkc(2);
+	float qw = qkc(0);
+	float qx = qkc(1);
+	float qy = qkc(2);
+	float qz = qkc(3);
+	float r11 = 1.0-2.0*(qy*qy+qz*qz);
+	float r12 = 2.0*(qx*qy-qz*qw);
+	float r13 = 2.0*(qx*qz+qy*qw);
+	float r21 = 2.0*(qx*qy+qz*qw);
+	float r22 = 1.0-2.0*(qx*qx+qz*qz);
+	float r23 = 2.0*(qy*qz-qx*qw);
+	float r31 = 2.0*(qw*qz-qy*qw);
+	float r32 = 2.0*(qy*qz+qx*qw);
+	float r33 = 1.0-2.0*(qx*qx+qy*qy);
+	float xik = pik(0);
+	float yik = pik(1);
+	float zik = pik(2);
+	float xic = xkc*dkc+r11*xik+r12*yik+r13*zik;
+	float yic = ykc*dkc+r21*xik+r22*yik+r23*zik;
+	float zic = zkc*dkc+r31*xik+r32*yik+r33*zik;
+	float uic = fx*xic/zic+cx;
+	float vic = fy*yic/zic+cy;
+	return Eigen::Vector2f(uic,vic);
+}
+
+//bundle adjust jacobian
+Eigen::Matrix<float,2,7> localBundleJacobianPnP(float fx, float fy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc)
+{
+	// jacobian for reprojection into key frame or generally, any previous frame
+	// minimize || f(x) - b ||^2 is equivalent to minimize f(x)^T*f(x)-2*b^T*f(x)
+	// find dEdx = 0 is equivalent to 2*J^T*f(x)-2*J^T*b = 0 where J = df(x)/dx
+	//expand around x f(x+Dx) = f(x)+J*Dx where Dx = (J^T*J)^-1*J^T*(b-f(x))
+	float xkc = tkc(0);
+	float ykc = tkc(1);
+	float zkc = tkc(2);
+	float qw = qkc(0);
+	float qx = qkc(1);
+	float qy = qkc(2);
+	float qz = qkc(3);
+	float r11 = 1.0-2.0*(qy*qy+qz*qz);
+	float r12 = 2.0*(qx*qy-qz*qw);
+	float r13 = 2.0*(qx*qz+qy*qw);
+	float r21 = 2.0*(qx*qy+qz*qw);
+	float r22 = 1.0-2.0*(qx*qx+qz*qz);
+	float r23 = 2.0*(qy*qz-qx*qw);
+	float r31 = 2.0*(qw*qz-qy*qw);
+	float r32 = 2.0*(qy*qz+qx*qw);
+	float r33 = 1.0-2.0*(qx*qx+qy*qy);
+	float xik = pik(0);
+	float yik = pik(1);
+	float zik = pik(2);
+	float xic = xkc*dkc+r11*xik+r12*yik+r13*zik;
+	float yic = ykc*dkc+r21*xik+r22*yik+r23*zik;
+	float zic = zkc*dkc+r31*xik+r32*yik+r33*zik;
+	float zic2 = zic*zic;
+	float dudxi1 = fx*zic/zic2;
+	float dudxi2 = fx*xic/zic2;
+	float dvdxi1 = fy*zic/zic2;
+	float dvdxi2 = fy*yic/zic2;
+
+	//partials of x
+	float dxdqw = -2.0*qz*yik+2.0*qy*zik;
+	float dxdqx = 2.0*qy*yik+2.0*qz*zik;
+	float dxdqy = -4.0*qy*xik+2.0*qx*yik+2.0*qw*zik;
+	float dxdqz = -4.0*qz*xik-2.0*qw*yik+2.0*qx*zik;
+	float dxdx = dkc;
+	float dxdy = 0.0;
+	float dxdz = 0.0;
+
+	//partials of y
+	float dydqw = 2.0*qz*xik-2.0*qx*zik;
+	float dydqx = 2.0*qy*xik-4.0*qx*yik-2.0*qw*zik;
+	float dydqy = 2.0*qx*xik+2.0*qz*zik;
+	float dydqz = 2.0*qw*xik-4.0*qz*yik+2.0*qy*zik;
+	float dydx = 0.0;
+	float dydy = dkc;
+	float dydz = 0.0;
+
+	//partials of z
+	float dzdqw = 2.0*(qz-qy)*xik+2.0*qx*yik;
+	float dzdqx = 2.0*qw*yik-4.0*qx*zik;
+	float dzdqy = -2.0*qw*xik+2.0*qz*yik-4.0*qy*zik;
+	float dzdqz = 2.0*qw*xik+2.0*qy*yik;
+	float dzdx = 0.0;
+	float dzdy = 0.0;
+	float dzdz = dkc;
+
+	Eigen::Matrix<float,2,7> Ji;
+	Ji << (dudxi1*dxdqw-dudxi2*dzdqw),(dudxi1*dxdqx-dudxi2*dzdqx),(dudxi1*dxdqy-dudxi2*dzdqy),(dudxi1*dxdqz-dudxi2*dzdqz),(dudxi1*dxdx-dudxi2*dzdx),(dudxi1*dxdy-dudxi2*dzdy),(dudxi1*dxdz-dudxi2*dzdz),
+	      (dvdxi1*dydqw-dvdxi2*dzdqw),(dvdxi1*dydqx-dvdxi2*dzdqx),(dvdxi1*dydqy-dvdxi2*dzdqy),(dvdxi1*dydqz-dvdxi2*dzdqz),(dvdxi1*dydx-dvdxi2*dzdx),(dvdxi1*dydy-dvdxi2*dzdy),(dvdxi1*dydz-dvdxi2*dzdz);
+	return Ji;
+}
+
 Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc)
 {
 	// jacobian for reprojection into key frame or generally, any previous frame

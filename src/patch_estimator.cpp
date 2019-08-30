@@ -268,7 +268,7 @@ bool PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 	std::cout << "\n onesMat.size() \n" << onesMat.size() << std::endl;
 
 	//find the best corners in the masked image
-	cv::goodFeaturesToTrack(image,ptCorners,30,0.1,50,mask,7);
+	cv::goodFeaturesToTrack(image,ptCorners,30,0.05,50,mask,7);
 	std::cout << "\n ptCorners.size() " << ptCorners.size() << std::endl;
 	std::cout << "\n minFeaturesBad " << minFeaturesBad << std::endl;
 
@@ -798,46 +798,30 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 	std::cout << "\n timeFromStart " << timeFromStart << std::endl;
 	std::cout << "\n dt " << dt << std::endl;
 
-	// pckHat += (rotatevec(vc,qckHat)*dt);
-	// qckHat += (0.5*B(qckHat)*wc*dt);
-	// qckHat /= qckHat.norm();
-	// pkcHat = rotatevec(-pckHat,getqInv(qckHat));
-	// qkcHat = getqInv(qckHat);
-	// qkcHat /= qkcHat.norm();
-	Eigen::Vector3f pkpHat = pkcHat;
-	Eigen::Vector3f pckH = -rotatevec(pkcHat,getqInv(qkcHat)) + rotatevec(vc,getqInv(qkcHat))*dt;
-	pkcHat = -rotatevec(pckH,qkcHat);
+	Eigen::Vector3f pkcHatDot = -getss(wc)*pkcHat-vc;
+	Eigen::Vector4f qkcHatDot = -0.5*B(qkcHat)*wc;
 
-	// pkcHat += ((-vc-getss((wc))*pkcHat)*dt);
-	Eigen::Vector4f qkpHat = qkcHat;
-	qkcHat += (-0.5*B(qkcHat)*(wc)*dt);
+	if (tkcHat.norm()>0.01)
+	{
+		float dkcHatDot = (-float(tkcHat.transpose()*vc))/(tkcHat.norm());
+		dkcHat += (dkcHatDot*dt);
+	}
+
+	pkcHat += (pkcHatDot*dt);
+	qkcHat += (qkcHatDot*dt);
 	qkcHat /= qkcHat.norm();
 
 	Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 	Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
 
-
-	//
-	// if (firstkp)
-	// {
-	// 	pkp = pkc;
-	// 	qkp = qkc;
-	// 	firstkp = false;
-	// }
-
-	// Eigen::Vector4f qpcHat = getqMat(qkc)*getqInv(qkp);
-	// qpcHat /= qpcHat.norm();
-	// Eigen::Vector3f ppcHat = pkc - rotatevec(pkp,qpcHat);
-
 	if ((pcw-ppw).norm() < 0.001)
 	{
-		qcw += (0.5*B(qcw)*wc*dt);
+		Eigen::Vector4f qcwDot = 0.5*B(qcw)*wc;
+		Eigen::Vector3f pcwDot = rotatevec(vc,qcw);
+		pcw += pcwDot*dt;
+		qcw += qcwDot*dt;
 		qcw /= qcw.norm();
-		pcw += (rotatevec(vc,qcw)*dt);
 	}
-
-	// pkp = pkc;
-	// qkp = qkc;
 
 	Eigen::Vector4f qpc = getqMat(getqInv(qcw))*qpw;
 	qpc /= qpc.norm();
@@ -1157,13 +1141,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	featureMutex.lock();
 	int numberPts = int(depthEstimators.size());
 	featureMutex.unlock();
-	// Eigen::MatrixXf XY1ICL = Eigen::MatrixXf::Ones(numberPts,3);
-	// Eigen::MatrixXf XY1ICLk = Eigen::MatrixXf::Ones(numberPts,3);
-	// Eigen::MatrixXf XY1TICL = Eigen::MatrixXf::Ones(3,numberPts);
-	// Eigen::MatrixXf XY1TICLk = Eigen::MatrixXf::Ones(3,numberPts);
-	// Eigen::VectorXf NZICL = Eigen::VectorXf::Zero(numberPts);
-	// Eigen::VectorXf NZICLk = Eigen::VectorXf::Zero(numberPts);
-	// int itIdx = 0;
 
 	//get the points from the previous image
 	std::vector<cv::Point2f> pPts(numberPts),cPts(numberPts),kPts(numberPts);
@@ -1191,25 +1168,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		std::cout << " ptix " << (*itp).x << " ptiy " << (*itp).y << std::endl;
 		std::cout << " ctix " << (*itc).x << " ctiy " << (*itc).y << std::endl;
 
-		// //add each point
-		// Eigen::Vector3f uip = mpp/mpp.norm();
-		// Eigen::Vector3f pipICL = uip*((*itD)->dcHatICLExt);
-		// Eigen::Vector3f mik = (*itD)->mk;
-		// Eigen::Vector3f uik = mik/mik.norm();
-		// Eigen::Vector3f pikICL = uik*((*itD)->dkHatICLExt);
-		//
-		// XY1ICL(itIdx,0) = pipICL(0);
-		// XY1ICL(itIdx,1) = pipICL(1);
-		// XY1TICL(0,itIdx) = pipICL(0);
-		// XY1TICL(1,itIdx) = pipICL(1);
-		// NZICL(itIdx) = -pipICL(2);
-		// XY1ICLk(itIdx,0) = pikICL(0);
-		// XY1ICLk(itIdx,1) = pikICL(1);
-		// XY1TICLk(0,itIdx) = pikICL(0);
-		// XY1TICLk(1,itIdx) = pikICL(1);
-		// NZICLk(itIdx) = -pikICL(2);
-		// itIdx++;
-
 		itk++;
 		itp++;
 		itc++;
@@ -1218,60 +1176,12 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	avgNumSaved /= float(numberPts);
 	avgNumThrown /= float(numberPts);
 
-	// Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
-	// Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
-	// Eigen::Matrix3f XYXYICLk = XY1TICLk*XY1ICLk;
-	// Eigen::Vector3f XYNZICLk = XY1TICLk*NZICLk;
-	// float XYXYdet = float(XYXYICL.determinant());
-	// Eigen::Vector3f np(0.0,0.0,1.0),nk(0.0,0.0,1.0);
-	// float dp = 1.0;
-	// float dk = 1.0;
-	// Eigen::Matrix3f GICLf = Eigen::Matrix3f::Identity();
-	// cv::Mat GICL(cv::Size(3,3),CV_64F);
-	//
-	// if (XYXYdet > 0.001)
-	// {
-	// 	Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
-	// 	Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);
-	// 	np = Eigen::Vector3f(dnzICL(0),dnzICL(1),1.0);
-	// 	np /= np.norm();
-	// 	dp = -dnzICL(2)*np(2);
-	// 	Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICLk(XYXYICLk, Eigen::ComputeThinU | Eigen::ComputeThinV);
-	// 	Eigen::Vector3f dnzICLk = svdXYXYICLk.solve(XYNZICLk);
-	// 	nk = Eigen::Vector3f(dnzICLk(0),dnzICLk(1),1.0);
-	// 	nk /= nk.norm();
-	// 	dk = -dnzICLk(2)*nk(2);
-	// 	GICLf = camMatf*((ppcHat*np.transpose())/dp + getqRot(qpcHat))*camMatIf;
-	// 	GICLf /= GICLf(2,2);
-	// }
-
-	// GICLf = camMatf*((ppcHat*np.transpose())/dp + getqRot(qpcHat))*camMatIf;
-	// GICLf /= GICLf(2,2);
-
-	// Eigen::Vector3f nkRot = rotatevec(nk,qkcHat);
-	// nkRot /= nkRot.norm();
-	// float nDifAngRot = 180.0/3.1415*acos(float(np.transpose()*nkRot));
-	// float nDifAng = 180.0/3.1415*acos(float(np.transpose()*nk));
 	float qAng = 180.0/3.1415*acos(qkc(0))*2.0;
 	cv::Rect currentBound = cv::boundingRect(cPts);
 
-	// std::cout << "\n XY1ICL \n" << XY1ICL << std::endl;
-	// std::cout << "\n XY1ICLk \n" << XY1ICLk << std::endl;
-	// std::cout << "\n NZICL \n" << NZICL << std::endl;
-	// std::cout << "\n NZICLk \n" << NZICLk << std::endl;
-	// std::cout << "\n dp " << dp << std::endl;
-	// std::cout << "\n dk " << dk << std::endl;
-	// std::cout << "\n npx " << np(0) << " npy " << np(1) << " npz " << np(2) << std::endl;
-	// std::cout << "\n nkx " << nk(0) << " nky " << nk(1) << " nkz " << nk(2) << std::endl;
-	// std::cout << "\n nkRotx " << nkRot(0) << " nkRoty " << nkRot(1) << " nkRotz " << nkRot(2) << std::endl;
-	// std::cout << "\n nDifAng " << nDifAng << std::endl;
-	// std::cout << "\n nDifAngRot " << nDifAngRot << std::endl;
 	std::cout << "\n qAng " << qAng << std::endl;
 	std::cout << "\n avgNumSaved " << avgNumSaved << std::endl;
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
-	// std::cout << "\n ppcHat \n" << ppcHat << std::endl;
-	// std::cout << "\n qpcHat \n" << qpcHat << std::endl;
-	// std::cout << "\n GICLf \n" << GICLf << std::endl;
 
 	// if (normGood && angGood)
 	if ((qAng < 30.0) && (currentBound.width > 200) && (currentBound.height > 200))
@@ -1297,7 +1207,21 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 			// {
 			// 	std::cout << "b cptx " << (*itpp).x << " cpty " << (*itpp).y << std::endl;
 			// }
-			cv::Mat G = cv::estimateAffine2D(pPts, cPts, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
+			std::vector<cv::Point2f> pPtsTemp = pPts;
+			std::vector<cv::Point2f> cPtsTemp = cPts;
+			cv::Mat G = cv::estimateAffine2D(pPtsTemp, cPtsTemp, inliersAffine, cv::RANSAC, 4.0, 2000, 0.99, 10);//calculate affine transform using RANSAC
+			// cv::Mat GG = cv::findHomography(pPts, cPts, cv::RANSAC, 8.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
+			// cv::Mat G = cv::Mat(2,3,CV_64F);
+			// for (int ii = 0; ii < 6; ii++)
+			// {
+			// 	G.at<double>(ii/3,ii%3) = GG.at<double>(ii/3,ii%3);
+			// }
+
+			for (int ii = 0; ii < cPts.size(); ii++)
+			{
+				std::cout << " ptix " << pPts.at(ii).x << " ptiy " << pPts.at(ii).y << std::endl;
+				std::cout << " ctix " << cPts.at(ii).x << " ctiy " << cPts.at(ii).y << std::endl;
+			}
 			// cv::Mat G = cv::findHomography(pPts, cPts, cv::RANSAC, 0.05, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
 			// cv::Mat G = cv::findHomography(pPts, cPts, cv::RANSAC, 3.0, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
 			// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 0.05, inliersAffine, 2000, 0.99);//calculate homography using RANSAC
@@ -1842,7 +1766,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				// 	*itcPred = cv::Point2f(std::round(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x+1.0),std::round(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y+1.0));
 				// }
 
-				if ((maxResultVal > 0.6) && (minResultVal < 0.2))
+				if ((maxResultVal > 0.6) && (minResultVal < 0.3))
 				{
 					if (allPtsKnown)
 					{
@@ -2029,8 +1953,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			cv::eigen2cv(pkc,tvec);
 			// std::cout << "rvecPnPkb \n" << rvec << std::endl;
 			// std::cout << "tvecPnPkb \n" << tvec << std::endl;
-			usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-			// usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true);
+			// usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true);
 			// std::cout << "rvecPnPka \n" << rvec << std::endl;
 			// std::cout << "tvecPnPka \n" << tvec << std::endl;
 
@@ -2055,69 +1979,96 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			}
 		}
 
-		// {
-		// 	// std::cout << "\n tryingPnP current \n" << std::endl;
-		// 	std::vector<cv::Point3f> cPts3(depthEstimators.size());
-		// 	std::vector<cv::Point3f>::iterator cPts3it = cPts3.begin();
-		// 	std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
-		// 	Eigen::Vector3f uci;
-		// 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
-		// 	{
-		// 		uci = Eigen::Vector3f(((*cPtsit).x-cx)/fx,((*cPtsit).y-cy)/fy,1.0);
-		// 		uci /= uci.norm();
-		// 		float dcHati = (*itD)->dcHatICLExt;
-		// 		(*cPts3it).x = uci(0)*dcHati;
-		// 		(*cPts3it).y = uci(1)*dcHati;
-		// 		(*cPts3it).z = uci(2)*dcHati;
-		// 		cPts3it++;
-		// 		cPtsit++;
-		// 	}
-		//
-		// 	Eigen::Matrix3f RckHatPnPf = getqRot(getqInv(qkc));
-		// 	cv::Mat RckHatPnP;
-		// 	cv::eigen2cv(RckHatPnPf,RckHatPnP);
-		// 	cv::Mat rvec(cv::Size(1,3),CV_32F);
-		// 	cv::Mat tvec(cv::Size(1,3),CV_32F);
-		// 	cv::Rodrigues(RckHatPnP,rvec);
-		// 	Eigen::Vector3f pck = -rotatevec(pkc,getqInv(qkc));
-		// 	cv::eigen2cv(pck,tvec);
-		// 	// std::cout << "rvecPnPcb \n" << rvec << std::endl;
-		// 	// std::cout << "tvecPnPcb \n" << tvec << std::endl;
-		// 	usePnPc = cv::solvePnP(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-		// 	// usePnP = cv::solvePnPRansac(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true);
-		// 	// std::cout << "rvecPnPca \n" << rvec << std::endl;
-		// 	// std::cout << "tvecPnPca \n" << tvec << std::endl;
-		//
-		//
-		// 	if (usePnPc)
-		// 	{
-		// 		cv::Rodrigues(rvec,RckHatPnP);
-		// 		cv::cv2eigen(RckHatPnP,RckHatPnPf);
-		// 		Eigen::Quaternionf qckPnPq(RckHatPnPf);// convert to quaternion
-		// 		Eigen::Vector4f qckPnP;
-		// 		qckPnP << qckPnPq.w(),qckPnPq.x(),qckPnPq.y(),qckPnPq.z();
-		// 		qkcPnPc = getqInv(qckPnP);
-		// 		qkcPnPc /= qkcPnPc.norm();
-		// 		Eigen::Vector3f tckPnP;
-		// 		cv::cv2eigen(tvec,tckPnP);
-		// 		tkcPnPc = -rotatevec(tckPnP,qkcPnPc);
-		// 		float tkcPnPNorm = tkcPnPc.norm();
-		// 		if (tkcPnPNorm>0.001)
-		// 		{
-		// 			tkcPnPc /= tkcPnPNorm;
-		// 		}
-		// 		std::cout << std::endl;
-		// 		// std::cout << "dkcPnPc \n" << tkcPnPNorm << std::endl;
-		// 		// std::cout << "tkcPnPc \n" << tkcPnPc << std::endl;
-		// 		// std::cout << "qkcPnPc \n" << qkcPnPc << std::endl;
-		// 	}
-		// }
+		{
+			// std::cout << "\n tryingPnP current \n" << std::endl;
+			std::vector<cv::Point3f> cPts3(depthEstimators.size());
+			std::vector<cv::Point3f>::iterator cPts3it = cPts3.begin();
+			std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
+			Eigen::Vector3f uci;
+			for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
+			{
+				uci = Eigen::Vector3f(((*cPtsit).x-cx)/fx,((*cPtsit).y-cy)/fy,1.0);
+				uci /= uci.norm();
+				float dcHati = (*itD)->dcHatICLExt;
+				(*cPts3it).x = uci(0)*dcHati;
+				(*cPts3it).y = uci(1)*dcHati;
+				(*cPts3it).z = uci(2)*dcHati;
+				cPts3it++;
+				cPtsit++;
+			}
+
+			Eigen::Matrix3f RckHatPnPf = getqRot(getqInv(qkc));
+			cv::Mat RckHatPnP;
+			cv::eigen2cv(RckHatPnPf,RckHatPnP);
+			cv::Mat rvec(cv::Size(1,3),CV_32F);
+			cv::Mat tvec(cv::Size(1,3),CV_32F);
+			cv::Rodrigues(RckHatPnP,rvec);
+			Eigen::Vector3f pck = -rotatevec(pkc,getqInv(qkc));
+			cv::eigen2cv(pck,tvec);
+			// std::cout << "rvecPnPcb \n" << rvec << std::endl;
+			// std::cout << "tvecPnPcb \n" << tvec << std::endl;
+			// usePnPc = cv::solvePnP(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			usePnPc = cv::solvePnPRansac(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true);
+			// std::cout << "rvecPnPca \n" << rvec << std::endl;
+			// std::cout << "tvecPnPca \n" << tvec << std::endl;
+
+
+			if (usePnPc)
+			{
+				cv::Rodrigues(rvec,RckHatPnP);
+				cv::cv2eigen(RckHatPnP,RckHatPnPf);
+				Eigen::Quaternionf qckPnPq(RckHatPnPf);// convert to quaternion
+				Eigen::Vector4f qckPnP;
+				qckPnP << qckPnPq.w(),qckPnPq.x(),qckPnPq.y(),qckPnPq.z();
+				qkcPnPc = getqInv(qckPnP);
+				qkcPnPc /= qkcPnPc.norm();
+				Eigen::Vector3f tckPnP;
+				cv::cv2eigen(tvec,tckPnP);
+				tkcPnPc = -rotatevec(tckPnP,qkcPnPc);
+				float tkcPnPNorm = tkcPnPc.norm();
+				if (tkcPnPNorm>0.001)
+				{
+					tkcPnPc /= tkcPnPNorm;
+				}
+				std::cout << std::endl;
+				// std::cout << "dkcPnPc \n" << tkcPnPNorm << std::endl;
+				// std::cout << "tkcPnPc \n" << tkcPnPc << std::endl;
+				// std::cout << "qkcPnPc \n" << qkcPnPc << std::endl;
+			}
+		}
 
 		// cv::Mat inliersG1;
-		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 4.0);//calculate homography using RANSAC
-		cv::Mat G = cv::findHomography(kPts, cPts, 0);//calculate homography using RANSAC
-		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,4.0);
-		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_8POINT);
+		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 4.0);//calculate homography using RANSAC
+		// cv::Mat G = cv::findHomography(kPts,cPts,0);//calculate homography using RANSAC
+		float G11 = G.at<double>(0,0);
+		float G12 = G.at<double>(0,1);
+		float G13 = G.at<double>(0,2);
+		float G21 = G.at<double>(2,0);
+		float G22 = G.at<double>(2,1);
+		float G23 = G.at<double>(2,2);
+		float G31 = G.at<double>(3,0);
+		float G32 = G.at<double>(3,1);
+		float G33 = G.at<double>(3,2);
+		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,4.0);
+		// cv::Mat F = cv::findFundamentalMat(kPts,cPts,cv::FM_8POINT);
+		float F11 = F.at<double>(0,0);
+		float F12 = F.at<double>(0,1);
+		float F13 = F.at<double>(0,2);
+		float F21 = F.at<double>(2,0);
+		float F22 = F.at<double>(2,1);
+		float F23 = F.at<double>(2,2);
+		float F31 = F.at<double>(3,0);
+		float F32 = F.at<double>(3,1);
+		float F33 = F.at<double>(3,2);
+
+		// //find which has lower reprojection error
+		// std::vector<float> Gerror(kPts.size());
+		// std::vector<float> Ferror(kPts.size());
+		// for (int ii = 0; i < kPts.size(); ii++)
+		// {
+		// 	Gerror.at(ii) = fabsf((G11*kPts.at(ii).x+G12*kPts.at(ii).y+G13)/(G31*kPts.at(ii).x+G32*kPts.at(ii).y+G33));
+		// }
+
 		cv::Mat E = camMatD.t()*F*camMatD;
 		cv::Mat R1,R2,tt;
 		cv::decomposeEssentialMat(E,R1,R2,tt);
@@ -2183,27 +2134,33 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 						errors.push_back((qkc - qkcPnPk).norm());
 						tkcs.push_back(Eigen::Vector3f::Zero());
 					}
+
+					std::cout << "\n qkcwPNPK " << qkcPnPk(0) << " qkcxPNPK " << qkcPnPk(1) << " qkcyPNPK " << qkcPnPk(2) << " qkczPNPK " << qkcPnPk(3) << std::endl;
+					std::cout << "\n tkcxPNPK " << tkcPnPk(0) << " tkcyPNPK " << tkcPnPk(1) << " tkczPNPK " << tkcPnPk(2) << std::endl;
 				}
 
-				// if (usePnPc)
-				// {
-				// 	if ((qkc + qkcPnPc).norm() < (qkc - qkcPnPc).norm())
-				// 	{
-				// 		qkcPnPc *= -1.0;
-				// 	}
-				//
-				// 	qkcs.push_back(qkcPnPc);
-				// 	if ((tkcPnPc.norm() > 0.001) && (pkc.norm() > 0.001))
-				// 	{
-				// 		errors.push_back((qkc - qkcPnPc).norm()+(pkc/pkc.norm()-tkcPnPc).norm());
-				// 		tkcs.push_back(tkcPnPc);
-				// 	}
-				// 	else
-				// 	{
-				// 		errors.push_back((qkc - qkcPnPc).norm());
-				// 		tkcs.push_back(Eigen::Vector3f::Zero());
-				// 	}
-				// }
+				if (usePnPc)
+				{
+					if ((qkc + qkcPnPc).norm() < (qkc - qkcPnPc).norm())
+					{
+						qkcPnPc *= -1.0;
+					}
+
+					qkcs.push_back(qkcPnPc);
+					if ((tkcPnPc.norm() > 0.001) && (pkc.norm() > 0.001))
+					{
+						errors.push_back((qkc - qkcPnPc).norm()+(pkc/pkc.norm()-tkcPnPc).norm());
+						tkcs.push_back(tkcPnPc);
+					}
+					else
+					{
+						errors.push_back((qkc - qkcPnPc).norm());
+						tkcs.push_back(Eigen::Vector3f::Zero());
+					}
+
+					std::cout << "\n qkcwPNPC " << qkcPnPc(0) << " qkcxPNPC " << qkcPnPc(1) << " qkcyPNPC " << qkcPnPc(2) << " qkczPNPC " << qkcPnPc(3) << std::endl;
+					std::cout << "\n tkcxPNPC " << tkcPnPc(0) << " tkcyPNPC " << tkcPnPc(1) << " tkczPNPC " << tkcPnPc(2) << std::endl;
+				}
 
 				if (!F.empty())
 				{
@@ -2233,8 +2190,10 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 					qkcs.push_back(qkc1);
 					qkcs.push_back(qkc2);
+					Eigen::Vector3f tkcF = Eigen::Vector3f::Zero();
 					if ((tkct.norm() > 0.001) && (pkc.norm() > 0.001))
 					{
+						tkcF = tkct/tkct.norm();
 						errors.push_back((qkc - qkc1).norm()+(pkc/pkc.norm()-tkct/tkct.norm()).norm());
 						errors.push_back((qkc - qkc2).norm()+(pkc/pkc.norm()-tkct/tkct.norm()).norm());
 						tkcs.push_back(tkct/tkct.norm());
@@ -2247,6 +2206,9 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 						tkcs.push_back(Eigen::Vector3f::Zero());
 						tkcs.push_back(Eigen::Vector3f::Zero());
 					}
+					std::cout << "\n qkcwF1 " << qkc1(0) << " qkcxF1 " << qkc1(1) << " qkcyF1 " << qkc1(2) << " qkczF1 " << qkc1(3) << std::endl;
+					std::cout << "\n qkcwF2 " << qkc2(0) << " qkcxF2 " << qkc2(1) << " qkcyF2 " << qkc2(2) << " qkczF2 " << qkc2(3) << std::endl;
+					std::cout << "\n tkcxF " << tkcF(0) << " tkcyF " << tkcF(1) << " tkczF " << tkcF(2) << std::endl;
 				}
 
 				assert(numberHomogSols>0);
@@ -2288,15 +2250,13 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 							qkcj *= -1.0;
 						}
 
-						// std::cout << "\n qkcjw " << qkcj(0) << " qkcjx " << qkcj(1) << " qkcjy " << qkcj(2) << " qkcjz " << qkcj(3) << std::endl;
-						// std::cout << "\n tkcjx " << tkcj(0) << " tkcjy " << tkcj(1) << " tkcjz " << tkcj(2) << std::endl;
-						// std::cout << "\n nkjx " << nkj(0) << " nkjy " << nkj(1) << " nkjz " << nkj(2) << std::endl;
-
 						// nks.push_back(nkj);
 
 						qkcs.push_back(qkcj);
+						Eigen::Vector3f tkcjN = Eigen::Vector3f::Zero();
 						if ((tkcj.norm() > 0.001) && (pkc.norm() > 0.001))
 						{
+							tkcjN = tkcj/tkcj.norm();
 							errors.push_back((qkc - qkcj).norm()+(pkc/pkc.norm()-tkcj/tkcj.norm()).norm());
 							tkcs.push_back(tkcj/tkcj.norm());
 						}
@@ -2305,8 +2265,13 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 							errors.push_back((qkc - qkcj).norm());
 							tkcs.push_back(Eigen::Vector3f::Zero());
 						}
+
+						std::cout << "\n qkcjwH " << qkcj(0) << " qkcjxH " << qkcj(1) << " qkcjyH " << qkcj(2) << " qkcjzH " << qkcj(3) << std::endl;
+						std::cout << "\n tkcjxH " << tkcjN(0) << " tkcjyH " << tkcjN(1) << " tkcjzH " << tkcjN(2) << std::endl;
+						// std::cout << "\n nkjx " << nkj(0) << " nkjy " << nkj(1) << " nkjz " << nkj(2) << std::endl;
 					}
 				}
+
 
 				int minqkcsErrorInd = std::distance(errors.begin(),std::min_element(errors.begin(),errors.end()));
 
@@ -2322,6 +2287,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					tkcEst = tkcs.at(minqkcsErrorInd);
 				}
 
+				std::cout << "\n qkcs.size " << qkcs.size() << std::endl;
 				std::cout << "\n minqkcsErrorInd " << minqkcsErrorInd << std::endl;
 				std::cout << "\n qkcEstb " << qkcEst.transpose() << std::endl;
 				std::cout << "\n tkcEstb " << tkcEst.transpose() << std::endl;
@@ -2344,418 +2310,112 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			tkc =  pkc/pkc.norm();
 		}
 
-		// if (allPtsKnown)
-		// if (allPtsKnown)
-		// {
-		// 	int numPts = kPts.size();
-		// 	std::vector<cv::Point2f>::iterator kPtsit = kPts.begin();
-		// 	std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
-		// 	Eigen::VectorXf Eb,Xb;
-		// 	int bundleIterations = 0;
-		// 	if (false)
-		// 	{
-		// 		Eigen::MatrixXf Jb = Eigen::MatrixXf::Zero(3*numPts,7+3*numPts);
-		// 		Eigen::VectorXf fb = Eigen::VectorXf::Zero(3*numPts);
-		// 		Eigen::VectorXf bb = Eigen::VectorXf::Zero(3*numPts);
-		// 		Xb = Eigen::VectorXf::Zero(7+3*numPts);
-		// 		int bundleIndex = 0;
-		//
-		// 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
-		// 		{
-		// 			float dicHat = (*itD)->dcHatICLExt;
-		// 			float uic = (*cPtsit).x;
-		// 			float vic = (*cPtsit).y;
-		// 			Eigen::Vector3f pic((uic-cx)/fx,(vic-cy)/fy,1.0);
-		// 			pic /= pic.norm();
-		// 			pic *= dicHat;
-		// 			float zic = pic(2);
-		// 			float uik = (*kPtsit).x;
-		// 			float vik = (*kPtsit).y;
-		// 			float dikHat = (*itD)->dkHatICLExt;
-		// 			Eigen::Vector3f pik((uik-cx)/fx,(vik-cy)/fy,1.0);
-		// 			pik /= pik.norm();
-		// 			pik *= dikHat;
-		// 			float zik = pik(2);
-		// 			Eigen::Matrix<float,3,10> Ji = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,qkcEst,tkcEst*dkcHat,true);
-		// 			Eigen::Vector3f fi = localBundleProjection(fx,fy,cx,cy,uic,vic,zic,qkcEst,tkcEst*dkcHat,true);
-		// 			Eigen::Vector3f bi(uik,vik,zik);
-		// 			Eigen::Vector3f Xi(uic,vic,zic);
-		// 			Jb.block(bundleIndex*3,bundleIndex*3,3,3) = Ji.block(0,0,3,3);
-		// 			Jb.block(bundleIndex*3,numPts*3,3,7) = Ji.block(0,3,3,7);
-		// 			Xb.segment(bundleIndex*3,3) = Xi;
-		// 			fb.segment(bundleIndex*3,3) = fi;
-		// 			bb.segment(bundleIndex*3,3) = bi;
-		// 			bundleIndex++;
-		// 			kPtsit++;
-		// 			cPtsit++;
-		// 		}
-		// 		Xb.segment(numPts*3,4) = qkcEst;
-		// 		Xb.segment(numPts*3+4,3) = tkcEst*dkcHat;
-		//
-		// 		Eigen::VectorXf Xb0 = Xb;
-		// 		// std::cout << "\n Xb0 \n" << Xb0 << std::endl;
-		// 		Eb = bb - fb;
-		// 		// std::cout << "\n Eb0 \n" << Eb << std::endl;
-		// 		Eigen::MatrixXf IIb = Eigen::MatrixXf::Identity(7+3*numPts,7+3*numPts);
-		// 		Eigen::MatrixXf JbT = Jb.transpose();
-		// 		Eigen::MatrixXf JbJb = JbT*Jb + 0.01*IIb;
-		// 		Eigen::MatrixXf JbEb = JbT*Eb;
-		// 		while ((Eb.norm()/(2.0*numPts) > 4.0) && !ros::isShuttingDown() && (bundleIterations < 5))
-		// 		{
-		// 			//determine the new delta and update Xb
-		// 			if (bundleIterations > 0)
-		// 			{
-		// 				JbT = Jb.transpose();
-		// 				JbJb = JbT*Jb + 0.1*IIb;
-		// 				JbEb = JbT*Eb;
-		// 			}
-		// 			// Eigen::JacobiSVD<Eigen::MatrixXf> svdJbJbf(JbJb, Eigen::ComputeThinU | Eigen::ComputeThinV);
-		// 			// Eigen::VectorXf DXb = svdJbJbf.solve(JbEb);
-		// 			Eigen::VectorXf DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
-		//
-		// 			Xb += DXb;
-		//
-		// 			// std::cout << "\n DXb \n" << DXb << std::endl;
-		// 			// std::cout << "\n Xb \n" << Xb << std::endl;
-		//
-		// 			Eigen::Vector4f qkcb = Xb.segment(numPts*3,4);
-		// 			Eigen::Vector3f pkcb = Xb.segment(numPts*3+4,3);
-		// 			//update the jacobian and projection
-		// 			for (int ii = 0; ii < numPts; ii++)
-		// 			{
-		// 				// std::cout << "\n ii " << ii;
-		// 				float uic = Xb(3*ii);
-		// 				// std::cout << ", uic " << uic;
-		// 				float vic = Xb(3*ii+1);
-		// 				// std::cout << ", vic " << vic;
-		// 				float zic = Xb(3*ii+2);
-		// 				// std::cout << ", zic " << zic << std::endl;
-		// 				Eigen::Matrix<float,3,10> Ji = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,qkcb,pkcb,true);
-		// 				// std::cout << ", Ji \n" << Ji << std::endl;
-		// 				Eigen::Vector3f fi = localBundleProjection(fx,fy,cx,cy,uic,vic,zic,qkcb,pkcb,true);
-		// 				// std::cout << ", uikP " << fi(0);
-		// 				// std::cout << ", vikP " << fi(1);
-		// 				Jb.block(ii*3,ii*3,3,3) = Ji.block(0,0,3,3);
-		// 				Jb.block(ii*3,numPts*3,3,7) = Ji.block(0,3,3,7);
-		// 				fb.segment(ii*3,3) = fi;
-		// 				cPts.at(ii) = cv::Point2f(uic,vic);
-		// 			}
-		//
-		// 			//update the error
-		// 			Eb = bb - fb;
-		// 			// std::cout << "\n Eb \n" << Eb << std::endl;
-		// 			// std::cout << "\n Xb \n" << Xb << std::endl;
-		// 			bundleIterations++;
-		// 		}
-		// 	}
-		// 	else
-		// 	{
-		// 		Eigen::MatrixXf Jb = Eigen::MatrixXf::Zero(3*numPts+2,7);
-		// 		Eigen::VectorXf fb = Eigen::VectorXf::Zero(3*numPts+2);
-		// 		Eigen::VectorXf bb = Eigen::VectorXf::Zero(3*numPts+2);
-		// 		Xb = Eigen::VectorXf::Zero(7);
-		// 		int bundleIndex = 0;
-		// 		Eigen::VectorXf piks = Eigen::VectorXf::Zero(3*numPts);
-		// 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
-		// 		{
-		// 			float dicHat = (*itD)->dcHatICLExt;
-		// 			float uic = (*cPtsit).x;
-		// 			float vic = (*cPtsit).y;
-		// 			Eigen::Vector3f pic((uic-cx)/fx,(vic-cy)/fy,1.0);
-		// 			pic /= pic.norm();
-		// 			pic *= dicHat;
-		// 			float zic = pic(2);
-		// 			float uik = (*kPtsit).x;
-		// 			float vik = (*kPtsit).y;
-		// 			float dikHat = (*itD)->dkHatICLExt;
-		// 			Eigen::Vector3f pik((uik-cx)/fx,(vik-cy)/fy,1.0);
-		// 			pik /= pik.norm();
-		// 			pik *= dikHat;
-		// 			piks.segment(3*bundleIndex,3) = pik;
-		// 			// Eigen::Matrix<float,3,7> Ji = localBundleJacobian(pik,qkc,pkc);
-		// 			// Eigen::Vector3f fi = pkc + rotatevec(pik,qkc);
-		// 			Eigen::Vector3f bi = pic;
-		// 			Jb.block(bundleIndex*3,0,3,7) = localBundleJacobian(pik,qkcEst,tkcEst,dkcHat);
-		// 			fb.segment(bundleIndex*3,3) = tkcEst*dkcHat + rotatevec(pik,qkcEst);
-		// 			bb.segment(bundleIndex*3,3) = bi;
-		// 			bundleIndex++;
-		// 			kPtsit++;
-		// 			cPtsit++;
-		// 		}
-		// 		Jb.block(3*numPts,0,2,7) = localBundleJacobianNorm(qkcEst,tkcEst);
-		// 		fb.segment(3*numPts,2) = Eigen::Vector2f(qkcEst.transpose()*qkcEst-1.0,tkcEst.transpose()*tkcEst-1.0);
-		// 		bb.segment(3*numPts,2) = Eigen::Vector2f::Zero();
-		// 		Xb.segment(0,4) = qkcEst;
-		// 		Xb.segment(4,3) = tkcEst;
-		// 		// Xb.segment(0,4) = qkc;
-		// 		// Xb.segment(4,3) = pkc;
-		//
-		// 		Eigen::VectorXf Xb0 = Xb;
-		// 		// std::cout << "\n Jb0 \n" << Jb << std::endl;
-		// 		// std::cout << "\n Xb0 \n" << Xb0.transpose() << std::endl;
-		// 		Eb = bb - fb;
-		// 		// std::cout << "\n Eb0 \n" << Eb.transpose() << std::endl;
-		// 		Eigen::MatrixXf IIb = Eigen::MatrixXf::Identity(7,7);
-		// 		Eigen::MatrixXf JbT = Jb.transpose();
-		// 		// Eigen::MatrixXf JbJb = JbT*Jb + 0.0001*IIb;
-		// 		Eigen::MatrixXf JbJb = JbT*Jb+0.001*IIb;
-		// 		Eigen::MatrixXf JbEb = JbT*Eb;
-		// 		Eigen::VectorXf DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
-		// 		while ((Eb.norm()/(2.0*numPts) > 0.001) && !ros::isShuttingDown() && (bundleIterations < 100) && (DXb.norm() > 0.0000001))
-		// 		{
-		// 			//determine the new delta and update Xb
-		// 			if (bundleIterations > 0)
-		// 			{
-		// 				JbT = Jb.transpose();
-		// 				JbJb = JbT*Jb+0.001*IIb;
-		// 				JbEb = JbT*Eb;
-		// 				DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
-		// 			}
-		// 			// Eigen::JacobiSVD<Eigen::MatrixXf> svdJbJbf(JbJb, Eigen::ComputeThinU | Eigen::ComputeThinV);
-		// 			// Eigen::VectorXf DXb = svdJbJbf.solve(JbEb);
-		//
-		//
-		// 			Xb += 0.75*DXb;
-		//
-		// 			// std::cout << "\n DXb " << DXb.transpose() << std::endl;
-		// 			// std::cout << "\n DXb.norm() " << DXb.norm() << std::endl;
-		// 			// std::cout << "\n Xb \n" << Xb.transpose() << std::endl;
-		//
-		// 			Eigen::Vector4f qkcb = Xb.segment(0,4);
-		// 			// qkcb /= qkcb.norm();
-		// 			Eigen::Vector3f tkcb = Xb.segment(4,3);
-		// 			//update the jacobian and projection
-		// 			for (int ii = 0; ii < numPts; ii++)
-		// 			{
-		// 				Eigen::Vector3f pik = piks.segment(3*ii,3);
-		// 				Jb.block(ii*3,0,3,7) = localBundleJacobian(pik,qkcb,tkcb,dkcHat);
-		// 				// std::cout << ", uikP " << fi(0);
-		// 				// std::cout << ", vikP " << fi(1);
-		// 				fb.segment(ii*3,3) = tkcb*dkcHat + rotatevec(pik,qkcb);
-		// 			}
-		// 			Jb.block(3*numPts,0,2,7) = localBundleJacobianNorm(qkcb,tkcb);
-		// 			fb.segment(3*numPts,2) = Eigen::Vector2f(qkcb.transpose()*qkcb-1.0,tkcb.transpose()*tkcb-1.0);
-		//
-		// 			//update the error
-		// 			Eb = bb - fb;
-		// 			// std::cout << "\n Jb \n" << Jb << std::endl;
-		// 			// std::cout << "\n fb \n" << fb.transpose() << std::endl;
-		// 			// std::cout << "\n Eb \n" << Eb.transpose() << std::endl;
-		// 			// std::cout << "\n Xb \n" << Xb.transpose() << std::endl;
-		// 			bundleIterations++;
-		// 		}
-		// 	}
-			// else
-			// {
-			// 	Eigen::MatrixXf Jb = Eigen::MatrixXf::Zero(2*numPts,7+numPts);
-			// 	Eigen::VectorXf fb = Eigen::VectorXf::Zero(2*numPts);
-			// 	Eigen::VectorXf bb = Eigen::VectorXf::Zero(2*numPts);
-			// 	Xb = Eigen::VectorXf::Zero(7+numPts);
-			// 	int bundleIndex = 0;
-			//
-			// 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
-			// 	{
-			// 		float dicHat = (*itD)->dcHatICLExt;
-			// 		float uic = (*cPtsit).x;
-			// 		float vic = (*cPtsit).y;
-			// 		Eigen::Vector3f pic((uic-cx)/fx,(vic-cy)/fy,1.0);
-			// 		pic /= pic.norm();
-			// 		pic *= dicHat;
-			// 		float zic = pic(2);
-			// 		float uik = (*kPtsit).x;
-			// 		float vik = (*kPtsit).y;
-			// 		Eigen::Matrix<float,2,8> Ji = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,qkcEst,tkcEst*dkcHat);
-			// 		Eigen::Vector2f fi = localBundleProjection(fx,fy,cx,cy,uic,vic,zic,qkcEst,tkcEst*dkcHat);
-			// 		Eigen::Vector2f bi(uik,vik);
-			// 		Jb.block(bundleIndex*2,bundleIndex,2,1) = Ji.block(0,0,2,1);
-			// 		Jb.block(bundleIndex*2,numPts,2,7) = Ji.block(0,1,2,7);
-			// 		Xb(bundleIndex) = zic;
-			// 		fb.segment(bundleIndex*2,2) = fi;
-			// 		bb.segment(bundleIndex*2,2) = bi;
-			// 		bundleIndex++;
-			// 		kPtsit++;
-			// 		cPtsit++;
-			// 	}
-			// 	Xb.segment(numPts,4) = qkcEst;
-			// 	Xb.segment(numPts+4,3) = tkcEst*dkcHat;
-			//
-			// 	Eigen::VectorXf Xb0 = Xb;
-			// 	std::cout << "\n Xb0 \n" << Xb0.transpose() << std::endl;
-			// 	Eb = bb - fb;
-			// 	std::cout << "\n Eb0 \n" << Eb.transpose() << std::endl;
-			// 	Eigen::MatrixXf IIb = Eigen::MatrixXf::Identity(7+numPts,7+numPts);
-			// 	Eigen::MatrixXf JbT = Jb.transpose();
-			// 	// Eigen::MatrixXf JbJb = JbT*Jb + 0.0001*IIb;
-			// 	Eigen::MatrixXf JbJb = JbT*Jb;
-			// 	Eigen::MatrixXf JbEb = JbT*Eb;
-			// 	Eigen::VectorXf DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
-			// 	while ((Eb.norm()/(2.0*numPts) > 1.0) && !ros::isShuttingDown() && (bundleIterations < 10) && (DXb.norm() > 0.0000001))
-			// 	{
-			// 		//determine the new delta and update Xb
-			// 		if (bundleIterations > 0)
-			// 		{
-			// 			JbT = Jb.transpose();
-			// 			JbJb = JbT*Jb;
-			// 			JbEb = JbT*Eb;
-			// 			DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
-			// 		}
-			// 		// Eigen::JacobiSVD<Eigen::MatrixXf> svdJbJbf(JbJb, Eigen::ComputeThinU | Eigen::ComputeThinV);
-			// 		// Eigen::VectorXf DXb = svdJbJbf.solve(JbEb);
-			//
-			//
-			// 		Xb += 0.75*DXb;
-			//
-			// 		std::cout << "\n DXb " << DXb.transpose() << std::endl;
-			// 		std::cout << "\n DXb.norm() " << DXb.norm() << std::endl;
-			// 		// std::cout << "\n Xb \n" << Xb.transpose() << std::endl;
-			//
-			// 		Eigen::Vector4f qkcb = Xb.segment(numPts,4);
-			// 		Eigen::Vector3f pkcb = Xb.segment(numPts+4,3);
-			// 		//update the jacobian and projection
-			// 		for (int ii = 0; ii < numPts; ii++)
-			// 		{
-			// 			// std::cout << "\n ii " << ii;
-			// 			float uic = cPts.at(ii).x;
-			// 			// std::cout << ", uic " << uic;
-			// 			float vic = cPts.at(ii).y;
-			// 			// std::cout << ", vic " << vic;
-			// 			float zic = Xb(ii);
-			// 			// std::cout << ", zic " << zic << std::endl;
-			// 			Eigen::Matrix<float,2,8> Ji = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,qkcb,pkcb);
-			// 			// std::cout << ", Ji \n" << Ji << std::endl;
-			// 			Eigen::Vector2f fi = localBundleProjection(fx,fy,cx,cy,uic,vic,zic,qkcb,pkcb);
-			// 			// std::cout << ", uikP " << fi(0);
-			// 			// std::cout << ", vikP " << fi(1);
-			// 			Jb.block(ii*2,ii,2,1) = Ji.block(0,0,2,1);
-			// 			Jb.block(ii*2,numPts,2,7) = Ji.block(0,1,2,7);
-			// 			fb.segment(ii*2,2) = fi;
-			// 		}
-			//
-			// 		//update the error
-			// 		Eb = bb - fb;
-			// 		std::cout << "\n Eb \n" << Eb.transpose() << std::endl;
-			// 		std::cout << "\n Xb \n" << Xb.transpose() << std::endl;
-			// 		bundleIterations++;
-			// 	}
-			// }
-			// else
-			// {
-			// 	Eigen::MatrixXf Jb = Eigen::MatrixXf::Zero(2*numPts,7+3*numPts);
-			// 	Eigen::VectorXf fb = Eigen::VectorXf::Zero(2*numPts);
-			// 	Eigen::VectorXf bb = Eigen::VectorXf::Zero(2*numPts);
-			// 	Xb = Eigen::VectorXf::Zero(7+3*numPts);
-			// 	int bundleIndex = 0;
-			//
-			// 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
-			// 	{
-			// 		float dicHat = (*itD)->dcHatICLExt;
-			// 		float uic = (*cPtsit).x;
-			// 		float vic = (*cPtsit).y;
-			// 		Eigen::Vector3f pic((uic-cx)/fx,(vic-cy)/fy,1.0);
-			// 		pic /= pic.norm();
-			// 		pic *= dicHat;
-			// 		float zic = pic(2);
-			// 		float uik = (*kPtsit).x;
-			// 		float vik = (*kPtsit).y;
-			// 		Eigen::Matrix<float,2,10> Ji = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,qkcEst,tkcEst*dkcHat);
-			// 		Eigen::Vector2f fi = localBundleProjection(fx,fy,cx,cy,uic,vic,zic,qkcEst,tkcEst*dkcHat);
-			// 		Eigen::Vector2f bi(uik,vik);
-			// 		Eigen::Vector3f Xi(uic,vic,zic);
-			// 		Jb.block(bundleIndex*2,bundleIndex*3,2,3) = Ji.block(0,0,2,3);
-			// 		Jb.block(bundleIndex*2,numPts*3,2,7) = Ji.block(0,3,2,7);
-			// 		Xb.segment(bundleIndex*3,3) = Xi;
-			// 		fb.segment(bundleIndex*2,2) = fi;
-			// 		bb.segment(bundleIndex*2,2) = bi;
-			// 		bundleIndex++;
-			// 		kPtsit++;
-			// 		cPtsit++;
-			// 	}
-			// 	Xb.segment(numPts*3,4) = qkcEst;
-			// 	Xb.segment(numPts*3+4,3) = tkcEst*dkcHat;
-			//
-			// 	Eigen::VectorXf Xb0 = Xb;
-			// 	// std::cout << "\n Xb0 \n" << Xb0 << std::endl;
-			// 	Eb = bb - fb;
-			// 	// std::cout << "\n Eb0 \n" << Eb << std::endl;
-			// 	Eigen::MatrixXf IIb = Eigen::MatrixXf::Identity(7+3*numPts,7+3*numPts);
-			// 	Eigen::MatrixXf JbT = Jb.transpose();
-			// 	Eigen::MatrixXf JbJb = JbT*Jb + 0.01*IIb;
-			// 	Eigen::MatrixXf JbEb = JbT*Eb;
-			// 	while ((Eb.norm()/(2.0*numPts) > 4.0) && !ros::isShuttingDown() && (bundleIterations < 5))
-			// 	{
-			// 		//determine the new delta and update Xb
-			// 		if (bundleIterations > 0)
-			// 		{
-			// 			JbT = Jb.transpose();
-			// 			JbJb = JbT*Jb + 0.1*IIb;
-			// 			JbEb = JbT*Eb;
-			// 		}
-			// 		// Eigen::JacobiSVD<Eigen::MatrixXf> svdJbJbf(JbJb, Eigen::ComputeThinU | Eigen::ComputeThinV);
-			// 		// Eigen::VectorXf DXb = svdJbJbf.solve(JbEb);
-			// 		Eigen::VectorXf DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
-			//
-			// 		Xb += DXb;
-			//
-			// 		// std::cout << "\n DXb \n" << DXb << std::endl;
-			// 		// std::cout << "\n Xb \n" << Xb << std::endl;
-			//
-			// 		Eigen::Vector4f qkcb = Xb.segment(numPts*3,4);
-			// 		Eigen::Vector3f pkcb = Xb.segment(numPts*3+4,3);
-			// 		//update the jacobian and projection
-			// 		for (int ii = 0; ii < numPts; ii++)
-			// 		{
-			// 			// std::cout << "\n ii " << ii;
-			// 			float uic = Xb(3*ii);
-			// 			// std::cout << ", uic " << uic;
-			// 			float vic = Xb(3*ii+1);
-			// 			// std::cout << ", vic " << vic;
-			// 			float zic = Xb(3*ii+2);
-			// 			// std::cout << ", zic " << zic << std::endl;
-			// 			Eigen::Matrix<float,2,10> Ji = localBundleJacobian(fx,fy,cx,cy,uic,vic,zic,qkcb,pkcb);
-			// 			// std::cout << ", Ji \n" << Ji << std::endl;
-			// 			Eigen::Vector2f fi = localBundleProjection(fx,fy,cx,cy,uic,vic,zic,qkcb,pkcb);
-			// 			// std::cout << ", uikP " << fi(0);
-			// 			// std::cout << ", vikP " << fi(1);
-			// 			Jb.block(ii*2,ii*3,2,3) = Ji.block(0,0,2,3);
-			// 			Jb.block(ii*2,numPts*3,2,7) = Ji.block(0,3,2,7);
-			// 			fb.segment(ii*2,2) = fi;
-			// 			cPts.at(ii) = cv::Point2f(uic,vic);
-			// 		}
-			//
-			// 		//update the error
-			// 		Eb = bb - fb;
-			// 		// std::cout << "\n Eb \n" << Eb << std::endl;
-			// 		// std::cout << "\n Xb \n" << Xb << std::endl;
-			// 		bundleIterations++;
-			// 	}
-			// }
+		if (false)
+		{
+			int numPts = kPts.size();
+			std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
+			std::vector<DepthEstimator*>::iterator depthsit = depthEstimators.begin();
+			Eigen::VectorXf Eb,Xb;
+			int bundleIterations = 0;
+			Eigen::MatrixXf Jb = Eigen::MatrixXf::Zero(2*numPts+2,7);
+			Eigen::VectorXf fb = Eigen::VectorXf::Zero(2*numPts+2);
+			Eigen::VectorXf bb = Eigen::VectorXf::Zero(2*numPts+2);
+			Xb = Eigen::VectorXf::Zero(7);
+			std::vector<Eigen::Vector3f> piks(numPts);
+			std::vector<Eigen::Vector3f>::iterator piksit = piks.begin();
+			Eigen::Matrix<float,2,7> JbNorm = Eigen::Matrix<float,2,7>::Zero();
 
-		// 	std::cout << "\n Eb.norm()/(2.0*numPts) " << Eb.norm()/(2.0*numPts) << std::endl;
-		// 	std::cout << "\n bundleIterations " << bundleIterations << std::endl;
-		// 	// std::cout << "\n Xb " << Xb.transpose() << std::endl;
-		// 	// std::cout << "\n Eb " << Eb.transpose() << std::endl;
-		// 	if (Xb.segment(0,4).norm() > 0.01)
-		// 	{
-		// 		qkcEst = Xb.segment(0,4);
-		// 		qkcEst /= qkcEst.norm();
-		// 	}
-		//
-		// 	if (Xb.segment(4,3).norm() > 0.01)
-		// 	{
-		// 		tkcEst = Xb.segment(4,3);
-		// 		tkcEst /= tkcEst.norm();
-		// 	}
-		//
-		// }
+			for (int ii = 0; ii < numPts; ii++)
+			{
+				*piksit = ((*depthsit)->uk)*((*depthsit)->dkHatICLExt);
+				Jb.block(ii*2,0,2,7) = localBundleJacobianPnP(fx,fy,*piksit,qkcEst,tkcEst,dkcHat);
+				fb.segment(ii*2,2) = localBundleJacobianPnPProject(fx,fy,cx,cy,*piksit,qkcEst,tkcEst,dkcHat);
+				bb.segment(ii*2,2) = Eigen::Vector2f((*cPtsit).x,(*cPtsit).y);
+				depthsit++;
+				cPtsit++;
+				piksit++;
+			}
+			Xb.segment(0,4) = qkcEst;
+			Xb.segment(4,3) = tkcEst;
+			Jb.block(2*numPts,0,2,7) = 1000.0*localBundleJacobianNorm(qkcEst,tkcEst);
+			fb.segment(2*numPts,2) = 1000.0*Eigen::Vector2f(float(qkcEst.transpose()*qkcEst)-1.0,float(tkcEst.transpose()*tkcEst)-1.0);
+			bb.segment(2*numPts,2) = Eigen::Vector2f(0.0,0.0);
 
-		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t,qkc);
+			Eigen::VectorXf Xb0 = Xb;
+
+			// std::cout << "\n Xb0 \n" << Xb0.transpose() << std::endl;
+			Eb = bb - fb;
+			Eigen::VectorXf Eb0 = Eb;
+			// std::cout << "\n Eb0 \n" << Eb.transpose() << std::endl;
+			Eigen::MatrixXf IIb = Eigen::MatrixXf::Identity(7,7);
+			Eigen::MatrixXf JbT = Jb.transpose();
+			// Eigen::MatrixXf JbJb = JbT*Jb + 0.0001*IIb;
+			Eigen::MatrixXf JbJb = JbT*Jb;
+			Eigen::MatrixXf JbEb = JbT*Eb;
+			Eigen::VectorXf DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
+			// while ((Eb.norm()/(2.0*numPts) > 1.0) && !ros::isShuttingDown() && (bundleIterations < 10) && (DXb.norm() > 0.0000001))
+			while (!ros::isShuttingDown() && (bundleIterations < 10) && (DXb.norm() > 0.0000001))
+			{
+				//determine the new delta and update Xb
+				if (bundleIterations > 0)
+				{
+					JbT = Jb.transpose();
+					JbJb = JbT*Jb;
+					JbEb = JbT*Eb;
+					DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
+				}
+
+				Xb += 0.75*DXb;
+
+				Eigen::Vector4f qkcb = Xb.segment(0,4);
+				Eigen::Vector3f tkcb = Xb.segment(4,3);
+				piksit = piks.begin();
+
+				//update the jacobian and projection
+				for (int ii = 0; ii < numPts; ii++)
+				{
+					Jb.block(ii*2,0,2,7) = localBundleJacobianPnP(fx,fy,*piksit,qkcb,tkcb,dkcHat);
+					fb.segment(ii*2,2) = localBundleJacobianPnPProject(fx,fy,cx,cy,*piksit,qkcb,tkcb,dkcHat);
+					piksit++;
+				}
+				Jb.block(2*numPts,0,2,7) = 1000.0*localBundleJacobianNorm(qkcb,tkcb);
+				fb.segment(2*numPts,2) = 1000.0*Eigen::Vector2f(float(qkcb.transpose()*qkcb)-1.0,float(tkcb.transpose()*tkcb)-1.0);
+
+				//update the error
+				Eb = bb - fb;
+				// std::cout << "\n DXb " << DXb.transpose() << std::endl;
+				std::cout << "\n DXb.norm() " << DXb.norm() << std::endl;
+				// std::cout << "\n Eb " << Eb.transpose() << std::endl;
+				std::cout << "\n Eb.norm() " << Eb.norm() << std::endl;
+				// std::cout << "\n Xb0 " << Xb0.transpose() << std::endl;
+				// std::cout << "\n Xb " << Xb.transpose() << std::endl;
+
+				bundleIterations++;
+			}
+
+			std::cout << "\n bundleIterations " << bundleIterations << std::endl;
+			std::cout << "\n Eb0 " << Eb0.transpose() << std::endl;
+			std::cout << "\n Eb0.norm() " << Eb0.norm() << std::endl;
+			std::cout << "\n Eb " << Eb.transpose() << std::endl;
+			std::cout << "\n Eb.norm() " << Eb.norm() << std::endl;
+			std::cout << "\n Xb0 " << Xb0.transpose() << std::endl;
+			std::cout << "\n Xb " << Xb.transpose() << std::endl;
+			qkcEst = Xb.segment(0,4);
+			qkcEst /= qkcEst.norm();
+			tkcEst = Xb.segment(4,3);
+			tkcEst /= tkcEst.norm();
+		}
+
+		// Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t,qkc);
+		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t);
 		qkcHat = xHatq.segment(0,4);
 		qkcHat /= qkcHat.norm();
 
 		Eigen::Matrix3f RkcHat = getqRot(qkcHat);
 		Eigen::Matrix3f Rkc = getqRot(qkc);
 
-		Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t,tkc);
+		// Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t,tkc);
+		Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t);
 		tkcHat = xHatt.segment(0,3);
 
 		if (tkcHat.norm() > 0.001)

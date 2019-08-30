@@ -52,58 +52,47 @@ Eigen::Vector3f DepthEstimatorICLExt::current()
 
 Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
-  Eigen::Vector3f pcProj = pkc + rotatevec(uk*dkHat,qkc);
-  Eigen::Vector3f mcProj = pcProj/pcProj(2);
-  Eigen::Vector2f cPtProj(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+  // Eigen::Vector3f pcProj = pkc + rotatevec(uk*dkHat,qkc);
+  // Eigen::Vector3f mcProj = pcProj/pcProj(2);
+  // Eigen::Vector2f cPtProj(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
 
-  Eigen::Vector3f mp = current();
-  Eigen::Vector2f pPt(mp(0)*fx+cx,mp(1)*fy+cy);
+  // Eigen::Vector3f mp = current();
+  // Eigen::Vector2f pPt(mp(0)*fx+cx,mp(1)*fy+cy);
 
   Eigen::Vector3f ucEst = up;
-  if (ucEst.norm()>0.001)
-  {
-    ucEst /= ucEst.norm();
-  }
-  else
-  {
-    return mcProj;
-  }
+  ucEst /= ucEst.norm();
 
   Eigen::RowVector3f ucEstT = ucEst.transpose();
   Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
-  // Eigen::Vector3f ucDotEst = uDotEstimator.xHat.segment(3,3);
-  // std::cout << "\n dcHat " << dcHat << std::endl;
-  // std::cout << "\n ucDot " << ucEstDot << std::endl;
-  // std::cout << "\n ucDotf " << ucDotEst << std::endl;
-  // std::cout << "\n ucb " << ucEst << std::endl;
+
   ucEst += (ucEstDot*dt);
   ucEst /= ucEst.norm();
   // std::cout << "\n uca " << ucEst << std::endl;
   Eigen::Vector3f mcEst = ucEst /= ucEst(2);
-  Eigen::Vector2f cPtEst(mcEst(0)*fx+cx,mcEst(1)*fy+cy);
+  // Eigen::Vector2f cPtEst(mcEst(0)*fx+cx,mcEst(1)*fy+cy);
 
-  float sigEst = 10;
-  float sigEst2 = sigEst*sigEst;
-  float chi2 = 6.63; //chi^2 for 99%
-  Eigen::Vector2f cPtD = cPtProj - cPtEst;
-  float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/sigEst2;
-  float sigProj = 100;
-  float sigProj2 = sigProj*sigProj;
-  float sig2Sum = sigEst2+sigProj2;
+  // float sigEst = 10;
+  // float sigEst2 = sigEst*sigEst;
+  // float chi2 = 6.63; //chi^2 for 99%
+  // Eigen::Vector2f cPtD = cPtProj - cPtEst;
+  // float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/sigEst2;
+  // float sigProj = 100;
+  // float sigProj2 = sigProj*sigProj;
+  // float sig2Sum = sigEst2+sigProj2;
   // float chi2 = 3.84; //chi^2 for 95%
 
   // float cPtAlpha = 1.0/(2.0 + chiTestVal);
   // Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
-  Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
+  // Eigen::Vector2f cPtComb((sigProj2/sig2Sum)*cPtEst(0)+(sigEst2/sig2Sum)*cPtProj(0),(sigProj2/sig2Sum)*cPtEst(1)+(sigEst2/sig2Sum)*cPtProj(1));
 
   // std::cout << std::endl << "dkKnown " << int(dkKnown) << ", chiTestVal " << chiTestVal;
   // std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
   // std::cout << ", cPtEstx " << cPtEst(0) << ", cPtEsty " << cPtEst(1);
   // std::cout << ", cPtCombx " << cPtComb(0) << ", cPtComby " << cPtComb(1);
   // std::cout << ", pPtx " << pPt(0) << ", pPty " << pPt(1);
-  std::cout << std::endl;
-
-  Eigen::Vector3f mcComb((cPtComb(0)-cx)/fx,(cPtComb(1)-cy)/fy,1.0);
+  // std::cout << std::endl;
+  //
+  // Eigen::Vector3f mcComb((cPtComb(0)-cx)/fx,(cPtComb(1)-cy)/fy,1.0);
 
   // if (chiTestVal > chi2)
   // {
