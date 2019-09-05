@@ -24,10 +24,10 @@
     <param name="minFeaturesBad" value="15"/>
     <param name="minDistance" value="200"/>
     <param name="partitionSide" value="1"/>
-    <param name="numberFeaturesPerPartRow" value="4"/>
-    <param name="numberFeaturesPerPartCol" value="5"/>
-    <param name="patchSizeBase" value="100"/>
-    <param name="checkSizeBase" value="125"/>
+    <param name="numberFeaturesPerPartRow" value="3"/>
+    <param name="numberFeaturesPerPartCol" value="7"/>
+    <param name="patchSizeBase" value="50"/>
+    <param name="checkSizeBase" value="75"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>

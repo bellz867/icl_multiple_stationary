@@ -63,7 +63,8 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   ucEst /= ucEst.norm();
 
   Eigen::RowVector3f ucEstT = ucEst.transpose();
-  Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
+  // Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
+  Eigen::Vector3f ucEstDot = uDotEstimator.xHat.segment(3,3);
 
   ucEst += (ucEstDot*dt);
   ucEst /= ucEst.norm();
@@ -110,7 +111,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   float kX = 30.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
-  Eigen::Vector3f uc = xHat.segment(0,3);
+  // Eigen::Vector3f uc = xHat.segment(0,3);
+  Eigen::Vector3f uc = ucMeas;
 
   if (uc.norm()>0.001)
   {
