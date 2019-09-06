@@ -186,7 +186,7 @@ PatchEstimator::PatchEstimator(int imageWidthInit, int imageHeightInit, int part
 
 	zmin = zminInit;
 	zmax = zmaxInit;
-	dkcHat = zmin;
+	dkcHat = 0.01;
 	dkHat = zmax;
 	tau = tauInit;
 
@@ -803,9 +803,21 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 
 	if (tkcHat.norm()>0.01)
 	{
-		tkcHat /= tkcHat.norm();
+		// tkcHat /= tkcHat.norm();
+		Eigen::Vector3f tkcHatDot = -getss(wc)*tkcHat + (1.0/dkcHat)*(tkcHat*tkcHat.transpose() - Eigen::Matrix3f::Identity())*vc;
+		// Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
 		float dkcHatDot = -float(tkcHat.transpose()*vc);
 		dkcHat += (dkcHatDot*dt);
+		if (dkcHat < 0.01)
+		{
+			dkcHat = 0.01;
+		}
+		tkcHat += (tkcHatDot*dt);
+
+		if (tkcHat.norm() > 0.01)
+		{
+			tkcHat /= tkcHat.norm();
+		}
 	}
 
 	pkcHat += (pkcHatDot*dt);
@@ -1156,6 +1168,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	float avgNumSaved = 0.0;
 	float avgNumThrown = 0.0;
 
+	std::vector<cv::Point2f> flows(pPts.size());
+	std::vector<cv::Point2f>::iterator itf = flows.begin();
+	cv::Point2f avgFlowPred(0.0,0.0);
 	featureMutex.lock();
 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 	{
@@ -1164,12 +1179,16 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	  *itp = cv::Point2f(fx*mpp(0)+cx,fy*mpp(1)+cy);
 	  mcc = (*itD)->predict(vc,wc,dt,pkc,qkc);
 	  *itc = cv::Point2f(fx*mcc(0)+cx,fy*mcc(1)+cy);
+		*itf = ((*itc) - (*itp));
+		avgFlowPred += (*itf);
+
 		avgNumSaved += float((*itD)->depthEstimatorICLExt.numSaved);
 		avgNumThrown += float((*itD)->depthEstimatorICLExt.numThrown);
 
 		itk++;
 		itp++;
 		itc++;
+		itf++;
 	}
 	// if (cPts.size() > 0)
 	// {
@@ -1178,65 +1197,67 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	// }
 
 	featureMutex.unlock();
-	avgNumSaved /= float(numberPts);
-	avgNumThrown /= float(numberPts);
 
-
-	std::vector<float> flowxs(pPts.size()),flowys(pPts.size());
-	for (int ii = 0; ii < cPts.size(); ii++)
+	if (numberPts > 0)
 	{
-		if (dt > 0)
-		{
-			flowxs.at(ii) = (cPts.at(ii).x-pPts.at(ii).x)/dt;
-			flowys.at(ii) = (cPts.at(ii).y-pPts.at(ii).y)/dt;
-		}
-		else
-		{
-			flowxs.at(ii) = 0.0;
-			flowys.at(ii) = 0.0;
-		}
+		avgNumSaved /= float(numberPts);
+		avgNumThrown /= float(numberPts);
+		avgFlowPred /= float(numberPts);
 	}
 
-	std::vector<float> flowxsSort = flowxs;
-	std::vector<float> flowysSort = flowys;
-	std::sort(flowxsSort.begin(),flowxsSort.end());
-	std::sort(flowysSort.begin(),flowysSort.end());
-	float flowxMed = flowxsSort.at(0);
-	float flowyMed = flowysSort.at(0);
-	if (flowxs.size()%2 == 0)
-	{
-		flowxMed = (flowxsSort.at(flowxsSort.size()/2-1)+flowxsSort.at(flowxsSort.size()/2))/2.0;
-		flowyMed = (flowysSort.at(flowysSort.size()/2-1)+flowysSort.at(flowysSort.size()/2))/2.0;
-	}
-	else
-	{
-		flowxMed = flowxsSort.at(flowxsSort.size()/2);
-		flowyMed = flowysSort.at(flowysSort.size()/2);
-	}
+	// std::vector<float> flowxs(pPts.size()),flowys(pPts.size());
+	// for (int ii = 0; ii < cPts.size(); ii++)
+	// {
+	// 	if (dt > 0)
+	// 	{
+	// 		flowxs.at(ii) = (cPts.at(ii).x-pPts.at(ii).x)/dt;
+	// 		flowys.at(ii) = (cPts.at(ii).y-pPts.at(ii).y)/dt;
+	// 	}
+	// 	else
+	// 	{
+	// 		flowxs.at(ii) = 0.0;
+	// 		flowys.at(ii) = 0.0;
+	// 	}
+	// }
+
+	// std::vector<float> flowxsSort = flowxs;
+	// std::vector<float> flowysSort = flowys;
+	// std::sort(flowxsSort.begin(),flowxsSort.end());
+	// std::sort(flowysSort.begin(),flowysSort.end());
+	// float flowxMed = flowxsSort.at(0);
+	// float flowyMed = flowysSort.at(0);
+	// if (flowxs.size()%2 == 0)
+	// {
+	// 	flowxMed = (flowxsSort.at(flowxsSort.size()/2-1)+flowxsSort.at(flowxsSort.size()/2))/2.0;
+	// 	flowyMed = (flowysSort.at(flowysSort.size()/2-1)+flowysSort.at(flowysSort.size()/2))/2.0;
+	// }
+	// else
+	// {
+	// 	flowxMed = flowxsSort.at(flowxsSort.size()/2);
+	// 	flowyMed = flowysSort.at(flowysSort.size()/2);
+	// }
 
 	float qAng = 180.0/3.1415*acos(qkc(0))*2.0;
 	cv::Rect currentBound = cv::boundingRect(cPts);
 
-	std::cout << "\n flowxMed " << flowxMed << ", flowyMed " << flowyMed << std::endl;
+	std::cout << "\n flowAvgx " << avgFlowPred.x << ", flowAvgy " << avgFlowPred.y << std::endl;
 
 	float flowchi2 = 6.63; //chi^2 for 99%
-	float flowsig = 15.0;
+	float flowsig = 5.0;
 	float flowsig2 = flowsig*flowsig;
 
 	std::vector<DepthEstimator*> depthEstimatorsInFlow;
 	std::vector<cv::Point2f> pPtsInFlow,cPtsInFlow,kPtsInFlow;
-	cv::Point2f flowDiffPt;
-	flowDiffPt.x = flowxMed*dt;
-	flowDiffPt.y = flowyMed*dt;
+	// flowDiffPt.x = flowxMed*dt;
+	// flowDiffPt.y = flowyMed*dt;
 	//remove outlier flows
 	std::cout << "\n num points before flow " << depthEstimators.size() << std::endl;
 	float timeFromStart = (t-tStart).toSec();
-	for (int ii = 0; ii < flowxs.size(); ii++)
+	for (int ii = 0; ii < flows.size(); ii++)
 	{
-		float flowdiffx = flowxMed - flowxs.at(ii);
-		float flowdiffy = flowxMed - flowxs.at(ii);
-		float chiTestVal = (flowdiffx*flowdiffx + flowdiffy*flowdiffy)/flowsig2;
-		std::cout << " flowx " << flowxs.at(ii) << " flowy " << flowys.at(ii) << " chiVal " << chiTestVal << std::endl;
+		cv::Point2f flowdiffi = avgFlowPred - flows.at(ii);
+		float chiTestVal = (flowdiffi.x*flowdiffi.x + flowdiffi.y*flowdiffi.y)/flowsig2;
+		std::cout << " flowx " << flows.at(ii).x << " flowy " << flows.at(ii).y << " chiVal " << chiTestVal << std::endl;
 		if ((chiTestVal < flowchi2) || (timeFromStart < 0.25))
 		{
 			pPtsInFlow.push_back(pPts.at(ii));
@@ -1256,7 +1277,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	depthEstimators = depthEstimatorsInFlow;
 
 	std::cout << "\n num points after flow " << depthEstimators.size() << std::endl;
-
+	// std::cout << "\n medDiffx " << flowDiffPt.x << ", medDiffy " << flowDiffPt.y << std::endl;
 	std::cout << "\n qAng " << qAng << std::endl;
 	std::cout << "\n avgNumSaved " << avgNumSaved << std::endl;
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
@@ -1668,7 +1689,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	float Dtly = 0.0;
 	std::cout << "\n G " << G << std::endl;
 
-
+	cv::Point2f avgShift;
 	for (std::vector<cv::Point2f>::iterator itpp = pPts.begin(); itpp != pPts.end(); itpp++)
 	{
 		try
@@ -1929,10 +1950,10 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 
 				// float avgx = (1.0-alphapr)*cptx+alphapr*(pcheckRect.x+ppatchRectC.width/2.0+maxResultPt.x);
 				// float avgy = (1.0-alphapr)*cpty+alphapr*(pcheckRect.y+ppatchRectC.height/2.0+maxResultPt.y);
-				float avgx = (sigEst2/sig2Sum)*cptx+(sigProj2/sig2Sum)*cptxEst;
-				float avgy = (sigEst2/sig2Sum)*cpty+(sigProj2/sig2Sum)*cptyEst;
-				// float avgx = cptxEst;
-				// float avgy = cptyEst;
+				// float avgx = (sigEst2/sig2Sum)*cptx+(sigProj2/sig2Sum)*cptxEst;
+				// float avgy = (sigEst2/sig2Sum)*cpty+(sigProj2/sig2Sum)*cptyEst;
+				float avgx = cptxEst;
+				float avgy = cptyEst;
 
 				std::cout << "\n pptx " << pptx << " ppty " << ppty;
 				std::cout << " cptx " << cptx << " cpty " << cpty;
@@ -1945,6 +1966,8 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 						*itcPred = cv::Point2f(avgx,avgy);
 						*itDPPred = *itDP;
 						*itkPred = *itk;
+
+						avgShift += (*itcPred-*itpp);
 
 						itDPPred++;
 						itcPred++;
@@ -1974,6 +1997,12 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 		itk++;
 	}
 
+	if (numPtsPred > 0)
+	{
+		avgShift /= float(numPtsPred);
+	}
+
+	std::cout << "\n avgShiftx " << avgShift.x << " avgShifty " << avgShift.y << std::endl;
 	depthEstimatorsInPred.resize(numPtsPred);
 	cPtsInPred.resize(numPtsPred);
 	kPtsInPred.resize(numPtsPred);
@@ -2060,8 +2089,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			cv::eigen2cv(pkc,tvec);
 			// std::cout << "rvecPnPkb \n" << rvec << std::endl;
 			// std::cout << "tvecPnPkb \n" << tvec << std::endl;
-			// usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-			usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,100,3.0);
+			usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			// usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,100,3.0);
 			// std::cout << "rvecPnPka \n" << rvec << std::endl;
 			// std::cout << "tvecPnPka \n" << tvec << std::endl;
 
@@ -2079,7 +2108,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				{
 					tkcPnPk /= tkcPnPNorm;
 				}
-				std::cout << std::endl;
+				// std::cout << std::endl;
+				std::cout << "dkcPnPk \n" << tkcPnPNorm << std::endl;
 				// std::cout << "dkcPnPk \n" << tkcPnPNorm << std::endl;
 				// std::cout << "tkcPnPk \n" << tkcPnPk << std::endl;
 				// std::cout << "qkcPnPk \n" << qkcPnPk << std::endl;
@@ -2145,8 +2175,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// }
 
 		// cv::Mat inliersG1;
-		cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 3.0);//calculate homography using RANSAC
-		// cv::Mat G = cv::findHomography(kPts,cPts,0);//calculate homography using RANSAC
+		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 3.0);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(kPts,cPts,0);//calculate homography using RANSAC
 		float G11 = G.at<double>(0,0);
 		float G12 = G.at<double>(0,1);
 		float G13 = G.at<double>(0,2);
@@ -2156,8 +2186,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		float G31 = G.at<double>(3,0);
 		float G32 = G.at<double>(3,1);
 		float G33 = G.at<double>(3,2);
-		cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,3.0);
-		// cv::Mat F = cv::findFundamentalMat(kPts,cPts,cv::FM_8POINT);
+		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,3.0);
+		cv::Mat F = cv::findFundamentalMat(kPts,cPts,cv::FM_8POINT);
 		float F11 = F.at<double>(0,0);
 		float F12 = F.at<double>(0,1);
 		float F13 = F.at<double>(0,2);
@@ -2490,7 +2520,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			Eigen::MatrixXf JbEb = JbT*Eb;
 			Eigen::VectorXf DXb = JbJb.fullPivHouseholderQr().solve(JbEb);
 			// while ((Eb.norm()/(2.0*numPts) > 1.0) && !ros::isShuttingDown() && (bundleIterations < 10) && (DXb.norm() > 0.0000001))
-			while (!ros::isShuttingDown() && (bundleIterations < 10) && (DXb.norm() > 0.0000001))
+			while (!ros::isShuttingDown() && (bundleIterations < 10) && (DXb.norm() > 0.0001))
 			{
 				//determine the new delta and update Xb
 				if (bundleIterations > 0)
@@ -2545,17 +2575,21 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t,qkc);
 		// qkcHat = xHatq.segment(0,4)/xHatq.segment(0,4).norm();
 		Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t);
-		qkcHat +=  kq*(xHatq.segment(0,4)/xHatq.segment(0,4).norm()-qkcHat);
+		Eigen::Vector4f qEst = xHatq.segment(0,4)/xHatq.segment(0,4).norm();
+		qkcHat +=  kq*(xHatq.segment(0,4)-qkcHat);
 		qkcHat /= qkcHat.norm();
+
+		Eigen::Vector3f wEst = -2.0*B(qEst).transpose()*xHatq.segment(4,4);
 
 		Eigen::Matrix3f RkcHat = getqRot(qkcHat);
 		Eigen::Matrix3f Rkc = getqRot(qkc);
 
 		// Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t,tkc);
 		Eigen::Matrix<float,6,1> xHatt = tkcDotEstimator.update(tkcEst,t);
-		tkcHat = xHatt.segment(0,3);
+		// tkcHat = xHatt.segment(0,3);
+		tkcHat +=  kq*(xHatt.segment(0,3)-tkcHat);
 
-		if (tkcHat.norm() > 0.001)
+		if (tkcHat.norm() > 0.01)
 		{
 			tkcHat /= tkcHat.norm();
 		}
@@ -2568,6 +2602,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		std::cout << "\n qkcHat " << qkcHat.transpose() << std::endl;
 		std::cout << "\n tkcHat " << tkcHat.transpose() << std::endl;
 		std::cout << "\n pkcHat " << pkcHat.transpose() << std::endl;
+		std::cout << "\n w " << wc.transpose() << std::endl;
+		std::cout << "\n wEst " << wEst.transpose() << std::endl;
 
 		ROS_WARN("time for update uq %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
@@ -2597,6 +2633,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		float avgcPtx = 0.0;
 		float avgcPty = 0.0;
 		bool allPtsKnownIn = true;
+		float dkcAvg = 0.0;
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			// if (!G.empty())
@@ -2606,7 +2643,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// }
 			// float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkcHat,RkcHat,vc,wc,t,pkc,qkc);
 			float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkc,Rkc,vc,wc,t,pkc,qkc);
-			dkcs.push_back(dkcHati);
+			// dkcs.push_back(dkcHati);
+			dkcAvg += dkcHati;
 			depthEstimatorsInHomog.push_back(*itD);
 			// if (bool(*itIn))
 			// {
@@ -2630,6 +2668,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// inlierRatio /= depthEstimators.size();
 		avgcPtx /= float(depthEstimators.size());
 		avgcPty /= float(depthEstimators.size());
+
+		dkcAvg /= float(depthEstimators.size());
 
 		//find which partition the average is in
 		int partitionWidth = imageWidth/partitionCols;
@@ -2673,26 +2713,33 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		assert(depthEstimators.size() > 0);
 
-		if(dkcs.size() > 0)
+		// if(dkcs.size() > 0)
+		// {
+		// 	std::sort(dkcs.begin(),dkcs.end());
+		// 	float dkcMed = dkcs.at(0);
+		// 	if (dkcs.size()%2 == 0)
+		// 	{
+		// 		dkcMed = (dkcs.at(dkcs.size()/2-1)+dkcs.at(dkcs.size()/2))/2.0;
+		// 	}
+		// 	else
+		// 	{
+		// 		dkcMed = dkcs.at(dkcs.size()/2);
+		// 	}
+		//
+		// 	dkcHat += kd*(dkcMed - dkcHat);
+		//
+		// 	if (tkcHat.norm() > 0.001)
+		// 	{
+		// 		pkcHat += kp*(tkcHat*(dkcHat/tkcHat.norm()) - pkcHat);
+		// 	}
+		// }
+		dkcHat += kd*(dkcAvg - dkcHat);
+
+		if (tkcHat.norm() > 0.001)
 		{
-			std::sort(dkcs.begin(),dkcs.end());
-			float dkcMed = dkcs.at(0);
-			if (dkcs.size()%2 == 0)
-			{
-				dkcMed = (dkcs.at(dkcs.size()/2-1)+dkcs.at(dkcs.size()/2))/2.0;
-			}
-			else
-			{
-				dkcMed = dkcs.at(dkcs.size()/2);
-			}
-
-			dkcHat += kd*(dkcMed - dkcHat);
-
-			if (tkcHat.norm() > 0.001)
-			{
-				pkcHat += kp*(tkcHat*(dkcHat/tkcHat.norm()) - pkcHat);
-			}
+			pkcHat += kp*(tkcHat*(dkcHat/tkcHat.norm()) - pkcHat);
 		}
+
 
 		// ROS_WARN("dkcHat %2.1f",dkcHat);
 	}

@@ -306,7 +306,7 @@ Eigen::Matrix<float,2,8> localBundleJacobian(float fx, float fy, float cx, float
 }
 
 //bundle adjust jacobian
-Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f pkc)
+Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, float dkc)
 {
 	// jacobian for reprojection into key frame or generally, any previous frame
 	// minimize || f(x) - b ||^2 is equivalent to minimize f(x)^T*f(x)-2*b^T*f(x)
@@ -315,39 +315,27 @@ Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4
 	float xik = pik(0);
 	float yik = pik(1);
 	float zik = pik(2);
-	float xkc = pkc(0);
-	float ykc = pkc(1);
-	float zkc = pkc(2);
 	float qw = qkc(0);
 	float qx = qkc(1);
 	float qy = qkc(2);
 	float qz = qkc(3);
-	float r11 = 1.0-2.0*(qy*qy+qz*qz);
-	float r12 = 2.0*(qx*qy-qz*qw);
-	float r13 = 2.0*(qx*qz+qy*qw);
-	float r21 = 2.0*(qx*qy+qz*qw);
-	float r22 = 1.0-2.0*(qx*qx+qz*qz);
-	float r23 = 2.0*(qy*qz-qx*qw);
-	float r31 = 2.0*(qw*qz-qy*qw);
-	float r32 = 2.0*(qy*qz+qx*qw);
-	float r33 = 1.0-2.0*(qx*qx+qy*qy);
 
 	Eigen::Matrix<float,3,7> Ji = Eigen::Matrix<float,3,7>::Zero();
 	Ji(0,0) = -2.0*qz*yik+2.0*qy*zik;
 	Ji(0,1) = 2.0*qy*yik+2.0*qz*zik;
 	Ji(0,2) = -4.0*qy*xik+2.0*qx*yik+2.0*qw*zik;
 	Ji(0,3) = -4.0*qz*xik-2.0*qw*yik+2.0*qx*zik;
-	Ji(0,4) = 1.0;
+	Ji(0,4) = dkc;
 	Ji(1,0) = 2.0*qz*xik-2.0*qx*zik;
 	Ji(1,1) = 2.0*qy*xik-4.0*qx*yik-2.0*qw*zik;
 	Ji(1,2) = 2.0*qx*xik+2.0*qz*zik;
 	Ji(1,3) = 2.0*qw*xik-4.0*qz*yik+2.0*qy*zik;
-	Ji(1,5) = 1.0;
+	Ji(1,5) = dkc;
 	Ji(2,0) = 2.0*(qz-qy)*xik+2.0*qx*yik;
 	Ji(2,1) = 2.0*qw*yik-4.0*qx*zik;
 	Ji(2,2) = -2.0*qw*xik+2.0*qz*yik-4.0*qy*zik;
 	Ji(2,3) = 2.0*qw*xik+2.0*qy*yik;
-	Ji(2,6) = 1.0;
+	Ji(2,6) = dkc;
 
 	return Ji;
 }
