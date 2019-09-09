@@ -8,18 +8,21 @@
 #include <deque>
 #include <helper_functions.h>
 #include <vector_derivative_estimator.h>
+#include <icl_save.h>
 
 //depth estimator
 struct DepthEstimatorICLExt
 {
-  std::deque<Eigen::Vector3f> pkcBuff;
-  std::deque<Eigen::Vector2f> psiBuff;
-  std::deque<Eigen::Vector2f> psiDotBuff;
-  std::deque<Eigen::Vector2f> uvBuff;
+  ICLSave* buffNew;
+  std::deque<ICLSave*> buffs;
+  // std::deque<Eigen::Vector3f> pkcBuff;
+  // std::deque<Eigen::Vector2f> psiBuff;
+  // std::deque<Eigen::Vector2f> psiDotBuff;
+  // std::deque<Eigen::Vector2f> uvBuff;
+  // std::deque<ros::Time> tBuff;
+  // std::deque<float> dtBuff;
   Eigen::Vector2f uvInt;
   Eigen::Vector2f psiDotInt;
-  std::deque<ros::Time> tBuff;
-  std::deque<float> dtBuff;
   ros::Time tLastSave;
   Eigen::Vector3f pkcLastSave;
   float yysum,yusum;

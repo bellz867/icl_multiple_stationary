@@ -106,15 +106,12 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
 Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
   // std::cout << "\n hi4 \n";
-  // clock_t processTime = clock();
+  clock_t processTime = clock();
 
   float kxi = 250.0;
   float kX = 30.0;
 
   Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
-
-  // ROS_WARN("time1 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
   // Eigen::Vector3f uc = xHat.segment(0,3);
   Eigen::Vector3f uc = ucMeas;
 
@@ -136,8 +133,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   Eigen::RowVector3f ucT = uc.transpose();
   Eigen::RowVector3f ukcT = ukc.transpose();
 
-  // ROS_WARN("time11 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
+  ROS_WARN("time1 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
+  processTime = clock();
 
   // std::cout << "\n hi5 \n";
 
@@ -169,8 +166,6 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   Eigen::Vector2f psiMeas = YcYcI*YcT*Rkc*uk;
   Eigen::Matrix<float,4,1> Xpsi = psiDotEstimator.update(psiMeas,t);
-  // ROS_WARN("time2 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
   Eigen::Vector2f psi = Xpsi.segment(0,2);
   Eigen::Vector2f psiDot = Xpsi.segment(2,2);
 
@@ -238,8 +233,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dkHat += (kxpxpTilde(1)*dt);
   }
 
-  // ROS_WARN("time22 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
+  ROS_WARN("time2 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
+  processTime = clock();
 
   // dkcHat += ((dkcDot)*dt);
   // dkHat += (kxpxpTilde(1)*dt);
@@ -321,8 +316,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n pkc clear\n";
   }
 
-  // ROS_WARN("time3 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
+  ROS_WARN("time3 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
+  processTime = clock();
 
   // std::cout << "\n" << "N " << numSaved << ", dc  " << dcHat << ", dkc  " << dkcHat << ", dk  " << dkHat << ", dkcdd " << (ukcT*uc*dcHat-ukcT*Rkc*uk*dkHat);
 
@@ -525,8 +520,207 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   }
 
 
-  // ROS_WARN("time4 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
+  ROS_WARN("time4 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
+  processTime = clock();
+
+  // if (tBuff.size() > 3)
+  // {
+  //   // std::cout << "\n tBuff.size() " << tBuff.size() << " uvBuff.size() " << uvBuff.size() << " zetaBuff.size() " << zetaBuff.size() << " dtBuff.size() " << dtBuff.size() << std::endl;
+  //
+  //   bool timeGood = false;
+  //
+  //   float Dt = 0.0;
+  //   while (!timeGood)
+  //   {
+  //     if (tBuff.size() > 2)
+  //     {
+  //       if ((tBuff.at(tBuff.size()-1) - tBuff.at(1)).toSec() > tau)
+  //       {
+  //         uvInt -= (uvBuff.at(0)*dtBuff.at(0));
+  //         psiDotInt -= (psiDotBuff.at(0)*dtBuff.at(0));
+  //         psiBuff.pop_front();
+  //         psiDotBuff.pop_front();
+  //         uvBuff.pop_front();
+  //         tBuff.pop_front();
+  //         dtBuff.pop_front();
+  //       }
+  //       else
+  //       {
+  //         timeGood = true;
+  //       }
+  //     }
+  //     else
+  //     {
+  //       timeGood = true;
+  //     }
+  //   }
+  //
+  //   // Eigen::Vector2f Y = psiDotInt;
+  //   Eigen::Vector2f Y = (psiBuff.at(psiBuff.size()-1)-psiBuff.at(0));
+  //   Eigen::Vector2f U = uvInt;
+  //
+  //   // std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1) << ", U(0)  " << U(0) << ", U(1)  " << U(1);
+  //
+  //   float Yx = Y(0);
+  //   float Ux = U(0);
+  //
+  //   float Yy = Y(1);
+  //   float Uy = U(1);
+  //
+  //   float Yx2 = psiDotInt(0);
+  //   float Yy2 = psiDotInt(1);
+  //
+  //   // std::cout << "\n hi12 \n";
+  //
+  //   // std::cout << "\n mzetaBuffInt \n" << mzetaBuffInt << std::endl;
+  //   // std::cout << "\n psizetaBuffInt \n" << psizetaBuffInt << std::endl;
+  //
+  //   // std::cout << "\n (Ux/Yx) " << (Ux/Yx) << std::endl;
+  //   // std::cout << "\n Yx " << Yx << std::endl;
+  //   // std::cout << "\n Ux " << Ux << std::endl;
+  //   // float yy = Yx*Yx + Yy*Yy;
+  //   // float yy2 = Yx2*Yx2 + Yy2*Yy2;
+  //   // float yu = Yx*Ux+Yy*Uy;
+  //   // float yu2 = Yx2*Ux+Yy2*Uy;
+  //   // float dk = yu/yy;
+  //   // float dk2 = yu2/yy2;
+  //   // float dkMed = yusum/yysum;;
+  //   float yy = Yy*Yy;
+  //   float yy2 = Yy2*Yy2;
+  //   float yu = Yy*Uy;
+  //   float yu2 = Yy2*Uy;
+  //   float dk = yu/yy;
+  //   float dk2 = yu2/yy2;
+  //   float dkMed = yusum/yysum;
+  //
+  //   Eigen::Vector3f Rkcuk = rotatevec(uk,qkc);
+  //   float ucRkcuk = ucT*Rkcuk;
+  //   float YtYtdet = 1.0 - ucRkcuk*ucRkcuk;
+  //   Eigen::Matrix2f YtYtI = Eigen::Matrix2f::Identity();
+  //   YtYtI(0,1) = ucRkcuk;
+  //   YtYtI(1,0) = ucRkcuk;
+  //   YtYtI /= YtYtdet;
+  //   Eigen::Matrix<float,2,3> YtT;
+  //   YtT.block(0,0,1,3) = ucT;
+  //   YtT.block(1,0,1,3) = -Rkcuk.transpose();
+  //   Eigen::Vector2f dcdkt = YtYtI*YtT*pkc;
+  //
+  //   // std::cout << ", dct " << dcdkt(0) <<  ", dkt  " << dcdkt(1);
+  //   // std::cout << ", dkMed " << dkMed <<  ", dk  " << dk << ", dk2 " << dk2 << ", |Y| " << Y.norm() << ", |U| ";
+  //   // std::cout << U.norm() << ", psi(0)*dk " << psi(0)*dk << ", psi(1)*dk " << psi(1)*dk;
+  //   // std::cout << ", psi(0)*dkMed " << psi(0)*dkMed << ", psi(1)*dkMed " << psi(1)*dkMed << std::endl;
+  //   // std::cout << "\n yu " << yu << std::endl;
+  //   // std::cout << "\n Y.norm() " << Y.norm() << std::endl;
+  //   // std::cout << "\n U.norm() " << U.norm() << std::endl;
+  //   // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
+  //
+  //   //check which estimates are good
+  //   bool measgood = (fabsf(Uy) > 0.2) && (fabsf(Yy) > 0.1);
+  //   // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
+  //   // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
+  //   // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
+  //
+  //   // if (enoughTime && !measgood)
+  //   // {
+  //   //   zetaBuff.clear();
+  //   //   uvBuff.clear();
+  //   //   tBuff.clear();
+  //   //   dtBuff.clear();
+  //   //   uvInt = Eigen::Vector2f::Zero();
+  //   //   numThrown++;
+  //   // }
+  //
+  //   if (measgood)
+  //   {
+  //     //chi^2 test for reprojection error using dk
+  //     // assume pixel standard deviation of 2 implying variance of 4
+  //     float cPtSig = 10;
+  //     float cPtSig2 = cPtSig*cPtSig;
+  //     Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
+  //     Eigen::Vector3f mcProj = pcProj/pcProj(2);
+  //     Eigen::Vector2f cPtProj(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+  //     // float chi2 = 3.84; //chi^2 for 95%
+  //     float chi2 = 6.63; //chi^2 for 99%
+  //     Eigen::Vector2f cPtD = cPtProj - cPt;
+  //     float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+  //
+  //     // std::cout << std::endl;
+  //     // std::cout << "cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
+  //     // std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
+  //     // std::cout << std::endl;
+  //
+  //     //if the value is outside the acceptable then reject
+  //     if (chiTestVal > chi2)
+  //     {
+  //       //if the test failed with the first dk try the second
+  //       pcProj = pkc + rotatevec(uk*dk2,qkc);
+  //       mcProj = pcProj/pcProj(2);
+  //       cPtProj = Eigen::Vector2f(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+  //       // float chi2 = 3.84; //chi^2 for 95%
+  //       // float chi2 = 6.63; //chi^2 for 99%
+  //       cPtD = cPtProj - cPt;
+  //       chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+  //
+  //       // std::cout << std::endl;
+  //       // std::cout << "cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
+  //       // std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal;
+  //       // std::cout << std::endl;
+  //
+  //       if (chiTestVal > chi2)
+  //       {
+  //         measgood = false;
+  //       }
+  //       else
+  //       {
+  //         dk = dk2;
+  //       }
+  //     }
+  //   }
+  //
+  //   bool dirGoodzBad = false;
+  //
+  //   // std::cout << "\n hi13 \n";
+  //
+  //   //check the ys
+  //   // if (measgood && (numSaved < 50) && disAgree)
+  //   if (measgood && (numSaved < 50))
+  //   {
+  //     bool saveNew = true;
+  //     // if (numSaved > 0)
+  //     // {
+  //     //   if ((pkc-pkcLastSave).norm() < 0.1)
+  //     //   {
+  //     //     saveNew = false;
+  //     //   }
+  //     // }
+  //
+  //     if ((dk > zmin) && (dk < zmax) && saveNew)
+  //     {
+  //       yysum += yy;
+  //       yusum += yu;
+  //       numSaved++;
+  //       tLastSave = t;
+  //       pkcLastSave = pkc;
+  //     }
+  //     else
+  //     {
+  //       dirGoodzBad = true;
+  //     }
+  //   }
+  //
+  //   if (dirGoodzBad)
+  //   {
+  //     psiBuff.clear();
+  //     psiDotBuff.clear();
+  //     uvBuff.clear();
+  //     tBuff.clear();
+  //     dtBuff.clear();
+  //     uvInt = Eigen::Vector2f::Zero();
+  //     psiDotInt = Eigen::Vector2f::Zero();
+  //     // uDotEstimator.initialize(3);
+  //     // psiDotEstimator.initialize(2);
+  //   }
+  // }
 
   // std::cout << "\n hi14 \n";
 
@@ -594,8 +788,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     dkcHat = 0.01;
   }
 
-  // ROS_WARN("time5 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
+  ROS_WARN("time5 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
+  processTime = clock();
 
   return Eigen::Vector3f(dkHat,dcHat,dkcHat);
 }

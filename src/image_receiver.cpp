@@ -260,20 +260,24 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 	//ROS_WARN("match time %3.7f",float(clock()-processTime)/CLOCKS_PER_SEC);
 	clock_t keyTime = clock();
 
-	// add a new keyframe if needed
-	for(int ii = 0; ii < addKeytoPartition.size(); ii++)
+	// add a new keyframe if needed and total is less than 3
+	if (keyframes.size() < 2)
 	{
-		if (addKeytoPartition.at(ii))
+		for(int ii = 0; ii < addKeytoPartition.size(); ii++)
 		{
-			lastKeyOdom = imageOdom;
-			newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionRows,partitionCols,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,ii,
-																		fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
-																		expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
-			keyframes.push_back(newKeyframe);
+			if (addKeytoPartition.at(ii))
+			{
+				lastKeyOdom = imageOdom;
+				newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionRows,partitionCols,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,ii,
+																			fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
+																			expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
+				keyframes.push_back(newKeyframe);
 
-			keyInd++;
+				keyInd++;
+			}
 		}
 	}
+
 	// if (addframe)
 	// {
 	// 	lastKeyOdom = imageOdom;

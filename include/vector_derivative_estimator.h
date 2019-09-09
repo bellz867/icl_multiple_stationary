@@ -18,6 +18,10 @@ struct VectorDerivativeEstimator
     Eigen::MatrixXf F;
     Eigen::MatrixXf H;
     Eigen::MatrixXf HT;
+    Eigen::MatrixXf II;
+    Eigen::MatrixXf S;
+    Eigen::MatrixXf SI;
+    Eigen::MatrixXf K;
 
     VectorDerivativeEstimator();
 
