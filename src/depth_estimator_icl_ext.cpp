@@ -63,8 +63,17 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   ucEst /= ucEst.norm();
 
   Eigen::RowVector3f ucEstT = ucEst.transpose();
-  // Eigen::Vector3f ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
-  Eigen::Vector3f ucEstDot = uDotEstimator.xHat.segment(3,3);
+
+  Eigen::Vector3f ucEstDot = Eigen::Vector3f::Zero();
+
+  if (dkKnown)
+  {
+    ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
+  }
+  else
+  {
+    ucEstDot = uDotEstimator.xHat.segment(3,3);
+  }
 
   ucEst += (ucEstDot*dt);
   ucEst /= ucEst.norm();
@@ -171,7 +180,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   Eigen::Matrix<float,4,1> Xpsi = psiDotEstimator.update(psiMeas,t);
   // ROS_WARN("time2 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
-  Eigen::Vector2f psi = Xpsi.segment(0,2);
+  Eigen::Vector2f psi = psiMeas;
   Eigen::Vector2f psiDot = Xpsi.segment(2,2);
 
   float dcDot = -ucT*v;

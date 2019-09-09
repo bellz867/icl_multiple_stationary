@@ -25,6 +25,7 @@ struct DepthEstimator
   ros::Time startt;
   DepthEstimatorEKF depthEstimatorEKF;
   DepthEstimatorICLExt depthEstimatorICLExt;
+  int badCount;
 
   DepthEstimator();
   DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zmin, float zmax, float zInit, float tau, float fx, float fy, float cx, float cy);

@@ -889,7 +889,7 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 			// Eigen::Vector3f uci = mci/mci.norm();
 			cv::Point2f cPti(fx*mci(0)+cx,fy*mci(1)+cy);
 
-			cv::circle(drawImage, cPti, 10, cv::Scalar(50, 50, 50), -1);
+			cv::circle(drawImage, cPti, 10, cv::Scalar(250, 250, 250), -1);
 
 			// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
 			// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
@@ -1268,7 +1268,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::cout << "\n flowAvgx " << avgFlow.x << ", flowAvgy " << avgFlow.y << std::endl;
 
 	float flowchi2 = 6.63; //chi^2 for 99%
-	float flowsig = 5.0;
+	float flowsig = 3.0;
 	float flowsig2 = flowsig*flowsig;
 
 	std::vector<DepthEstimator*> depthEstimatorsInFlow;
@@ -1282,7 +1282,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	{
 		cv::Point2f flowdiffi = avgFlow - flows.at(ii);
 		float chiTestVal = (flowdiffi.x*flowdiffi.x + flowdiffi.y*flowdiffi.y)/flowsig2;
-		std::cout << " flowx " << flows.at(ii).x << " flowy " << flows.at(ii).y << " chiVal " << chiTestVal << std::endl;
+		std::cout << " flowx " << flows.at(ii).x << " flowy " << flows.at(ii).y << " chiVal " << chiTestVal << " badCount " << depthEstimators.at(ii)->badCount << std::endl;
 		// if ((chiTestVal < flowchi2) || (timeFromStart < 0.25))
 		// {
 		// 	pPtsInFlow.push_back(pPts.at(ii));
@@ -1295,17 +1295,27 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		// {
 		// 	delete depthEstimators.at(ii);
 		// }
-		if ((chiTestVal < flowchi2) || (timeFromStart < 0.25))
+		if ((timeFromStart < 0.25))
 		{
+			pPtsInFlow.push_back(pPts.at(ii));
 			cPtsInFlow.push_back(cPts.at(ii));
+			kPtsInFlow.push_back(kPts.at(ii));
+			depthEstimatorsInFlow.push_back(depthEstimators.at(ii));
 		}
 		else
 		{
-			cPtsInFlow.push_back(pPts.at(ii)+avgFlow);
+			if (depthEstimators.at(ii)->badCount < 2)
+			{
+					pPtsInFlow.push_back(pPts.at(ii));
+					cPtsInFlow.push_back(pPts.at(ii)+avgFlow);
+					kPtsInFlow.push_back(kPts.at(ii));
+					depthEstimatorsInFlow.push_back(depthEstimators.at(ii));
+			}
+			else
+			{
+					delete depthEstimators.at(ii);
+			}
 		}
-		pPtsInFlow.push_back(pPts.at(ii));
-		kPtsInFlow.push_back(kPts.at(ii));
-		depthEstimatorsInFlow.push_back(depthEstimators.at(ii));
 	}
 	pPts = pPtsInFlow;
 	cPts = cPtsInFlow;
@@ -1319,7 +1329,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
 
 	// if (normGood && angGood)
-	if ((qAng < 30.0) && (currentBound.width > 200) && (currentBound.height > 200) && (depthEstimators.size() > minFeaturesBad))
+	if ((qAng < 45.0) && (2*currentBound.width > (numberFeaturesPerPartCol-1)*minDistance/2) && (2*currentBound.height > (numberFeaturesPerPartRow-1)*minDistance/2) && (depthEstimators.size() > minFeaturesBad))
 	{
 		try
 		{
@@ -1472,24 +1482,24 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 			// }
 			// cv::Mat G = cv::Mat::eye(3,3,CV_64F);
 
-			// Eigen::Matrix<float,3,3> Gkf,Gf;
-			Eigen::Matrix<float,2,3> Gf;
-			for (int ii = 0; ii < 6; ii++)
-			{
-				Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
-			}
+			// // Eigen::Matrix<float,3,3> Gkf,Gf;
+			// Eigen::Matrix<float,2,3> Gf;
+			// for (int ii = 0; ii < 6; ii++)
+			// {
+			// 	Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
+			// }
+			//
+			// if (!G.empty())
+			// {
+			// 	GfLast += kT*(Gf - GfLast);
+			// }
+			//
+			// for (int ii = 0; ii < 6; ii++)
+			// {
+			// 	G.at<double>(ii/3,ii%3) = GfLast(ii/3,ii%3);
+			// }
 
-			if (!G.empty())
-			{
-				GfLast += kT*(Gf - GfLast);
-			}
-
-			for (int ii = 0; ii < 6; ii++)
-			{
-				G.at<double>(ii/3,ii%3) = GfLast(ii/3,ii%3);
-			}
-
-			float sigEst = 5;
+			float sigEst = 3;
 			float sigEst2 = sigEst*sigEst;
 			// float chi2 = 3.84; //chi^2 for 95%
 			// float chi2 = 6.63; //chi^2 for 99%
@@ -2067,7 +2077,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	cPts = cPtsInPred;
 	if (cPts.size() > 0)
 	{
-		float sigPred = 5.0;
+		float sigPred = 3.0;
 		float sigPred2 = sigPred*sigPred;
 		// float chi2 = 3.84; //chi^2 for 95%
 		float chi2 = 6.63; //chi^2 for 99%
@@ -2081,9 +2091,10 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 			if (chiTestVal > chi2)
 			{
 				cPts.at(ii) = pPts.at(ii)+avgFlow;
+				depthEstimators.at(ii)->badCount++;
 			}
 		}
-		cv::cornerSubPix(image,cPts,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
+		// cv::cornerSubPix(image,cPts,cv::Size(3,3),cv::Size(-1,-1),cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 	}
 
 	kPts = kPtsInPred;
@@ -2136,15 +2147,32 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		bool usePnPk = false;
 
 		// std::cout << "\n tryingPnPk \n" << std::endl;
-		std::vector<cv::Point3f> kPts3(depthEstimators.size());
+		std::vector<cv::Point3f> kPts3(depthEstimators.size()),cPts3(depthEstimators.size());
 		std::vector<cv::Point3f>::iterator kPts3it = kPts3.begin();
+		std::vector<cv::Point3f>::iterator cPts3it = cPts3.begin();
+		std::vector<cv::Point2f>::iterator kPtsit = kPts.begin();
+		std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
+		Eigen::Vector3f uci,uki;
+		float DdcHati = 0.0;
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
 			float dkHati = (*itD)->dkHatICLExt;
-			(*kPts3it).x = (*itD)->uk(0)*dkHati;
-			(*kPts3it).y = (*itD)->uk(1)*dkHati;
-			(*kPts3it).z = (*itD)->uk(2)*dkHati;
+			float dcHati = (*itD)->dcHatICLExt;
+			uki = Eigen::Vector3f(((*kPtsit).x-cx)/fx,((*kPtsit).y-cy)/fy,1.0);
+			uki /= uki.norm();
+			uci = Eigen::Vector3f(((*cPtsit).x-cx)/fx,((*cPtsit).y-cy)/fy,1.0);
+			uci /= uci.norm();
+			DdcHati = -float(uci.transpose()*vc)*dt;
+			(*kPts3it).x = uki(0)*dkHati;
+			(*kPts3it).y = uki(1)*dkHati;
+			(*kPts3it).z = uki(2)*dkHati;
+			(*cPts3it).x = uci(0)*(dcHati+DdcHati);
+			(*cPts3it).y = uci(1)*(dcHati+DdcHati);
+			(*cPts3it).z = uci(2)*(dcHati+DdcHati);
 			kPts3it++;
+			cPts3it++;
+			kPtsit++;
+			cPtsit++;
 		}
 
 		{
@@ -2353,24 +2381,24 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		// std::cout << "\n G \n" << G << std::endl << std::endl;
 
-		float kT = 0.03/(GTau + 0.03);
-		Eigen::Matrix<float,3,3> Gf;
-		for (int ii = 0; ii < 9; ii++)
-		{
-			Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
-		}
-
-		if (!G.empty())
-		{
-			GkfLast += kT*(Gf - GkfLast);
-		}
-
-		GkfLast *= (1.0/GkfLast(2,2));
-
-		for (int ii = 0; ii < 9; ii++)
-		{
-			G.at<double>(ii/3,ii%3) = GkfLast(ii/3,ii%3);
-		}
+		// float kT = 0.03/(GTau + 0.03);
+		// Eigen::Matrix<float,3,3> Gf;
+		// for (int ii = 0; ii < 9; ii++)
+		// {
+		// 	Gf(ii/3,ii%3) = G.at<double>(ii/3,ii%3);
+		// }
+		//
+		// if (!G.empty())
+		// {
+		// 	GkfLast += kT*(Gf - GkfLast);
+		// }
+		//
+		// GkfLast *= (1.0/GkfLast(2,2));
+		//
+		// for (int ii = 0; ii < 9; ii++)
+		// {
+		// 	G.at<double>(ii/3,ii%3) = GkfLast(ii/3,ii%3);
+		// }
 
 		ROS_WARN("time for homog %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
 		updateClock = clock();
@@ -2393,7 +2421,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				std::vector<Eigen::Vector3f> tkcs;
 				std::vector<Eigen::Vector4f> qkcs;
 				std::vector<float> errors;
-				std::vector<Eigen::Matrix3f> Ekcs;
+				// std::vector<Eigen::Matrix3f> Ekcs;
 
 				if (usePnPk)
 				{
@@ -2405,16 +2433,17 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					qkcs.push_back(qkcPnPk);
 					if ((tkcPnPk.norm() > 0.001) && (pkc.norm() > 0.001))
 					{
-						errors.push_back((qkc - qkcPnPk).norm()+(pkc/pkc.norm()-tkcPnPk).norm());
+						// errors.push_back((qkc - qkcPnPk).norm()+(pkc/pkc.norm()-tkcPnPk).norm());
+						errors.push_back((pkc/pkc.norm()-tkcPnPk).norm());
 						tkcs.push_back(tkcPnPk);
 						// Eigen::Matrix3f Fkci = camMatf
-						Ekcs.push_back(getss(tkcPnPk)*getqRot(qkcPnPk));
+						// Ekcs.push_back(getss(tkcPnPk)*getqRot(qkcPnPk));
 					}
 					else
 					{
 						errors.push_back((qkc - qkcPnPk).norm());
 						tkcs.push_back(Eigen::Vector3f::Zero());
-						Ekcs.push_back(Eigen::Matrix3f::Zero());
+						// Ekcs.push_back(Eigen::Matrix3f::Zero());
 					}
 
 					std::cout << "\n qkcwPNPK " << qkcPnPk(0) << " qkcxPNPK " << qkcPnPk(1) << " qkcyPNPK " << qkcPnPk(2) << " qkczPNPK " << qkcPnPk(3) << std::endl;
@@ -2482,18 +2511,22 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					if ((tkct.norm() > 0.001) && (pkc.norm() > 0.001))
 					{
 						tkcF = tkct/tkct.norm();
-						errors.push_back((qkc - qkc1).norm()+(pkc/pkc.norm()-tkcF).norm());
-						errors.push_back((qkc - qkc2).norm()+(pkc/pkc.norm()-tkcF).norm());
+						// errors.push_back((qkc - qkc1).norm()+(pkc/pkc.norm()-tkcF).norm());
+						// errors.push_back((qkc - qkc2).norm()+(pkc/pkc.norm()-tkcF).norm());
+						errors.push_back((pkc/pkc.norm()-tkcF).norm());
+						errors.push_back((pkc/pkc.norm()-tkcF).norm());
 						tkcs.push_back(tkcF);
 						tkcs.push_back(tkcF);
-						errors.push_back((qkc - qkc1).norm()+(pkc/pkc.norm()+tkcF).norm());
-						errors.push_back((qkc - qkc2).norm()+(pkc/pkc.norm()+tkcF).norm());
+						// errors.push_back((qkc - qkc1).norm()+(pkc/pkc.norm()+tkcF).norm());
+						// errors.push_back((qkc - qkc2).norm()+(pkc/pkc.norm()+tkcF).norm());
+						errors.push_back((pkc/pkc.norm()+tkcF).norm());
+						errors.push_back((pkc/pkc.norm()+tkcF).norm());
 						tkcs.push_back(-tkcF);
 						tkcs.push_back(-tkcF);
-						Ekcs.push_back(getss(tkcF)*getqRot(qkc1));
-						Ekcs.push_back(getss(tkcF)*getqRot(qkc2));
-						Ekcs.push_back(getss(-tkcF)*getqRot(qkc1));
-						Ekcs.push_back(getss(-tkcF)*getqRot(qkc2));
+						// Ekcs.push_back(getss(tkcF)*getqRot(qkc1));
+						// Ekcs.push_back(getss(tkcF)*getqRot(qkc2));
+						// Ekcs.push_back(getss(-tkcF)*getqRot(qkc1));
+						// Ekcs.push_back(getss(-tkcF)*getqRot(qkc2));
 					}
 					else
 					{
@@ -2505,10 +2538,10 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 						errors.push_back((qkc - qkc2).norm());
 						tkcs.push_back(Eigen::Vector3f::Zero());
 						tkcs.push_back(Eigen::Vector3f::Zero());
-						Ekcs.push_back(Eigen::Matrix3f::Zero());
-						Ekcs.push_back(Eigen::Matrix3f::Zero());
-						Ekcs.push_back(Eigen::Matrix3f::Zero());
-						Ekcs.push_back(Eigen::Matrix3f::Zero());
+						// Ekcs.push_back(Eigen::Matrix3f::Zero());
+						// Ekcs.push_back(Eigen::Matrix3f::Zero());
+						// Ekcs.push_back(Eigen::Matrix3f::Zero());
+						// Ekcs.push_back(Eigen::Matrix3f::Zero());
 					}
 					std::cout << "\n qkcwF1 " << qkc1(0) << " qkcxF1 " << qkc1(1) << " qkcyF1 " << qkc1(2) << " qkczF1 " << qkc1(3) << std::endl;
 					std::cout << "\n qkcwF2 " << qkc2(0) << " qkcxF2 " << qkc2(1) << " qkcyF2 " << qkc2(2) << " qkczF2 " << qkc2(3) << std::endl;
@@ -2638,15 +2671,16 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 						if ((tkcj.norm() > 0.001) && (pkc.norm() > 0.001))
 						{
 							tkcjN = tkcj/tkcj.norm();
-							errors.push_back((qkc - qkcj).norm()+(pkc/pkc.norm()-tkcjN).norm());
+							// errors.push_back((qkc - qkcj).norm()+(pkc/pkc.norm()-tkcjN).norm());
+							errors.push_back((pkc/pkc.norm()-tkcjN).norm());
 							tkcs.push_back(tkcjN);
-							Ekcs.push_back(getss(tkcjN)*getqRot(qkcj));
+							// Ekcs.push_back(getss(tkcjN)*getqRot(qkcj));
 						}
 						else
 						{
 							errors.push_back((qkc - qkcj).norm());
 							tkcs.push_back(Eigen::Vector3f::Zero());
-							Ekcs.push_back(Eigen::Matrix3f::Zero());
+							// Ekcs.push_back(Eigen::Matrix3f::Zero());
 						}
 
 						std::cout << "\n qkcjwH " << qkcj(0) << " qkcjxH " << qkcj(1) << " qkcjyH " << qkcj(2) << " qkcjzH " << qkcj(3) << std::endl;
@@ -2660,23 +2694,33 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 				//find the minimum reprojection error
 				std::vector<float> projErrors(qkcs.size(),0.0);
+				std::vector<float> euclidErrors(qkcs.size(),0.0);
 				if (allPtsKnown)
 				{
 					for (int ii = 0; ii < cPts.size(); ii++)
 					{
-						Eigen::Vector3f kPti(kPts3.at(ii).x,kPts3.at(ii).y,kPts3.at(ii).z);
-						Eigen::Vector3f cPti(0.0,0.0,0.0);
-						Eigen::Vector2f cPtiPx(0.0,0.0);
+						Eigen::Vector3f kPti3(kPts3.at(ii).x,kPts3.at(ii).y,kPts3.at(ii).z);
+						Eigen::Vector3f cPti3(cPts3.at(ii).x,cPts3.at(ii).y,cPts3.at(ii).z);
+						Eigen::Vector3f cPti3Proj(0.0,0.0,0.0);
+						Eigen::Vector2f cPtiProj(0.0,0.0);
 						Eigen::Vector2f DcPti(0.0,0.0);
+						Eigen::Vector2f DcPti3(0.0,0.0);
 						for (int jj = 0; jj < qkcs.size(); jj++)
 						{
-							cPti = tkcs.at(jj)*dkcHat + rotatevec(kPti,qkcs.at(jj));
-							cPtiPx(0) = (cPti(0)/cPti(2))*fx+cx;
-							cPtiPx(1) = (cPti(1)/cPti(2))*fy+cy;
-							std::cout << ii << " " << jj << " " << cPti(0) << " " << cPti(1) << " " << cPti(2) << " " << cPtiPx(0) << " " << cPtiPx(1) << " " << cPts.at(ii).x << " " << cPts.at(ii).y << std::endl;
-							DcPti(0) = cPtiPx(0) - cPts.at(ii).x;
-							DcPti(1) = cPtiPx(1) - cPts.at(ii).y;
+							cPti3Proj = tkcs.at(jj)*dkcHat + rotatevec(kPti3,qkcs.at(jj));
+							cPtiProj(0) = (cPti3Proj(0)/cPti3Proj(2))*fx+cx;
+							cPtiProj(1) = (cPti3Proj(1)/cPti3Proj(2))*fy+cy;
+							// std::cout << ii << " " << jj << " " << cPts3.at(ii).x << " " << cPts3.at(ii).y << " " << cPts3.at(ii).z;
+							// std::cout << " " << cPti3Proj(0) << " " << cPti3Proj(1) << " " << cPti3Proj(2);
+							// std::cout << " " << cPts.at(ii).x << " " << cPts.at(ii).y;
+							// std::cout << " " << cPtiProj(0) << " " << cPtiProj(1) << std::endl;
+							DcPti(0) = cPtiProj(0) - cPts.at(ii).x;
+							DcPti(1) = cPtiProj(1) - cPts.at(ii).y;
+							DcPti3(0) = cPti3Proj(0) - cPts3.at(ii).x;
+							DcPti3(1) = cPti3Proj(1) - cPts3.at(ii).y;
+							DcPti3(1) = cPti3Proj(2) - cPts3.at(ii).z;
 							projErrors.at(jj) += float(DcPti.norm());
+							euclidErrors.at(jj) += float(DcPti3.norm());
 						}
 					}
 				}
@@ -2684,23 +2728,28 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				int minqkcsErrorInd = 0;
 				int minFkcsErrorInd = 0;
 				std::cout << std::endl;
-				std::cout << "errors: " << errors.at(0) << " " << projErrors.at(0) <<  ", ";
+				std::cout << "p0: " << errors.at(0) << " pr0: " << projErrors.at(0) << " eu0: " << euclidErrors.at(0) << std::endl;
 				for (int ii = 1; ii < errors.size(); ii++)
 				{
-					std::cout << errors.at(ii) << " " << projErrors.at(ii) << ", ";
-					if (allPtsKnown)
+					std::cout << "p" << ii << ": " << errors.at(ii) << " pr" << ii << ": " << projErrors.at(ii) << " eu" << ii << ": " << euclidErrors.at(ii) << std::endl;
+					// if (allPtsKnown)
+					// {
+					// 	if (euclidErrors.at(ii) < euclidErrors.at(minqkcsErrorInd))
+					// 	{
+					// 		minqkcsErrorInd = ii;
+					// 	}
+					// }
+					// else
+					// {
+					// 	if (errors.at(ii) < errors.at(minqkcsErrorInd))
+					// 	{
+					// 		minqkcsErrorInd = ii;
+					// 	}
+					// }
+
+					if (errors.at(ii) < errors.at(minqkcsErrorInd))
 					{
-						if (projErrors.at(ii) < projErrors.at(minqkcsErrorInd))
-						{
-							minqkcsErrorInd = ii;
-						}
-					}
-					else
-					{
-						if (errors.at(ii) < errors.at(minqkcsErrorInd))
-						{
-							minqkcsErrorInd = ii;
-						}
+						minqkcsErrorInd = ii;
 					}
 				}
 				std::cout << std::endl;

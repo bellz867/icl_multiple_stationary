@@ -5,6 +5,7 @@ DepthEstimator::DepthEstimator()
 
 DepthEstimator::DepthEstimator(int depthIndInit, Eigen::Vector3f mInit, ros::Time t, float zmin, float zmax, float zInit, float tau, float fx, float fy, float cx, float cy)
 {
+  badCount = 0;
   depthInd = depthIndInit;
   mk = mInit;
   mc = mk;
