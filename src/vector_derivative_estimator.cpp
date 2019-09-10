@@ -32,6 +32,67 @@ void VectorDerivativeEstimator::initialize(int stateSizeInit)
 	II = Eigen::MatrixXf::Identity(stateSize,stateSize);
 }
 
+Eigen::VectorXf VectorDerivativeEstimator::update(std::vector<Eigen::VectorXf> newMeasures, ros::Time newTime, Eigen::VectorXf newMeasureExpected)
+{
+	ros::Time t = newTime;
+
+	if (firstUpdate)
+	{
+		xHat.segment(0,stateSize) = newMeasureExpected;
+		tLast = t;
+		firstUpdate = false;
+	}
+
+	float dt = (t-tLast).toSec();
+	tLast = t;
+
+	//predict
+	F.block(0,stateSize,stateSize,stateSize) = dt*II;
+	// std::cout << std::endl << "+++++++++++++++++" << std::endl;
+	// std::cout << "\n xHat \n" << xHat <<std::endl;
+	// std::cout << "\n xDot(xHat) \n" << xDot(xHat) <<std::endl;
+	xHat += (xDot(xHat)*dt);
+	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
+	// // P += ((F*P + P*F.transpose() + Q)*dt);
+	P = (F*P*F.transpose() + Q);
+	//
+	// std::cout << "\n F \n" << F <<std::endl;
+	// std::cout << "\n P \n" << P <<std::endl;
+
+	// Eigen::Matrix2f argK = H*P*HT+R;
+	// std::cout << "\n argK \n" << argK <<std::endl;
+	// Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(argK, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	// Eigen::Matrix2f argKI = svdargK.solve(Eigen::Matrix2f::Identity());
+	// Eigen::Matrix3f argK = H*P*HT + R;
+	S = P.block(0,0,stateSize,stateSize) + R;
+	// Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(S, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	// Eigen::MatrixXf SI = svdargK.solve(Eigen::MatrixXf::Identity(stateSize,stateSize));
+	// Eigen::MatrixXf SI = S.fullPivHouseholderQr().solve(II);
+	SI = S.llt().solve(II);
+	// std::cout << "\n SI \n" << SI <<std::endl;
+
+
+	//check to see if the values are an inlier before saving
+	float chi2 = 6.63; //chi^2 for 99%
+	int numMeasUsed = 0;
+	// Eigen::Matrix<float,6,3> K = P*HT*argKI;
+	K = P.block(0,0,2*stateSize,stateSize)*SI;
+	for (int ii = 0; ii < newMeasures.size(); ii++)
+	{
+		Eigen::VectorXf zDx = newMeasures.at(ii)-xHat.segment(0,stateSize);
+		// float chi2 = 3.84; //chi^2 for 95%
+		float chiTestVal = zDx.transpose()*SI*zDx;
+		if (chiTestVal <= chi2)
+		{
+			xHat += (K*zDx);
+			P -= (K*P.block(0,0,stateSize,2*stateSize));
+		}
+	}
+
+	return xHat;
+}
+
+
 Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ros::Time newTime)
 {
 	ros::Time t = newTime;

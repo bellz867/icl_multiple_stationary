@@ -58,10 +58,11 @@ Eigen::Vector2f localBundleProjection(float fx, float fy, float cx, float cy, fl
 //local bundle jacobian for a feature
 Eigen::Matrix<float,3,10> localBundleJacobian(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p, bool usezik);
 
-Eigen::Vector2f localBundleJacobianPnPProject(float fx, float fy, float cx, float cy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc);
-Eigen::Matrix<float,2,7> localBundleJacobianPnP(float fx, float fy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc);
-Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f pkc);
-Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc);
+// Eigen::Vector2f localBundleJacobianPnPProject(float fx, float fy, float cx, float cy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc);
+// Eigen::Matrix<float,2,7> localBundleJacobianPnP(float fx, float fy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc);
+// Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f pkc);
+// Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f tkc, float dkc);
+Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, float dkc);
 Eigen::Matrix<float,2,7> localBundleJacobianNorm(Eigen::Vector4f qkc, Eigen::Vector3f tkc);
 
 //local bundle jacobian for a feature

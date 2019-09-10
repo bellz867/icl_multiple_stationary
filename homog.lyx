@@ -1,0 +1,320 @@
+#LyX 2.1 created this file. For more info see http://www.lyx.org/
+\lyxformat 474
+\begin_document
+\begin_header
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_math auto
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}=\underline{p}_{k/c}+R_{k/c}\underline{p}_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+d_{k}=\underline{n}_{k}^{T}\underline{p}_{i/k}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+1=\frac{\underline{n}_{k}^{T}\underline{p}_{i/k}}{d_{k}}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}=\underline{p}_{k/c}\frac{\underline{n}_{k}^{T}\underline{p}_{i/k}}{d_{k}}+R_{k/c}\underline{p}_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}=\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}\underline{p}_{i/k}+R_{k/c}\underline{p}_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}=\left(\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}+R_{k/c}\right)\underline{p}_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}=m_{i/c}z_{i/c}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\underline{p}_{i/c}=A^{-1}p_{i/c}z_{i/c}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+A^{-1}p_{i/c}z_{i/c}=\left(\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}+R_{k/c}\right)A^{-1}p_{i/k}z_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+p_{i/c}=\frac{z_{i/k}}{z_{i/c}}A\left(\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}+R_{k/c}\right)A^{-1}p_{i/k}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+G=\frac{z_{i/k}}{z_{i/c}}A\left(\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}+R_{k/c}\right)A^{-1}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+A=\begin{bmatrix}f_{x} & 0 & c_{x}\\
+0 & f_{y} & c_{y}\\
+0 & 0 & 1
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+A^{-1}=\frac{1}{f_{x}f_{y}}\begin{bmatrix}f_{y} & 0 & 0\\
+0 & f_{x} & 0\\
+-f_{y}c_{x} & -f_{x}c_{y} & f_{x}f_{y}
+\end{bmatrix}^{T}=\begin{bmatrix}\frac{1}{f_{x}} & 0 & -\frac{1}{f_{x}}c_{x}\\
+0 & \frac{1}{f_{y}} & -\frac{1}{f_{y}}c_{y}\\
+0 & 0 & 1
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{bmatrix}x\\
+y\\
+z
+\end{bmatrix}\begin{bmatrix}n_{x} & n_{y} & n_{z}\end{bmatrix}=\begin{bmatrix}xn_{x} & xn_{y} & xn_{z}\\
+yn_{x} & yn_{y} & yn_{z}\\
+zn_{x} & zn_{y} & zn_{z}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}=\frac{1}{d_{k}}\begin{bmatrix}xn_{x} & xn_{y} & xn_{z}\\
+yn_{x} & yn_{y} & yn_{z}\\
+zn_{x} & zn_{y} & zn_{z}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+R_{k/c}=\begin{bmatrix}r_{11} & r_{12} & r_{13}\\
+r_{21} & r_{22} & r_{23}\\
+r_{31} & r_{32} & r_{33}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{1}{d_{k}}\begin{bmatrix}xn_{x} & xn_{y} & xn_{z}\\
+yn_{x} & yn_{y} & yn_{z}\\
+zn_{x} & zn_{y} & zn_{z}
+\end{bmatrix}+\begin{bmatrix}r_{11} & r_{12} & r_{13}\\
+r_{21} & r_{22} & r_{23}\\
+r_{31} & r_{32} & r_{33}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\begin{bmatrix}\frac{1}{d_{k}}xn_{x}+r_{11} & \frac{1}{d_{k}}xn_{y}+r_{12} & \frac{1}{d_{k}}xn_{z}+r_{13}\\
+\frac{1}{d_{k}}yn_{x}+r_{21} & \frac{1}{d_{k}}yn_{y}+r_{22} & \frac{1}{d_{k}}yn_{z}+r_{23}\\
+\frac{1}{d_{k}}zn_{x}+r_{31} & \frac{1}{d_{k}}zn_{y}+r_{32} & \frac{1}{d_{k}}zn_{z}+r_{33}
+\end{bmatrix}
+\]
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+\frac{z_{i/k}}{z_{i/c}}A\left(\frac{1}{d_{k}}\underline{p}_{k/c}\underline{n}_{k}^{T}+R_{k/c}\right)A^{-1}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+dd
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+dd
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\begin_layout Standard
+d
+\end_layout
+
+\end_body
+\end_document
