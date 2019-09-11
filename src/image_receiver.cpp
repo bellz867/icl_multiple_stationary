@@ -261,7 +261,7 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 	clock_t keyTime = clock();
 
 	// add a new keyframe if needed and total is less than 3
-	if (keyframes.size() < 2)
+	if (keyframes.size() < 3)
 	{
 		for(int ii = 0; ii < addKeytoPartition.size(); ii++)
 		{

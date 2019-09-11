@@ -1331,7 +1331,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
 
 	// if (normGood && angGood)
-	if ((qAng < 45.0) && (0.6*currentBound.width > (numberFeaturesPerPartCol-1)*minDistance/2) && (0.6*currentBound.height > (numberFeaturesPerPartRow-1)*minDistance/2) && (depthEstimators.size() > minFeaturesBad))
+	if ((qAng < 15.0) && (0.6*currentBound.width > (numberFeaturesPerPartCol-1)*minDistance/2) && (0.6*currentBound.height > (numberFeaturesPerPartRow-1)*minDistance/2) && (depthEstimators.size() > minFeaturesBad))
 	{
 		try
 		{
@@ -2453,6 +2453,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				std::vector<Eigen::Vector3f> tkcs;
 				std::vector<Eigen::Vector4f> qkcs;
 				std::vector<float> errors;
+				std::vector<int> types;
 				// std::vector<Eigen::Matrix3f> Ekcs;
 
 				if (usePnPk)
@@ -2477,6 +2478,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 						tkcs.push_back(Eigen::Vector3f::Zero());
 						// Ekcs.push_back(Eigen::Matrix3f::Zero());
 					}
+					types.push_back(0);
 
 					std::cout << "\n qkcwPNPK " << qkcPnPk(0) << " qkcxPNPK " << qkcPnPk(1) << " qkcyPNPK " << qkcPnPk(2) << " qkczPNPK " << qkcPnPk(3) << std::endl;
 					std::cout << "\n tkcxPNPK " << tkcPnPk(0) << " tkcyPNPK " << tkcPnPk(1) << " tkczPNPK " << tkcPnPk(2) << std::endl;
@@ -2674,6 +2676,10 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 						tkcs.push_back(Eigen::Vector3f::Zero());
 						tkcs.push_back(Eigen::Vector3f::Zero());
 					}
+					types.push_back(1);
+					types.push_back(1);
+					types.push_back(1);
+					types.push_back(1);
 					std::cout << "\n qkcwE1 " << qkc1(0) << " qkcxE1 " << qkc1(1) << " qkcyE1 " << qkc1(2) << " qkczE1 " << qkc1(3) << std::endl;
 					std::cout << "\n qkcwE2 " << qkc2(0) << " qkcxE2 " << qkc2(1) << " qkcyE2 " << qkc2(2) << " qkczE2 " << qkc2(3) << std::endl;
 					std::cout << "\n tkcxE " << tkcF(0) << " tkcyE " << tkcF(1) << " tkczE " << tkcF(2) << std::endl;
@@ -2737,6 +2743,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 							tkcs.push_back(Eigen::Vector3f::Zero());
 							// Ekcs.push_back(Eigen::Matrix3f::Zero());
 						}
+						types.push_back(2);
 
 						std::cout << "\n qkcjwH " << qkcj(0) << " qkcjxH " << qkcj(1) << " qkcjyH " << qkcj(2) << " qkcjzH " << qkcj(3) << std::endl;
 						std::cout << "\n tkcjxH " << tkcjN(0) << " tkcjyH " << tkcjN(1) << " tkcjzH " << tkcjN(2) << std::endl;
@@ -2871,9 +2878,14 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					{
 						if (euclidErrors.at(ii) < float(cPts.size()*0.2))
 						{
+							float scalei = 1.0;
+							if (types.at(ii) == 2)
+							{
+								scalei = 0.1;
+							}
 							minEsts.push_back(ii);
 							std::cout << "\n use " << ii << " ";
-							minEstWeights.push_back(1.0/(1.0+euclidErrors.at(ii)*euclidErrors.at(ii)));
+							minEstWeights.push_back(1.0/(1.0+scalei*euclidErrors.at(ii)*euclidErrors.at(ii)));
 							std::cout << minEstWeights.back() << std::endl;
 							minEstWeightSum += minEstWeights.back();
 						}
@@ -2886,9 +2898,14 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					{
 						if (errors.at(ii) < 0.1)
 						{
+							float scalei = 1.0;
+							if (types.at(ii) == 2)
+							{
+								scalei = 0.1;
+							}
 							minEsts.push_back(ii);
 							std::cout << "\n use " << ii << " ";
-							minEstWeights.push_back(1.0/(1.0+errors.at(ii)*errors.at(ii)));
+							minEstWeights.push_back(1.0/(1.0+scalei*errors.at(ii)*errors.at(ii)));
 							std::cout << minEstWeights.back() << std::endl;
 							minEstWeightSum += minEstWeights.back();
 						}
@@ -2969,7 +2986,6 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					tkcEst = tkcs.at(minqkcsErrorInd);
 				}
 
-
 				std::cout << "\n qkcs.size " << qkcs.size() << std::endl;
 				std::cout << "\n tkcs.size " << tkcs.size() << std::endl;
 				std::cout << "\n minqkcsErrorInd " << minqkcsErrorInd << std::endl;
@@ -2994,7 +3010,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			tkc =  pkc/pkc.norm();
 		}
 
-		if (allPtsKnown)
+		if (false)
 		{
 			int numPts = kPts.size();
 			// std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
