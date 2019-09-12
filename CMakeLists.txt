@@ -50,7 +50,7 @@ include_directories(
   "include"
 )
 
-add_executable(estimator_main_node src/depth_estimator.cpp src/depth_estimator_ekf.cpp src/depth_estimator_icl_ext.cpp src/vector_derivative_estimator.cpp src/patch_estimator.cpp src/data_save.cpp src/image_receiver.cpp src/helper_functions.cpp src/estimator_main.cpp src/icl_save.cpp)
+add_executable(estimator_main_node src/depth_estimator.cpp src/depth_estimator_ekf.cpp src/depth_estimator_icl_ext.cpp src/vector_derivative_estimator.cpp src/patch_estimator.cpp src/data_save.cpp src/image_receiver.cpp src/helper_functions.cpp src/estimator_main.cpp src/icl_save.cpp src/bundle_save.cpp)
 add_executable(icl_wall_mapper_node src/keyframe_planes.cpp src/wall_mapper.cpp src/wall_mapper_main.cpp)
 add_executable(odom_main_node src/odom_estimator.cpp src/vector_derivative_estimator.cpp src/odom_estimator_main.cpp src/helper_functions.cpp)
 add_executable(mocap_odom_main_node src/mocap_odom_estimator.cpp src/mocap_odom_estimator_main.cpp src/helper_functions.cpp)

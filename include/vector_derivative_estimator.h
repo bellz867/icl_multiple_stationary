@@ -15,10 +15,12 @@ struct VectorDerivativeEstimator
     Eigen::MatrixXf P;
     Eigen::MatrixXf Q;
     Eigen::MatrixXf R;
+    Eigen::MatrixXf RR;
     Eigen::MatrixXf F;
     Eigen::MatrixXf H;
     Eigen::MatrixXf HT;
     Eigen::MatrixXf II;
+    Eigen::MatrixXf III;
     Eigen::MatrixXf S;
     Eigen::MatrixXf SI;
     Eigen::MatrixXf K;
@@ -32,6 +34,8 @@ struct VectorDerivativeEstimator
     Eigen::VectorXf update(Eigen::VectorXf newMeasure, ros::Time newTime, Eigen::VectorXf newMeasureExpected);
 
     Eigen::VectorXf update(std::vector<Eigen::VectorXf> newMeasures, ros::Time newTime, Eigen::VectorXf newMeasureExpected);
+
+    Eigen::VectorXf update(Eigen::VectorXf newMeasure, Eigen::VectorXf newMeasureDot, ros::Time newTime);
 
     Eigen::VectorXf xDot(Eigen::VectorXf x);
 };

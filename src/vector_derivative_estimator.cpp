@@ -15,6 +15,8 @@ void VectorDerivativeEstimator::initialize(int stateSizeInit)
 	// feature variance
 	float rr = 0.00001;
 	R = rr*Eigen::MatrixXf::Identity(stateSize,stateSize);//measurment covariance
+	RR = rr*Eigen::MatrixXf::Identity(2*stateSize,2*stateSize);//measurment covariance
+	RR.block(stateSize,stateSize,stateSize,stateSize) = 1000.0*R;
 	P.block(0,0,stateSize,stateSize) = R;//covariance
 	Q.block(0,0,stateSize,stateSize) =  0.1*Eigen::MatrixXf::Identity(stateSize,stateSize);//process covariance
 
@@ -30,6 +32,7 @@ void VectorDerivativeEstimator::initialize(int stateSizeInit)
 	H.block(0,0,stateSize,stateSize) = Eigen::MatrixXf::Identity(stateSize,stateSize);
 	HT = H.transpose();
 	II = Eigen::MatrixXf::Identity(stateSize,stateSize);
+	III = Eigen::MatrixXf::Identity(2*stateSize,2*stateSize);
 }
 
 Eigen::VectorXf VectorDerivativeEstimator::update(std::vector<Eigen::VectorXf> newMeasures, ros::Time newTime, Eigen::VectorXf newMeasureExpected)
@@ -41,6 +44,7 @@ Eigen::VectorXf VectorDerivativeEstimator::update(std::vector<Eigen::VectorXf> n
 		xHat.segment(0,stateSize) = newMeasureExpected;
 		tLast = t;
 		firstUpdate = false;
+		return xHat;
 	}
 
 	float dt = (t-tLast).toSec();
@@ -103,6 +107,7 @@ Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ro
 		xHat.segment(0,stateSize) = z;
 		tLast = t;
 		firstUpdate = false;
+		return xHat;
 	}
 
 	float dt = (t-tLast).toSec();
@@ -167,6 +172,7 @@ Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ro
 		xHat.segment(0,stateSize) = z;
 		tLast = t;
 		firstUpdate = false;
+		return xHat;
 	}
 
 	float dt = (t-tLast).toSec();
@@ -222,6 +228,80 @@ Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, ro
 
 	return xHat;
 }
+
+Eigen::VectorXf VectorDerivativeEstimator::update(Eigen::VectorXf newMeasure, Eigen::VectorXf newMeasureDot, ros::Time newTime)
+{
+	ros::Time t = newTime;
+	Eigen::VectorXf z = Eigen::VectorXf::Zero(2*stateSize);
+	z.segment(0,stateSize) = newMeasure;
+	z.segment(stateSize,stateSize) = newMeasureDot;
+
+	if (firstUpdate)
+	{
+		xHat = z;
+		tLast = t;
+		firstUpdate = false;
+		return xHat;
+	}
+
+	float dt = (t-tLast).toSec();
+	tLast = t;
+
+	//predict
+	F.block(0,stateSize,stateSize,stateSize) = dt*II;
+	// std::cout << std::endl << "+++++++++++++++++" << std::endl;
+	// std::cout << "\n xHat \n" << xHat <<std::endl;
+	// std::cout << "\n xDot(xHat) \n" << xDot(xHat) <<std::endl;
+	xHat += (xDot(xHat)*dt);
+	// xHat.segment(3,4) /= xHat.segment(3,4).norm();
+	// // P += ((F*P + P*F.transpose() + Q)*dt);
+	P = (F*P*F.transpose() + Q);
+	//
+	// std::cout << "\n F \n" << F <<std::endl;
+	// std::cout << "\n P \n" << P <<std::endl;
+
+	// Eigen::Matrix2f argK = H*P*HT+R;
+	// std::cout << "\n argK \n" << argK <<std::endl;
+	// Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(argK, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	// Eigen::Matrix2f argKI = svdargK.solve(Eigen::Matrix2f::Identity());
+	// Eigen::Matrix3f argK = H*P*HT + R;
+	// S = P.block(0,0,stateSize,stateSize) + R;
+	S = P+RR;
+	// std::cout << "\n S \n" << S << std::endl;
+	// S.block(0,0,stateSize,stateSize) += R;
+	// std::cout << "\n S \n" << S << std::endl;
+	// S.block(stateSize,stateSize,stateSize,stateSize) += (1000.0*R);
+	// std::cout << "\n S \n" << S << std::endl;
+	// Eigen::JacobiSVD<Eigen::MatrixXf> svdargK(S, Eigen::ComputeThinU | Eigen::ComputeThinV);
+	// Eigen::MatrixXf SI = svdargK.solve(Eigen::MatrixXf::Identity(stateSize,stateSize));
+	// Eigen::MatrixXf SI = S.fullPivHouseholderQr().solve(II);
+	SI = S.llt().solve(III);
+	// std::cout << "\n SI \n" << SI <<std::endl;
+
+
+	//check to see if the value is an inlier before saving
+	Eigen::VectorXf zDx = z-xHat;
+	// float chi2 = 3.84; //chi^2 for 95%
+	float chi2 = 6.63; //chi^2 for 99%
+	float chiTestVal = zDx.transpose()*SI*zDx;
+	if (chiTestVal > chi2)
+	{
+		// std::cout << "\n chiTest fail " << chiTestVal << " zDx " << zDx.transpose() << std::endl;
+		return xHat;
+	}
+	else
+	{
+		// std::cout << "\n chiTest pass " << chiTestVal << " zDx " << zDx.transpose() << std::endl;
+	}
+
+	// Eigen::Matrix<float,6,3> K = P*HT*argKI;
+	K = P*SI;
+	xHat += (K*zDx);
+	P -= (K*P);
+
+	return xHat;
+}
+
 
 Eigen::VectorXf VectorDerivativeEstimator::xDot(Eigen::VectorXf x)
 {

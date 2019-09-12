@@ -34,6 +34,7 @@
 #include <helper_functions.h>
 #include <data_save.h>
 #include <vector_derivative_estimator.h>
+#include <bundle_save.h>
 
 #include <icl_multiple_stationary/PoseDelta.h>
 #include <icl_multiple_stationary/Roi.h>
@@ -100,6 +101,8 @@ struct PatchEstimator
 	bool landmarkView;
 	int numLandmarkCheck;
 	Eigen::Vector3f wcbHat;
+	std::deque<BundleSave*> bundleSaves;
+	BundleSave* bundleNew;
 
 	VectorDerivativeEstimator qDotEstimator;
 

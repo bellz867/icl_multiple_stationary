@@ -306,7 +306,7 @@ Eigen::Vector2f localBundleProjection(float fx, float fy, float cx, float cy, fl
 // }
 
 //bundle adjust jacobian
-Eigen::Matrix<float,2,10> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f pkc)
+Eigen::Matrix<float,2,10> localBundleJacobian(float fx, float fy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f pkc)
 {
 	// jacobian for reprojection into key frame or generally, any previous frame
 	// minimize || f(x) - b ||^2 is equivalent to minimize f(x)^T*f(x)-2*b^T*f(x)
@@ -431,6 +431,41 @@ Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4
 	Ji(2,2) = -2.0*qw*xik+2.0*qz*yik-4.0*qy*zik;
 	Ji(2,3) = 2.0*qw*xik+2.0*qy*yik;
 	Ji(2,6) = dkc;
+
+	return Ji;
+}
+
+//bundle adjust jacobian
+Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc)
+{
+	// jacobian for reprojection into key frame or generally, any previous frame
+	// minimize || f(x) - b ||^2 is equivalent to minimize f(x)^T*f(x)-2*b^T*f(x)
+	// find dEdx = 0 is equivalent to 2*J^T*f(x)-2*J^T*b = 0 where J = df(x)/dx
+	//expand around x f(x+Dx) = f(x)+J*Dx where Dx = (J^T*J)^-1*J^T*(b-f(x))
+	float xik = pik(0);
+	float yik = pik(1);
+	float zik = pik(2);
+	float qw = qkc(0);
+	float qx = qkc(1);
+	float qy = qkc(2);
+	float qz = qkc(3);
+
+	Eigen::Matrix<float,3,7> Ji = Eigen::Matrix<float,3,7>::Zero();
+	Ji(0,0) = -2.0*qz*yik+2.0*qy*zik;
+	Ji(0,1) = 2.0*qy*yik+2.0*qz*zik;
+	Ji(0,2) = -4.0*qy*xik+2.0*qx*yik+2.0*qw*zik;
+	Ji(0,3) = -4.0*qz*xik-2.0*qw*yik+2.0*qx*zik;
+	Ji(0,4) = 1;
+	Ji(1,0) = 2.0*qz*xik-2.0*qx*zik;
+	Ji(1,1) = 2.0*qy*xik-4.0*qx*yik-2.0*qw*zik;
+	Ji(1,2) = 2.0*qx*xik+2.0*qz*zik;
+	Ji(1,3) = 2.0*qw*xik-4.0*qz*yik+2.0*qy*zik;
+	Ji(1,5) = 1;
+	Ji(2,0) = 2.0*(qz-qy)*xik+2.0*qx*yik;
+	Ji(2,1) = 2.0*qw*yik-4.0*qx*zik;
+	Ji(2,2) = -2.0*qw*xik+2.0*qz*yik-4.0*qy*zik;
+	Ji(2,3) = 2.0*qw*xik+2.0*qy*yik;
+	Ji(2,6) = 1;
 
 	return Ji;
 }

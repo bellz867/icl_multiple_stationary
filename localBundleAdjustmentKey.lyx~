@@ -707,7 +707,7 @@ partials for
 
 \begin_inset Formula 
 \[
-z_{i/c}=z_{k/c}d_{k/c}+r_{31}x_{i/k}+r_{32}y_{i/k}+r_{33}z_{i/k}
+z_{i/c}=z_{k/c}+r_{31}x_{i/k}+r_{32}y_{i/k}+r_{33}z_{i/k}
 \]
 
 \end_inset
@@ -808,7 +808,7 @@ z_{i/c}=z_{k/c}d_{k/c}+r_{31}x_{i/k}+r_{32}y_{i/k}+r_{33}z_{i/k}
 \begin_layout Standard
 \begin_inset Formula 
 \[
-\frac{\partial z_{i/c}}{\partial z_{k/c}}=d_{k/c}
+\frac{\partial z_{i/c}}{\partial z_{k/c}}=1
 \]
 
 \end_inset
@@ -1108,6 +1108,30 @@ N>\frac{60}{\left(40-7\right)}
 
 \end_inset
 
+
+\end_layout
+
+\begin_layout Standard
+if 
+\begin_inset Formula $p=20$
+\end_inset
+
+ and 
+\begin_inset Formula $N=5$
+\end_inset
+
+
+\begin_inset Formula 
+\[
+J\in\mathbb{R}^{200\times954}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 additional relationships 
 \begin_inset Formula 
 \[

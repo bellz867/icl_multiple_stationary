@@ -23,6 +23,7 @@ struct DepthEstimatorICLExt
   // std::deque<float> dtBuff;
   Eigen::Vector2f uvInt;
   Eigen::Vector2f psiDotInt;
+  Eigen::Vector2f psiLast;
   ros::Time tLastSave;
   Eigen::Vector3f pkcLastSave;
   float yysum,yusum;
@@ -42,6 +43,7 @@ struct DepthEstimatorICLExt
   float fx,fy,cx,cy;
   ros::Time startTime;
   Eigen::Vector3f up;
+  bool firstUpdate;
 
   DepthEstimatorICLExt();
   void initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t,

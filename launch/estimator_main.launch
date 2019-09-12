@@ -27,7 +27,7 @@
     <param name="numberFeaturesPerPartRow" value="4"/>
     <param name="numberFeaturesPerPartCol" value="4"/>
     <param name="patchSizeBase" value="50"/>
-    <param name="checkSizeBase" value="75"/>
+    <param name="checkSizeBase" value="90"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>

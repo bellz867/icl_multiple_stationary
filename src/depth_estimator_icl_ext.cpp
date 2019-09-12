@@ -11,6 +11,7 @@ DepthEstimatorICLExt::DepthEstimatorICLExt()
   numSaved = 0;
   numThrown = 0;
   timeConverge = 0.0;
+  firstUpdate = true;
 }
 void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit,
                                       float tauInit, ros::Time t, float fxInit, float fyInit, float cxInit, float cyInit)
@@ -66,7 +67,8 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
 
   Eigen::Vector3f ucEstDot = Eigen::Vector3f::Zero();
 
-  if (dkKnown)
+  // if (dkKnown || uDotEstimator.firstUpdate)
+  if (true)
   {
     ucEstDot = -getss(w)*ucEst + (1.0/dcHat)*(ucEst*ucEstT - Eigen::Matrix3f::Identity())*v;
   }
@@ -117,10 +119,18 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n hi4 \n";
   // clock_t processTime = clock();
 
-  float kxi = 250.0;
+  float kxi = 100.0;
   float kX = 30.0;
 
-  Eigen::Matrix<float,6,1> xHat = uDotEstimator.update(ucMeas,t);
+  Eigen::Matrix<float,6,1> xHat;
+  if (dt > 0.0)
+  {
+     xHat = uDotEstimator.update(ucMeas,(1.0/dt)*(ucMeas-up),t);
+  }
+  else
+  {
+    xHat = uDotEstimator.update(ucMeas,(1.0/0.03)*(ucMeas-up),t);
+  }
 
   // ROS_WARN("time1 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
@@ -177,10 +187,29 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n hi6 \n";
 
   Eigen::Vector2f psiMeas = YcYcI*YcT*Rkc*uk;
-  Eigen::Matrix<float,4,1> Xpsi = psiDotEstimator.update(psiMeas,t);
+  Eigen::Vector4f Xpsi = Eigen::Vector4f::Zero();
+  if (firstUpdate)
+  {
+    Xpsi.segment(0,2) = psiMeas;
+    firstUpdate = false;
+  }
+  else
+  {
+    if (dt > 0.0)
+    {
+      Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/dt,t);
+    }
+    else
+    {
+      Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/0.03,t);
+    }
+  }
+
+  Eigen::Vector2f psi = psiMeas;
+  psiLast = psi;
   // ROS_WARN("time2 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
-  Eigen::Vector2f psi = psiMeas;
+
   Eigen::Vector2f psiDot = Xpsi.segment(2,2);
 
   float dcDot = -ucT*v;
