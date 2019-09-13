@@ -66,6 +66,7 @@ Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4
 Eigen::Matrix<float,3,7> localBundleJacobian(Eigen::Vector3f pik, Eigen::Vector4f qkc);
 Eigen::Matrix<float,2,7> localBundleJacobianNorm(Eigen::Vector4f qkc, Eigen::Vector3f tkc);
 Eigen::Matrix<float,2,10> localBundleJacobian(float fx, float fy, Eigen::Vector3f pik, Eigen::Vector4f qkc, Eigen::Vector3f pkc);
+Eigen::Matrix<float,2,4> localBundleJacobianWMR(float fx, float fy, float cx, float cy, float xik, float yik, float zik, float qw, float qy, float xkc, float zkc, Eigen::Vector2f& pic);
 
 //local bundle jacobian for a feature
 // Eigen::Matrix<float,2,10> localBundleJacobian(float fx, float fy, float cx, float cy, float uic, float vic, float zic, Eigen::Vector4f q, Eigen::Vector3f p);
