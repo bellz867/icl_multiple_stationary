@@ -2204,8 +2204,14 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			cv::eigen2cv(pkc,tvec);
 			// std::cout << "rvecPnPkb \n" << rvec << std::endl;
 			// std::cout << "tvecPnPkb \n" << tvec << std::endl;
-			usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-			// usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::noArray(),rvec,tvec,true,100,3.0,0.99);
+			// usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			int PnPkIn = 1.0;
+			while (!usePnPk && (PnPkIn < 5))
+			{
+				usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::noArray(),rvec,tvec,true,100,float(PnPkIn),0.99);
+				PnPkIn++;
+			}
+
 			// std::cout << "rvecPnPka \n" << rvec << std::endl;
 			// std::cout << "tvecPnPka \n" << tvec << std::endl;
 
@@ -2303,8 +2309,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// cv::Mat GA = (cv::Mat_<double>(3,3) << GAtemp.at<double>(0,0),GAtemp.at<double>(0,1),GAtemp.at<double>(0,2),GAtemp.at<double>(1,0),GAtemp.at<double>(1,1),GAtemp.at<double>(1,2),0.0,0.0,1.0);
 		// cv::Mat inliersG1;
 		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 3.0);//calculate homography using RANSAC
-		cv::Mat G = cv::findHomography(kPts,cPts,cv::LMEDS);//calculate homography using RANSAC
-		// cv::Mat G = cv::findHomography(kPts,cPts,cv::RANSAC,0.5,cv::noArray(),2000,0.99);//calculate homography using RANSAC
+		// cv::Mat G = cv::findHomography(kPts,cPts,cv::LMEDS);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(kPts,cPts,cv::RANSAC,0.01,cv::noArray(),2000,0.99);//calculate homography using RANSAC
 		// float G11 = G.at<double>(0,0);
 		// float G12 = G.at<double>(0,1);
 		// float G13 = G.at<double>(0,2);
@@ -2318,8 +2324,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// std::vector<cv::Point2f> cPtsNorm,kPtsNorm;
 		// cv::undistortPoints(cPts,cPtsNorm,camMat,cv::Mat());
 		// cv::undistortPoints(kPts,kPtsNorm,camMat,cv::Mat());
-		cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::LMEDS);
-		// cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::RANSAC,0.99,0.5);
+		// cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::LMEDS);
+		cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::RANSAC,0.99,0.01);
 
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_LMEDS);
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,1.0,0.99);
@@ -2969,8 +2975,15 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				}
 				else
 				{
-					qkcEst = qkcs.at(minqkcsErrorInd);
-					tkcEst = tkcs.at(minqkcsErrorInd);
+					Eigen::Vector3f tkc = Eigen::Vector3f::Zero();
+					if (pkc.norm() > 0.001)
+					{
+						tkc =  pkc/pkc.norm();
+					}
+					// qkcEst = qkcs.at(minqkcsErrorInd);
+					// tkcEst = tkcs.at(minqkcsErrorInd);
+					qkcEst = qkc;
+					tkcEst = tkc;
 				}
 
 				std::cout << "\n qkcs.size " << qkcs.size() << std::endl;
@@ -3233,13 +3246,13 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		// Eigen::Matrix<float,8,1> xHatq = qkcDotEstimator.update(qkcEst,t,qkc);
 		// qkcHat = xHatq.segment(0,4)/xHatq.segment(0,4).norm();
-		// qkcEst(1) = 0.0;
-		// qkcEst(3) = 0.0;
-		// qkcEst /= qkcEst.norm();
+		qkcEst(1) = 0.0;
+		qkcEst(3) = 0.0;
+		qkcEst /= qkcEst.norm();
 		//
-		if (tkcEst.norm() > 0.01)
+		if (tkcEst.norm() > 0.001)
 		{
-			// tkcEst(1) = 0.0;
+			tkcEst(1) = 0.0;
 			tkcEst /= tkcEst.norm();
 		}
 
