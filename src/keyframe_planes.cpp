@@ -4,8 +4,9 @@ KeyframePlanes::KeyframePlanes()
 {
 }
 
-KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInit, int planeIndInit, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, PointCloudRGB& cloud_true)
+KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInit, int planeIndInit, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, PointCloudRGB& cloud_true)//, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit
 {
+  // allPtsKnown = allPtsKnownInit;
   minarea = minareaInit;
   maxarea = maxareaInit;
   minheight = minheightInit;

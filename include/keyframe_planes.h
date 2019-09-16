@@ -27,10 +27,11 @@ struct KeyframePlanes
   std::vector<PointCloudRGB> planes,planesTrue;
   Eigen::Vector3f wBL,wCL,wTL,wTR,wCR,wBR;
   Eigen::Vector3f nBL,nCL,nTL,nTR,nCR,nBR;
+  bool allPtsKnown;
   KeyframePlanes();
   KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInt, int planeIndInit,
                  PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat,Eigen::Vector4f qcwHat,
-                 PointCloudRGB& cloudTrueInit);
+                 PointCloudRGB& cloudTrueInit);//, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit
   // bool checkPatch(std::vector<geometry_msgs::Point32>& planePointsInit);
   void addplane(int planeInd, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat);
   void update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat);

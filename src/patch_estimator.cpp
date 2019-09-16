@@ -360,12 +360,12 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	// Eigen::Vector3f pkw(keyOdom.pose.pose.position.x,keyOdom.pose.pose.position.y,keyOdom.pose.pose.position.z);
 	// Eigen::Vector4f qkw(keyOdom.pose.pose.orientation.w,keyOdom.pose.pose.orientation.x,keyOdom.pose.pose.orientation.y,keyOdom.pose.pose.orientation.z);
 	int numberPts = int(depthEstimators.size());
-	Eigen::MatrixXf XY1ICL = Eigen::MatrixXf::Ones(numberPts,3);
-	Eigen::MatrixXf XY1TICL = Eigen::MatrixXf::Ones(3,numberPts);
-	Eigen::VectorXf NZICL = Eigen::VectorXf::Zero(numberPts);
-	Eigen::MatrixXf XY1EKF = Eigen::MatrixXf::Ones(numberPts,3);
-	Eigen::MatrixXf XY1TEKF = Eigen::MatrixXf::Ones(3,numberPts);
-	Eigen::VectorXf NZEKF = Eigen::VectorXf::Zero(numberPts);
+	// Eigen::MatrixXf XY1ICL = Eigen::MatrixXf::Ones(numberPts,3);
+	// Eigen::MatrixXf XY1TICL = Eigen::MatrixXf::Ones(3,numberPts);
+	// Eigen::VectorXf NZICL = Eigen::VectorXf::Zero(numberPts);
+	// Eigen::MatrixXf XY1EKF = Eigen::MatrixXf::Ones(numberPts,3);
+	// Eigen::MatrixXf XY1TEKF = Eigen::MatrixXf::Ones(3,numberPts);
+	// Eigen::VectorXf NZEKF = Eigen::VectorXf::Zero(numberPts);
 	// Eigen::Matrix<float,numberPts,3> XZ1 = Eigen::Matrix<float,numberPts,3>::Ones();
 	// Eigen::Matrix<float,3,numberPts> XZ1T = Eigen::Matrix<float,3,numberPts>::Ones();
 	// Eigen::Matrix<float,numberPts,1> NY = Eigen::Matrix<float,numberPts,1>::Zeros();
@@ -393,6 +393,10 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	ccloud.is_dense = true;
 	ccloud.resize(numberPts);
 	PointCloudRGB::iterator ccloudIt = ccloud.begin();
+
+	std::vector<uint8_t> dkKnowns(numberPts,0),inds(numberPts);
+	std::vector<uint8_t>::iterator dkKnownsIt = dkKnowns.begin();
+	std::vector<uint8_t>::iterator indsIt = inds.begin();
 
 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin(); itD != depthEstimators.end(); itD++)
 	{
@@ -423,17 +427,17 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 
 		Eigen::Vector3f micEKF = (*itD)->mc;
 		Eigen::Vector3f picEKF = micEKF*((*itD)->zcHatEKF);
-		XY1ICL(itIdx,0) = picICL(0);
-		XY1ICL(itIdx,1) = picICL(1);
-		XY1TICL(0,itIdx) = picICL(0);
-		XY1TICL(1,itIdx) = picICL(1);
-		NZICL(itIdx) = -picICL(2);
-
-		XY1EKF(itIdx,0) = picEKF(0);
-		XY1EKF(itIdx,1) = picEKF(1);
-		XY1TEKF(0,itIdx) = picEKF(0);
-		XY1TEKF(1,itIdx) = picEKF(1);
-		NZEKF(itIdx) = -picEKF(2);
+		// XY1ICL(itIdx,0) = picICL(0);
+		// XY1ICL(itIdx,1) = picICL(1);
+		// XY1TICL(0,itIdx) = picICL(0);
+		// XY1TICL(1,itIdx) = picICL(1);
+		// NZICL(itIdx) = -picICL(2);
+		//
+		// XY1EKF(itIdx,0) = picEKF(0);
+		// XY1EKF(itIdx,1) = picEKF(1);
+		// XY1TEKF(0,itIdx) = picEKF(0);
+		// XY1TEKF(1,itIdx) = picEKF(1);
+		// NZEKF(itIdx) = -picEKF(2);
 		// XZ1(itIdx,0) = pic(0);
 		// XZ1(itIdx,1) = pic(2);
 		// XZ1T(0,itIdx) = pic(0);
@@ -446,72 +450,73 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 		// NX(itIdx) = -pic(0);
 		itIdx++;
 
-		cv::Point2f ptic(fx*mic(0)+cx,fy*mic(1)+cy);
+		// cv::Point2f ptic(fx*mic(0)+cx,fy*mic(1)+cy);
 
 		// Eigen::Vector3f mkiHat = depthEstimators.at(ii)->mk;
 		// cv::Point2i kPti(int(fx*mkiHat(0)+cx),int(fy*mkiHat(1)+cy));
 		// uint8_t colori = kimage.at<uint8_t>(kPti.y,kPti.x);
-		if (firstPt)
-		{
-			minx = ptic.x;
-			maxx = ptic.x;
-			miny = ptic.y;
-			maxy = ptic.y;
-			firstPt = false;
-		}
-		else
-		{
-			if (minx > ptic.x)
-			{
-				minx = ptic.x;
-			}
-			if (maxx < ptic.x)
-			{
-				maxx = ptic.x;
-			}
-			if (miny > ptic.y)
-			{
-				miny = ptic.y;
-			}
-			if (maxy < ptic.y)
-			{
-				maxy = ptic.y;
-			}
-		}
+		// if (firstPt)
+		// {
+		// 	minx = ptic.x;
+		// 	maxx = ptic.x;
+		// 	miny = ptic.y;
+		// 	maxy = ptic.y;
+		// 	firstPt = false;
+		// }
+		// else
+		// {
+		// 	if (minx > ptic.x)
+		// 	{
+		// 		minx = ptic.x;
+		// 	}
+		// 	if (maxx < ptic.x)
+		// 	{
+		// 		maxx = ptic.x;
+		// 	}
+		// 	if (miny > ptic.y)
+		// 	{
+		// 		miny = ptic.y;
+		// 	}
+		// 	if (maxy < ptic.y)
+		// 	{
+		// 		maxy = ptic.y;
+		// 	}
+		// }
 	}
 
 	avgNumSaved /= float(numberPts);
+	//
+	// int cols = maxx-minx;
+	// int rows = maxy-miny;
+	// int coltl = minx;
+	// int rowtl = miny;
 
-	int cols = maxx-minx;
-	int rows = maxy-miny;
-	int coltl = minx;
-	int rowtl = miny;
 
-
-	if ((coltl >= 0) && (rowtl >= 0) && ((coltl+cols) < pimage.cols) && ((rowtl+rows) < pimage.rows))
+	// if ((coltl >= 0) && (rowtl >= 0) && ((coltl+cols) < pimage.cols) && ((rowtl+rows) < pimage.rows))
+	if (true)
 	{
 		try
 		{
-			cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
-			int reduceFactor = 25;
-			int colsReduce = std::round(cols/reduceFactor);
-			int rowsReduce = std::round(rows/reduceFactor);
-			cv::Mat roiimageReduce(cv::Size(colsReduce,rowsReduce),CV_8U);
-			cv::resize(roiimage,roiimageReduce,roiimageReduce.size(),fx,fy,cv::INTER_AREA);
+			// cv::Mat roiimage = pimage(cv::Rect(coltl,rowtl,cols,rows)).clone();
+			// int reduceFactor = 25;
+			// int colsReduce = std::round(cols/reduceFactor);
+			// int rowsReduce = std::round(rows/reduceFactor);
+			// cv::Mat roiimageReduce(cv::Size(colsReduce,rowsReduce),CV_8U);
+			// cv::resize(roiimage,roiimageReduce,roiimageReduce.size(),fx,fy,cv::INTER_AREA);
 
 			roiMutex.unlock();
 
-			Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
-			Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
-			float XYXYdet = float(XYXYICL.determinant());
-			Eigen::Matrix3f XYXYEKF = XY1TEKF*XY1EKF;
-			Eigen::Vector3f XYNZEKF = XY1TEKF*NZEKF;
+			// Eigen::Matrix3f XYXYICL = XY1TICL*XY1ICL;
+			// Eigen::Vector3f XYNZICL = XY1TICL*NZICL;
+			// float XYXYdet = float(XYXYICL.determinant());
+			// Eigen::Matrix3f XYXYEKF = XY1TEKF*XY1EKF;
+			// Eigen::Vector3f XYNZEKF = XY1TEKF*NZEKF;
 			// Eigen::Matrix3f XZXZ = XZ1T*XZ1;
 			// float XZXZdet = float(XZXZ.determinant());
 			// Eigen::Matrix3f YZYZ = YZ1T*YZ1;
 			// float YZYZdet = float(YZYZ.determinant());
 
-			if (XYXYdet > 0.001)
+			if (true)
 			{
 				// Eigen::JacobiSVD<Eigen::MatrixXf> svdXYXYICL(XYXYICL, Eigen::ComputeThinU | Eigen::ComputeThinV);
 				// Eigen::Vector3f dnzICL = svdXYXYICL.solve(XYNZICL);

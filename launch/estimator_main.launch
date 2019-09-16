@@ -18,14 +18,14 @@
 	  <param name="minFeaturesDanger" value="50"/>
     <param name="patchRadius" value="50"/>
     <param name="partitionRows" value="1"/>
-    <param name="partitionCols" value="3"/>
+    <param name="partitionCols" value="1"/>
 
     <param name="closeLoop" value="true"/>
     <param name="minFeaturesBad" value="20"/>
-    <param name="minDistance" value="200"/>
+    <param name="minDistance" value="150"/>
     <param name="partitionSide" value="1"/>
-    <param name="numberFeaturesPerPartRow" value="4"/>
-    <param name="numberFeaturesPerPartCol" value="4"/>
+    <param name="numberFeaturesPerPartRow" value="5"/>
+    <param name="numberFeaturesPerPartCol" value="6"/>
     <param name="patchSizeBase" value="50"/>
     <param name="checkSizeBase" value="90"/>
 
