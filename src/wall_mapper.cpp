@@ -247,18 +247,18 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 		wallMutex.lock();
 		if(patchOnWall)
 		{
-			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud,pcw,qcw,pcwHat,qcwHat);
+			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud,pcw,qcw,pcwHat,qcwHat,msg->inds);
 		}
-		else
-		{
-			keyframePlanes.at(keyIndInd)->addplane(patchInd,cloud,pcw,qcw,pcwHat,qcwHat);
-		}
+		// else
+		// {
+		// 	keyframePlanes.at(keyIndInd)->addplane(patchInd,cloud,pcw,qcw,pcwHat,qcwHat);
+		// }
 		wallMutex.unlock();
 	}
 	else
 	{
 		wallMutex.lock();
-		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud,pcw,qcw,pcwHat,qcwHat,cloud_true);
+		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud,pcw,qcw,pcwHat,qcwHat,cloud_true,bool(msg->allPtsKnown),msg->inds,msg->dkKnowns);
 		keyframePlanes.push_back(newKeyframePlanes);
 		wallMutex.unlock();
 	}

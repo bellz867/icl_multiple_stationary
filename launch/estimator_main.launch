@@ -3,7 +3,7 @@
 <launch>
 
   <!-- estimator node -->
-  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen">
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node">
   <!-- <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node"> -->
 
 	  <!-- forward camera -->
@@ -59,7 +59,7 @@
 
 
     <!-- integration window -->
-    <param name="tau" value="3.0"/>
+    <param name="tau" value="2.0"/>
 
     <!-- experiment details -->
     <param name="saveExp" value="false"/>

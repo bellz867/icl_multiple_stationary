@@ -4,9 +4,11 @@ KeyframePlanes::KeyframePlanes()
 {
 }
 
-KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInit, int planeIndInit, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, PointCloudRGB& cloud_true)//, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit
+KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInit, int planeIndInit, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, PointCloudRGB& cloud_true, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit)
 {
-  // allPtsKnown = allPtsKnownInit;
+  allPtsKnown = allPtsKnownInit;
+  dkKnowns = dkKnownsInit;
+  inds = indsInit;
   minarea = minareaInit;
   maxarea = maxareaInit;
   minheight = minheightInit;
@@ -428,9 +430,28 @@ void KeyframePlanes::addplane(int planeInd, PointCloudRGB& cloud, Eigen::Vector3
   // std::cout << "\n keyInd " << keyInd << " planeInd " << planeInd << " planesPoints size after add plane " << planesPoints.size() << std::endl;
 }
 
-void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat)
+void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, std::vector<uint8_t> indsInit)
 {
-  planes.at(planeIndInd) = cloud;
+  std::cout << "inds.size() " << inds.size() << " indsNew.size() " << indsInit.size() << std::endl;
+  for (int ii = 0; ii < indsInit.size(); ii++)
+  {
+    bool indFound = false;
+    std::vector<uint8_t>::iterator indsIt = inds.begin();
+    int jj = 0;
+    while (!ros::isShuttingDown() && !indFound && (indsIt != inds.end()))
+    {
+      std::cout << "check " << int(indsInit.at(ii)) << " ii " << ii << " old " << int(*indsIt) << " jj " << jj << std::endl;
+      if(int(*indsIt) == int(indsInit.at(ii)))
+      {
+        planes.at(planeIndInd).points.at(jj) = cloud.points.at(ii);
+        indFound = true;
+      }
+      indsIt++;
+      jj++;
+    }
+    // planes.at(planeIndInd) = cloud;
+  }
+
 
   // // approximate the true distance for each point to each wall
   // Eigen::Vector3f piw(0.0,0.0,0.0);

@@ -402,6 +402,11 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 	{
 		//add each point
 		avgNumSaved += float((*itD)->depthEstimatorICLExt.numSaved);
+		*dkKnownsIt = (*itD)->depthEstimatorICLExt.dkKnown;
+		*indsIt = (*itD)->depthInd;
+		dkKnownsIt++;
+		indsIt++;
+
 		Eigen::Vector3f mic = (*itD)->current();
 		Eigen::Vector3f uic = mic/mic.norm();
 		Eigen::Vector3f picICL = uic*((*itD)->dcHatICLExt);
@@ -449,6 +454,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 		// YZ1T(1,itIdx) = pic(2);
 		// NX(itIdx) = -pic(0);
 		itIdx++;
+
 
 		// cv::Point2f ptic(fx*mic(0)+cx,fy*mic(1)+cy);
 
@@ -655,6 +661,9 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 						wallMsg.keyInd = keyInd;
 						wallMsg.patchInd = patchInd;
 						wallMsg.pose = msg->pose;
+						wallMsg.allPtsKnown = allPtsKnown;
+						wallMsg.dkKnowns = dkKnowns;
+						wallMsg.inds = inds;
 						wallPub.publish(wallMsg);
 
 						icl_multiple_stationary::PoseDelta poseDeltaMsg;
@@ -1313,10 +1322,20 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		{
 			if (depthEstimators.at(ii)->badCount < 2)
 			{
+				if (chiTestVal < flowchi2)
+				{
+					pPtsInFlow.push_back(pPts.at(ii));
+					cPtsInFlow.push_back(cPts.at(ii));
+					kPtsInFlow.push_back(kPts.at(ii));
+					depthEstimatorsInFlow.push_back(depthEstimators.at(ii));
+				}
+				else
+				{
 					pPtsInFlow.push_back(pPts.at(ii));
 					cPtsInFlow.push_back(pPts.at(ii)+avgFlow);
 					kPtsInFlow.push_back(kPts.at(ii));
 					depthEstimatorsInFlow.push_back(depthEstimators.at(ii));
+				}
 			}
 			else
 			{
@@ -1509,7 +1528,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 			// 	G.at<double>(ii/3,ii%3) = GfLast(ii/3,ii%3);
 			// }
 
-			float sigEst = 3;
+			float sigEst = 5;
 			float sigEst2 = sigEst*sigEst;
 			// float chi2 = 3.84; //chi^2 for 95%
 			// float chi2 = 6.63; //chi^2 for 99%
@@ -2087,7 +2106,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	cPts = cPtsInPred;
 	if (cPts.size() > 0)
 	{
-		float sigPred = 3.0;
+		float sigPred = 5.0;
 		float sigPred2 = sigPred*sigPred;
 		// float chi2 = 3.84; //chi^2 for 95%
 		float chi2 = 6.63; //chi^2 for 99%
@@ -2210,7 +2229,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// std::cout << "rvecPnPkb \n" << rvec << std::endl;
 			// std::cout << "tvecPnPkb \n" << tvec << std::endl;
 			// usePnPk = cv::solvePnP(kPts3,cPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-			int PnPkIn = 1.0;
+			int PnPkIn = 3.0;
 			while (!usePnPk && (PnPkIn < 5))
 			{
 				usePnPk = cv::solvePnPRansac(kPts3,cPts,camMat,cv::noArray(),rvec,tvec,true,100,float(PnPkIn),0.99);
@@ -2241,6 +2260,9 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 				// std::cout << "qkcPnPk \n" << qkcPnPk << std::endl;
 			}
 		}
+
+		ROS_WARN("time for pnp %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
+		updateClock = clock();
 
 		// cv::Mat TA;
 		// cv::estimateAffine3D(kPts3,cPts3,TA,cv::noArray(),3.0,0.99);
@@ -2315,7 +2337,11 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// cv::Mat inliersG1;
 		// cv::Mat G = cv::findHomography(kPts, cPts, cv::RANSAC, 3.0);//calculate homography using RANSAC
 		// cv::Mat G = cv::findHomography(kPts,cPts,cv::LMEDS);//calculate homography using RANSAC
-		cv::Mat G = cv::findHomography(kPts,cPts,cv::RANSAC,0.01,cv::noArray(),2000,0.99);//calculate homography using RANSAC
+		// cv::Mat G = cv::findHomography(kPts,cPts,cv::RANSAC,0.05,cv::noArray(),1000,0.99);//calculate homography using RANSAC
+		cv::Mat G = cv::findHomography(kPts,cPts,0);//calculate homography using RANSAC
+
+		ROS_WARN("time for homog %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
+		updateClock = clock();
 		// float G11 = G.at<double>(0,0);
 		// float G12 = G.at<double>(0,1);
 		// float G13 = G.at<double>(0,2);
@@ -2330,7 +2356,10 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// cv::undistortPoints(cPts,cPtsNorm,camMat,cv::Mat());
 		// cv::undistortPoints(kPts,kPtsNorm,camMat,cv::Mat());
 		// cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::LMEDS);
-		cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::RANSAC,0.99,0.01);
+		cv::Mat EE = cv::findEssentialMat(kPtsNorm,cPtsNorm,1.0,cv::Point2d(0.0,0.0),cv::RANSAC,0.99,1.0);
+
+		ROS_WARN("time for essential %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
+		updateClock = clock();
 
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_LMEDS);
 		// cv::Mat F = cv::findFundamentalMat(kPts, cPts,cv::FM_RANSAC,1.0,0.99);
@@ -2442,9 +2471,6 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// {
 		// 	G.at<double>(ii/3,ii%3) = GkfLast(ii/3,ii%3);
 		// }
-
-		ROS_WARN("time for homog %2.4f",float(clock()-updateClock)/CLOCKS_PER_SEC);
-		updateClock = clock();
 
 		// estimate the homography
 		Eigen::Vector4f qkcEst = qkcHat;
