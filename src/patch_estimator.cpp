@@ -649,22 +649,22 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 				if (!patchShutdown)
 				{
 					ROS_WARN("ROI patch not shutdown");
+					icl_multiple_stationary::Wall wallMsg;
+					wallMsg.header.stamp = t;
+					// wallMsg.wallPts = wallPts;
+					// pcl::toROSMsg(cloud, wallMsg.cloud);
+					pcl::toROSMsg(kcloud, wallMsg.cloud);
+					wallMsg.keyInd = keyInd;
+					wallMsg.patchInd = patchInd;
+					wallMsg.pose = msg->pose;
+					wallMsg.allPtsKnown = allPtsKnown;
+					wallMsg.dkKnowns = dkKnowns;
+					wallMsg.inds = inds;
+					wallPub.publish(wallMsg);
 					// if (allPtsKnown && (acos(nyICL) > (70.0*3.1415/180.0)) && (acos(nxICL) > (70.0*3.1415/180.0)))
 					// if (allPtsKnown && (avgNumSaved >= 1) && (acos(nzICL) < (30.0*3.1415/180.0)))
 					if (allPtsKnown && (avgNumSaved >= 1))
 					{
-						icl_multiple_stationary::Wall wallMsg;
-						wallMsg.header.stamp = t;
-						// wallMsg.wallPts = wallPts;
-						// pcl::toROSMsg(cloud, wallMsg.cloud);
-						pcl::toROSMsg(kcloud, wallMsg.cloud);
-						wallMsg.keyInd = keyInd;
-						wallMsg.patchInd = patchInd;
-						wallMsg.pose = msg->pose;
-						wallMsg.allPtsKnown = allPtsKnown;
-						wallMsg.dkKnowns = dkKnowns;
-						wallMsg.inds = inds;
-						wallPub.publish(wallMsg);
 
 						icl_multiple_stationary::PoseDelta poseDeltaMsg;
 						poseDeltaMsg.header.stamp = t;
@@ -1292,7 +1292,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	// flowDiffPt.x = flowxMed*dt;
 	// flowDiffPt.y = flowyMed*dt;
 	//remove outlier flows
-	std::cout << "\n num points before flow " << depthEstimators.size() << std::endl;
+	std::cout << "\n num points before flow " << depthEstimators.size() << " avgNumSaved " << avgNumSaved << std::endl;
 	float timeFromStart = (t-tStart).toSec();
 	for (int ii = 0; ii < flows.size(); ii++)
 	{
@@ -1320,7 +1320,11 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		}
 		else
 		{
-			if (depthEstimators.at(ii)->badCount < 2)
+			if (depthEstimators.at(ii)->badCount > 5 || ((avgNumSaved > 5) && (depthEstimators.at(ii)->depthEstimatorICLExt.numSaved < 2)))
+			{
+				delete depthEstimators.at(ii);
+			}
+			else
 			{
 				if (chiTestVal < flowchi2)
 				{
@@ -1336,10 +1340,6 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 					kPtsInFlow.push_back(kPts.at(ii));
 					depthEstimatorsInFlow.push_back(depthEstimators.at(ii));
 				}
-			}
-			else
-			{
-					delete depthEstimators.at(ii);
 			}
 		}
 	}
@@ -2044,7 +2044,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 				std::cout << " maxResultVal " << maxResultVal << " minResultVal " << minResultVal << " chiTestVal " << chiTestVal << std::endl;
 
 				// if ((maxResultVal > 0.6) && (minResultVal < 0.3))
-				if ((maxResultVal > 0.6))
+				if ((maxResultVal > 0.4))
 				{
 						*itcPred = cv::Point2f(avgx,avgy);
 						*itDPPred = *itDP;
@@ -3405,6 +3405,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// inlierRatio += 1.0;
 
 			allPtsKnownIn = allPtsKnownIn&&(*itD)->depthEstimatorICLExt.dkKnown;
+
 
 			avgcPtx += (*itc).x;
 			avgcPty += (*itc).y;

@@ -1,5 +1,14 @@
 #include <wall_mapper.h>
 
+WallMapper::~WallMapper()
+{
+	for (int ii = 0; ii < keyframePlanes.size(); ii++)
+	{
+		delete keyframePlanes.at(ii);
+	}
+	keyframePlanes.clear();
+}
+
 WallMapper::WallMapper() : it(nh)
 {
 	// Get parameters
@@ -11,6 +20,17 @@ WallMapper::WallMapper() : it(nh)
 	nhp.param<float>("maxarea", maxarea, 25.0);
 	nhp.param<float>("minheight", minheight, 0.25);
 	nhp.param<float>("maxheight", maxheight, 25.0);
+	nhp.param<bool>("saveExp", saveExp, false);
+	nhp.param<std::string>("expName", expName, "");
+	//
+	// boost::filesystem::path dir("path");
+	//
+  //   if(!(boost::filesystem::exists(dir))){
+  //       std::cout<<"Doesn't Exists"<<std::endl;
+	//
+  //       if (boost::filesystem::create_directory(dir))
+  //           std::cout << "....Successfully Created !" << std::end;
+  //   }
 
 	wallSub = nh.subscribe("/wall_points",100,&WallMapper::wallCB,this);
 	odomSub = nh.subscribe("/mocap/camera/odom",1,&WallMapper::odomCB,this);
@@ -247,7 +267,7 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 		wallMutex.lock();
 		if(patchOnWall)
 		{
-			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud,pcw,qcw,pcwHat,qcwHat,msg->inds);
+			keyframePlanes.at(keyIndInd)->update(patchIndInd,cloud,pcw,qcw,pcwHat,qcwHat,bool(msg->allPtsKnown),msg->inds,msg->dkKnowns,msg->header.stamp);
 		}
 		// else
 		// {
@@ -258,7 +278,7 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 	else
 	{
 		wallMutex.lock();
-		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud,pcw,qcw,pcwHat,qcwHat,cloud_true,bool(msg->allPtsKnown),msg->inds,msg->dkKnowns);
+		KeyframePlanes* newKeyframePlanes = new KeyframePlanes(minarea,maxarea,minheight,maxheight,keyInd,patchInd,cloud,pcw,qcw,pcwHat,qcwHat,cloud_true,bool(msg->allPtsKnown),msg->inds,msg->dkKnowns,saveExp,expName,msg->header.stamp);
 		keyframePlanes.push_back(newKeyframePlanes);
 		wallMutex.unlock();
 	}
@@ -285,8 +305,11 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 		//for each plane in that key
 		for (int j = 0; j < keyframePlanes.at(i)->planes.size(); j++)
 		{
-			*map += keyframePlanes.at(i)->planes.at(j);
-			*map += keyframePlanes.at(i)->planesTrue.at(j);
+			if (keyframePlanes.at(i)->allPtsKnown)
+			{
+				*map += keyframePlanes.at(i)->planes.at(j);
+				*map += keyframePlanes.at(i)->planesTrue.at(j);
+			}
 			// //for each point on that plane
 			// for (int k = 0; k < keyframePlanes.at(i)->planesPoints.at(j).size(); k++)
 			// {

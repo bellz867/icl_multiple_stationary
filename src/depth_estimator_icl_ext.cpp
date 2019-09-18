@@ -33,6 +33,8 @@ void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, flo
     cx = cxInit;
     cy = cyInit;
     startTime = t;
+    kPtInit(0) = fx*uk(0)/uk(2)+cx;
+    kPtInit(1) = fy*uk(1)/uk(2)+cy;
 }
 
 Eigen::Vector3f DepthEstimatorICLExt::current()
@@ -120,7 +122,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // clock_t processTime = clock();
 
   float kxi = 100.0;
-  float kX = 35.0;
+  float kX = 40.0;
 
   Eigen::Matrix<float,6,1> xHat;
   if (dt > 0.0)
@@ -162,6 +164,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   float ucukc = ucT*ukc;
   float YcYcdet = 1.0 - ucukc*ucukc;
+
+  std::cout << std::endl << "(1.0-fabsf(ucukc)) " << (1.0-fabsf(ucukc)) << std::endl;
   Eigen::Matrix2f YcYc = Eigen::Matrix2f::Identity();
   YcYc(0,1) = -ucukc;
   YcYc(1,0) = -ucukc;
@@ -186,31 +190,33 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // std::cout << "\n hi6 \n";
 
-  Eigen::Vector2f psiMeas = YcYcI*YcT*Rkc*uk;
+  // Eigen::Vector2f psiMeas = YcYcI*YcT*Rkc*uk;
+  Eigen::Vector2f psi = YcYcI*YcT*Rkc*uk;
   Eigen::Vector4f Xpsi = Eigen::Vector4f::Zero();
-  if (firstUpdate)
-  {
-    Xpsi.segment(0,2) = psiMeas;
-    firstUpdate = false;
-  }
-  else
-  {
-    if (dt > 0.0)
-    {
-      Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/dt,t);
-    }
-    else
-    {
-      Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/0.03,t);
-    }
-  }
+  // if (firstUpdate)
+  // {
+  //   Xpsi.segment(0,2) = psiMeas;
+  //   firstUpdate = false;
+  // }
+  // else
+  // {
+  //   if (dt > 0.0)
+  //   {
+  //     Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/dt,t);
+  //   }
+  //   else
+  //   {
+  //     Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/0.03,t);
+  //   }
+  // }
 
-  Eigen::Vector2f psi = psiMeas;
+  // Eigen::Vector2f psi = psiMeas;
   psiLast = psi;
   // ROS_WARN("time2 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
 
-  Eigen::Vector2f psiDot = Xpsi.segment(2,2);
+  // Eigen::Vector2f psiDot = Xpsi.segment(2,2);
+  Eigen::Vector2f psiDot = Eigen::Vector2f::Zero();
 
   float dcDot = -ucT*v;
   float dkcDot = -ukcT*v;
@@ -263,18 +269,23 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
 
 
-  if (pkc.norm() < 0.05)
-  {
-    dcHat += (dcDot*dt);
-    dkcHat += (dkcDot*dt);
-  }
-  else
-  {
-    dcHat += ((dcDot+kxixiTilde)*dt);
-    // dkcHat += (dkcDot*dt);
-    dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
-    dkHat += (kxpxpTilde(1)*dt);
-  }
+  dcHat += ((dcDot+kxixiTilde)*dt);
+  // dkcHat += (dkcDot*dt);
+  dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
+  dkHat += (kxpxpTilde(1)*dt);
+
+  // if (pkc.norm() < 0.05)
+  // {
+  //   dcHat += (dcDot*dt);
+  //   dkcHat += (dkcDot*dt);
+  // }
+  // else
+  // {
+  //   dcHat += ((dcDot+kxixiTilde)*dt);
+  //   // dkcHat += (dkcDot*dt);
+  //   dkcHat += ((dkcDot+kxpxpTilde(0))*dt);
+  //   dkHat += (kxpxpTilde(1)*dt);
+  // }
 
   // ROS_WARN("time22 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
@@ -293,13 +304,13 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   psiDotInt += (psiDot*dt);
 
   // std::cout << "\n hi9 \n";
-  float lambdaa = 0.7;
+  float lambdaa = 0.4;
   float lambdat = 0.0001;
-  float dmin = 0.1*zmin;
+  float dmin = 0.01*zmin;
   float dmax = zmax;
   float timeConvergeMin = -1.0/(lambdaa*kX)*log(dmin/dmax);
 
-  if ((1.0-fabsf(ucT*ukc)) < lambdaa)
+  if ((1.0-fabsf(ucukc)) < lambdaa)
   {
     // psiBuff.clear();
     // psiDotBuff.clear();
@@ -316,7 +327,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // uDotEstimator.initialize(3);
     // psiDotEstimator.initialize(2);
     numThrown++;
-    // std::cout << "\n eig clear\n";
+    std::cout << "\n eig clear\n";
   }
 
   if (v.norm() < 0.1)
@@ -336,7 +347,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // uDotEstimator.initialize(3);
     // psiDotEstimator.initialize(2);
     numThrown++;
-    // std::cout << "\n v clear\n";
+    std::cout << "\n v clear\n";
   }
 
   if (pkc.norm() < 0.05)
@@ -356,7 +367,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // uDotEstimator.initialize(3);
     // psiDotEstimator.initialize(2);
     // numThrown++;
-    // std::cout << "\n pkc clear\n";
+    std::cout << "\n pkc clear\n";
   }
 
   // ROS_WARN("time3 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
@@ -407,8 +418,8 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     float Yy = Y(1);
     float Uy = U(1);
 
-    float Yx2 = psiDotInt(0);
-    float Yy2 = psiDotInt(1);
+    // float Yx2 = psiDotInt(0);
+    // float Yy2 = psiDotInt(1);
 
     // std::cout << "\n hi12 \n";
 
@@ -420,11 +431,11 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Ux " << Ux << std::endl;
 
     float yy = Yx*Yx + Yy*Yy;
-    float yy2 = Yx2*Yx2 + Yy2*Yy2;
+    // float yy2 = Yx2*Yx2 + Yy2*Yy2;
     float yu = Yx*Ux+Yy*Uy;
-    float yu2 = Yx2*Ux+Yy2*Uy;
+    // float yu2 = Yx2*Ux+Yy2*Uy;
     float dk = yu/yy;
-    float dk2 = yu2/yy2;
+    // float dk2 = yu2/yy2;
     float dkMed = yusum/yysum;
 
     // float yy = Yy*Yy;
@@ -459,25 +470,13 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     //check which estimates are good
     // bool measgood = (fabsf(Uy) > 0.2) && (fabsf(Yy) > 0.1);
     bool measgood = true;
-    // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
-    // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
-    // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
 
-    // if (enoughTime && !measgood)
-    // {
-    //   zetaBuff.clear();
-    //   uvBuff.clear();
-    //   tBuff.clear();
-    //   dtBuff.clear();
-    //   uvInt = Eigen::Vector2f::Zero();
-    //   numThrown++;
-    // }
 
-    if (true)
+    if ((dk > zmin) && (dk < zmax))
     {
       //chi^2 test for reprojection error using dk
       // assume pixel standard deviation of 2 implying variance of 4
-      float cPtSig = 6;
+      float cPtSig = 8;
       float cPtSig2 = cPtSig*cPtSig;
       Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
       // Eigen::Vector3f pcProj = pkc + dk*(Rkc*uk);
@@ -493,104 +492,35 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       std::cout << "dkHat " << dkHat <<  ", dk " << dk;
       std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
       std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
+      std::cout << ", numSaved " << numSaved << ", yysum " << yysum << ", lambdat " << lambdat;
+      std::cout << ", timeConverge " << timeConverge << ", timeConvergeMin " << timeConvergeMin;
+      std::cout << ", dkKnown " << dkKnown;
       std::cout << std::endl;
 
       if (chiTestVal > chi2)
       {
         measgood = false;
       }
-
-      //if the value is outside the acceptable then reject
-      if (false)
-      {
-        //if the test failed with the first dk try the second
-        pcProj = pkc + rotatevec(uk*dk2,qkc);
-        // pcProj = pkc + dk2*(Rkc*uk);
-        mcProj = pcProj/pcProj(2);
-        cPtProj = Eigen::Vector2f(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
-        // float chi2 = 3.84; //chi^2 for 95%
-        // float chi2 = 6.63; //chi^2 for 99%
-        cPtD = cPtProj - cPt;
-        float chiTestVal2 = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
-
-        std::cout << std::endl;
-        std::cout << "dk2 " << dk2;
-        std::cout << ", cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
-        std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal2;
-        std::cout << std::endl;
-
-        if (chiTestVal2 > chi2)
-        {
-          if (chiTestVal > chi2)
-          {
-            measgood = false;
-          }
-        }
-        else
-        {
-          if (chiTestVal > chiTestVal2)
-          {
-            dk = dk2;
-          }
-        }
-      }
+    }
+    else
+    {
+      measgood = false;
     }
 
-    bool dirGoodzBad = false;
-
-    // std::cout << "\n hi13 \n";
-
-    //check the ys
-    // if (measgood && (numSaved < 50) && disAgree)
     if (measgood && (numSaved < 50))
     {
-      bool saveNew = true;
-      // if (numSaved > 0)
-      // {
-      //   if ((pkc-pkcLastSave).norm() < 0.1)
-      //   {
-      //     saveNew = false;
-      //   }
-      // }
-
-      if ((dk > zmin) && (dk < zmax) && saveNew)
-      {
-        yysum += yy;
-        yusum += yu;
-        numSaved++;
-        tLastSave = t;
-        pkcLastSave = pkc;
-      }
-      else
-      {
-        dirGoodzBad = true;
-      }
+      yysum += yy;
+      yusum += yu;
+      numSaved++;
+      tLastSave = t;
+      pkcLastSave = pkc;
     }
-
-    // if (dirGoodzBad)
-    // {
-    //   while (buffs.size() > 0)
-    //   {
-    //     delete buffs.front();
-    //     buffs.pop_front();
-    //   }
-    //   uvInt = Eigen::Vector2f::Zero();
-    //   psiDotInt = Eigen::Vector2f::Zero();
-    //   // uDotEstimator.initialize(3);
-    //   // psiDotEstimator.initialize(2);
-    // }
   }
-
-
-  // ROS_WARN("time4 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
-  // processTime = clock();
-
-  // std::cout << "\n hi14 \n";
 
   if (yysum > lambdat)
   {
     timeConverge += dt;
-    if (timeConverge > timeConvergeMin)
+    if (!dkKnown && (timeConverge > timeConvergeMin))
     {
       dkKnown = true;
     }
@@ -625,6 +555,173 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // dkHat += (kzk*(yusum-yysum*dkHat)*dt);
   }
 
+    // bool disAgree = (fabsf(dcHat-zeta(0)*(yu/yy))/dcHat) < 0.3;
+    // bool xGood = (fabsf(Ux) > 0.1) && (fabsf(Yx) > 0.1);
+    // bool yGood = (fabsf(Uy) > 0.1) && (fabsf(Yy) > 0.1);
+
+    // if (enoughTime && !measgood)
+    // {
+    //   zetaBuff.clear();
+    //   uvBuff.clear();
+    //   tBuff.clear();
+    //   dtBuff.clear();
+    //   uvInt = Eigen::Vector2f::Zero();
+    //   numThrown++;
+    // }
+
+    // if (true)
+    // {
+    //   //chi^2 test for reprojection error using dk
+    //   // assume pixel standard deviation of 2 implying variance of 4
+    //   float cPtSig = 6;
+    //   float cPtSig2 = cPtSig*cPtSig;
+    //   Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
+    //   // Eigen::Vector3f pcProj = pkc + dk*(Rkc*uk);
+    //
+    //   Eigen::Vector3f mcProj = pcProj/pcProj(2);
+    //   Eigen::Vector2f cPtProj(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+    //   // float chi2 = 3.84; //chi^2 for 95%
+    //   float chi2 = 6.63; //chi^2 for 99%
+    //   Eigen::Vector2f cPtD = cPtProj - cPt;
+    //   float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+    //
+    //   std::cout << std::endl;
+    //   std::cout << "dkHat " << dkHat <<  ", dk " << dk;
+    //   std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
+    //   std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
+    //   std::cout << ", numSaved " << numSaved;
+    //   std::cout << std::endl;
+    //
+    //   if (chiTestVal > chi2)
+    //   {
+    //     measgood = false;
+    //   }
+    //
+    //   // //if the value is outside the acceptable then reject
+    //   // if (false)
+    //   // {
+    //   //   //if the test failed with the first dk try the second
+    //   //   pcProj = pkc + rotatevec(uk*dk2,qkc);
+    //   //   // pcProj = pkc + dk2*(Rkc*uk);
+    //   //   mcProj = pcProj/pcProj(2);
+    //   //   cPtProj = Eigen::Vector2f(mcProj(0)*fx+cx,mcProj(1)*fy+cy);
+    //   //   // float chi2 = 3.84; //chi^2 for 95%
+    //   //   // float chi2 = 6.63; //chi^2 for 99%
+    //   //   cPtD = cPtProj - cPt;
+    //   //   float chiTestVal2 = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+    //   //
+    //   //   std::cout << std::endl;
+    //   //   std::cout << "dk2 " << dk2;
+    //   //   std::cout << ", cPt2Projx " << cPtProj(0) << ", cPtProj2y " << cPtProj(1);
+    //   //   std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal2 " << chiTestVal2;
+    //   //   std::cout << std::endl;
+    //   //
+    //   //   if (chiTestVal2 > chi2)
+    //   //   {
+    //   //     if (chiTestVal > chi2)
+    //   //     {
+    //   //       measgood = false;
+    //   //     }
+    //   //   }
+    //   //   else
+    //   //   {
+    //   //     if (chiTestVal > chiTestVal2)
+    //   //     {
+    //   //       dk = dk2;
+    //   //     }
+    //   //   }
+    //   // }
+    // }
+
+    // bool dirGoodzBad = false;
+
+    // std::cout << "\n hi13 \n";
+
+    //check the ys
+    // if (measgood && (numSaved < 50) && disAgree)
+    // if (measgood && (numSaved < 50))
+    // {
+    //   // bool saveNew = true;
+    //   // if (numSaved > 0)
+    //   // {
+    //   //   if ((pkc-pkcLastSave).norm() < 0.1)
+    //   //   {
+    //   //     saveNew = false;
+    //   //   }
+    //   // }
+    //
+    //   if ((dk > zmin) && (dk < zmax))
+    //   {
+    //     yysum += yy;
+    //     yusum += yu;
+    //     numSaved++;
+    //     tLastSave = t;
+    //     pkcLastSave = pkc;
+    //   }
+    //   // else
+    //   // {
+    //   //   dirGoodzBad = true;
+    //   // }
+    // }
+
+    // if (dirGoodzBad)
+    // {
+    //   while (buffs.size() > 0)
+    //   {
+    //     delete buffs.front();
+    //     buffs.pop_front();
+    //   }
+    //   uvInt = Eigen::Vector2f::Zero();
+    //   psiDotInt = Eigen::Vector2f::Zero();
+    //   // uDotEstimator.initialize(3);
+    //   // psiDotEstimator.initialize(2);
+    // }
+  // }
+
+
+  // ROS_WARN("time4 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
+  // processTime = clock();
+
+  // std::cout << "\n hi14 \n";
+
+  // if (yysum > lambdat)
+  // {
+  //   timeConverge += dt;
+  //   if (timeConverge > timeConvergeMin)
+  //   {
+  //     dkKnown = true;
+  //   }
+  //
+  //   float dkMed = yusum/yysum;
+  //
+  //   // std::cout << "\n dkMed " << dkMed << std::endl;
+  //   // std::cout << "\n zkHat " << zkHat << std::endl;
+  //
+  //   if (dkMed < zmin)
+  //   {
+  //     dkMed = zmin;
+  //   }
+  //
+  //   if (dkMed > zmax)
+  //   {
+  //     dkMed = zmax;
+  //   }
+  //
+  //   Eigen::Vector2f ddTil = (dkMed*YcT*Rkc*uk - YcYc*Eigen::Vector2f(dcHat,dkcHat));
+  //
+  //   // std::cout << "\n dkMed*YcT*Rkc*uk \n" << dkMed*YcT*Rkc*uk << std::endl;
+  //   // std::cout << "\n YcYc*Eigen::Vector2f(dcHat,dkcHat) \n" << YcYc*Eigen::Vector2f(dcHat,dkcHat) << std::endl;
+  //   // std::cout << "\n ddTil0 " << ddTil(0) << " ddTil1 " << ddTil(1) << std::endl;
+  //
+  //   dcHat += (kX*ddTil(0)*dt);
+  //   dkcHat += (kX*ddTil(1)*dt);
+  //   dkHat += (kX*(dkMed-dkHat)*dt);
+  //
+  //   // dcHat += (kzk*(zeta(0)*dkHat-dcHat)*dt);
+  //   // dkcHat += (kzk*(zeta(1)*dkHat-dkcHat)*dt);
+  //   // dkHat += (kzk*(yusum-yysum*dkHat)*dt);
+  // }
+
   // std::cout << "\n hi15 \n";
   if (dcHat > zmax)
   {
@@ -653,6 +750,11 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   // ROS_WARN("time5 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
+
+  Eigen::Vector2f kPtRan = kPtInit + 2.0*Eigen::Vector2f::Random();
+  Eigen::Vector2f mkRan((kPtRan(0)-cx)/fx,(kPtRan(1)-cy)/fy);
+  uk = Eigen::Vector3f((kPtRan(0)-cx)/fx,(kPtRan(1)-cy)/fy,1.0);
+  uk /= uk.norm();
 
   return Eigen::Vector3f(dkHat,dcHat,dkcHat);
 }

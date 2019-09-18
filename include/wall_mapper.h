@@ -36,6 +36,8 @@
 
 #include <keyframe_planes.h>
 
+// #include <boost/filesystem.hpp>
+
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudRGB;
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
 
@@ -53,6 +55,9 @@ struct WallMapper
     float maxarea;
     float minheight;
     float maxheight;
+
+    bool saveExp;
+    std::string expName;
 
     cv::Point2i camCenter;
     cv::Point2i camEnd;
@@ -77,6 +82,7 @@ struct WallMapper
     // std::vector<std::vector<uint16_t>> wallKeys;
     std::vector<KeyframePlanes*> keyframePlanes;
 
+    ~WallMapper();
     WallMapper();
 
     //wall sub callback

@@ -1,10 +1,57 @@
 #include <keyframe_planes.h>
 
+KeyframePlanes::~KeyframePlanes()
+{
+  std::cout << std::endl << keyInd << " allPtsKnown " << int(allPtsKnown) << std::endl;
+	if (saveExp && allPtsKnown)
+	{
+		std::cout << std::endl << "saving " << keyInd << std::endl;
+		std::ofstream saveFile("/home/ncr/ncr_ws/src/icl_multiple_stationary/experiment/"+expName+"/"+std::to_string(keyInd)+".txt");
+		if (saveFile.is_open())
+		{
+      std::cout << "\nopen\n";
+      saveFile << "time,";
+      //go through and check which will be saved and write header
+      int numSaved = 0;
+      for (int ii = 0; ii < cloudDataSaves.back()->dkKnowns.size(); ii++)
+      {
+        if (bool(cloudDataSaves.back()->dkKnowns.at(ii)))
+        {
+          saveFile << "dk" << numSaved << ",";
+          saveFile << "dkHat" << numSaved << ",";
+          numSaved++;
+        }
+      }
+			saveFile << "\n";
+
+			for (int ii = 0; ii < cloudDataSaves.size(); ii++)
+			{
+        saveFile << cloudDataSaves.at(ii)->time << ",";
+        for (int jj = 0; jj < cloudDataSaves.at(ii)->dks.size(); jj++)
+        {
+          if (bool(cloudDataSaves.back()->dkKnowns.at(jj)))
+          {
+            saveFile << cloudDataSaves.at(ii)->dks.at(jj) << ",";
+            saveFile << cloudDataSaves.at(ii)->dkHats.at(jj) << ",";
+          }
+        }
+  			saveFile << "\n";
+
+				delete cloudDataSaves.at(ii);
+			}
+			saveFile.close();
+
+      std::cout << "\nclose\n";
+		}
+		std::cout << std::endl << "saved " << keyInd << std::endl;
+	}
+}
+
 KeyframePlanes::KeyframePlanes()
 {
 }
 
-KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInit, int planeIndInit, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, PointCloudRGB& cloud_true, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit)
+KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minheightInit, float maxheightInit, int keyIndInit, int planeIndInit, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, PointCloudRGB& cloud_true, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit, bool saveExpInit, std::string expNameInit, ros::Time t)
 {
   allPtsKnown = allPtsKnownInit;
   dkKnowns = dkKnownsInit;
@@ -13,6 +60,9 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
   maxarea = maxareaInit;
   minheight = minheightInit;
   maxheight = maxheightInit;
+  saveExp = saveExpInit;
+  expName = expNameInit;
+  startTime = t;
 
   // std::cout << "\n keyInd " << keyIndInit << " planeInd " << planeIndInit << " planesPoints init entered " << std::endl;
   keyInd = keyIndInit;
@@ -236,6 +286,31 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
   cloudTrue.resize(numberPts);
   planesTrue.push_back(cloudTrue);
 
+  std::vector<float> dks(planesTrue.at(0).size());
+  std::vector<float> dkHats(planesTrue.at(0).size());
+  float xk = 0;
+  float yk = 0;
+  float zk = 0;
+  float xkHat = 0;
+  float ykHat = 0;
+  float zkHat = 0;
+  for (int ii = 0; ii < planesTrue.at(0).size(); ii++)
+  {
+    xk = planesTrue.at(0).at(ii).x - pcw(0);
+    yk = planesTrue.at(0).at(ii).y - pcw(1);
+    zk = planesTrue.at(0).at(ii).z - pcw(2);
+    dks.at(ii) = sqrtf(xk*xk + yk*yk + zk*zk);
+    xkHat = planes.at(0).at(ii).x - pcwHat(0);
+    ykHat = planes.at(0).at(ii).y - pcwHat(1);
+    zkHat = planes.at(0).at(ii).z - pcwHat(2);
+    dkHats.at(ii) = sqrtf(xkHat*xkHat + ykHat*ykHat + zkHat*zkHat);
+  }
+
+  float Dt = (t-startTime).toSec();
+
+  cloudDataSave = new CloudDataSave(Dt,dks,dkHats,dkKnowns);
+  cloudDataSaves.push_back(cloudDataSave);
+
   // std::cout << "\n keyInd " << keyIndInit << " planeInd " << planeIndInit << " planesPoints size init " << planePointsInit.size() << std::endl;
 }
 
@@ -430,9 +505,10 @@ void KeyframePlanes::addplane(int planeInd, PointCloudRGB& cloud, Eigen::Vector3
   // std::cout << "\n keyInd " << keyInd << " planeInd " << planeInd << " planesPoints size after add plane " << planesPoints.size() << std::endl;
 }
 
-void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, std::vector<uint8_t> indsInit)
+void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector3f pcw, Eigen::Vector4f qcw, Eigen::Vector3f pcwHat, Eigen::Vector4f qcwHat, bool allPtsKnownInit, std::vector<uint8_t> indsInit, std::vector<uint8_t> dkKnownsInit, ros::Time t)
 {
-  std::cout << "inds.size() " << inds.size() << " indsNew.size() " << indsInit.size() << std::endl;
+  allPtsKnown = allPtsKnownInit;
+  // std::cout << "inds.size() " << inds.size() << " indsNew.size() " << indsInit.size() << std::endl;
   for (int ii = 0; ii < indsInit.size(); ii++)
   {
     bool indFound = false;
@@ -440,10 +516,11 @@ void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector
     int jj = 0;
     while (!ros::isShuttingDown() && !indFound && (indsIt != inds.end()))
     {
-      std::cout << "check " << int(indsInit.at(ii)) << " ii " << ii << " old " << int(*indsIt) << " jj " << jj << std::endl;
+      // std::cout << "check " << int(indsInit.at(ii)) << " ii " << ii << " old " << int(*indsIt) << " jj " << jj << std::endl;
       if(int(*indsIt) == int(indsInit.at(ii)))
       {
         planes.at(planeIndInd).points.at(jj) = cloud.points.at(ii);
+        dkKnowns.at(jj) = dkKnownsInit.at(ii);
         indFound = true;
       }
       indsIt++;
@@ -451,6 +528,31 @@ void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector
     }
     // planes.at(planeIndInd) = cloud;
   }
+
+  std::vector<float> dks(planesTrue.at(0).size());
+  std::vector<float> dkHats(planesTrue.at(0).size());
+  float xk = 0;
+  float yk = 0;
+  float zk = 0;
+  float xkHat = 0;
+  float ykHat = 0;
+  float zkHat = 0;
+  for (int ii = 0; ii < planesTrue.at(0).size(); ii++)
+  {
+    xk = planesTrue.at(0).at(ii).x - pcw(0);
+    yk = planesTrue.at(0).at(ii).y - pcw(1);
+    zk = planesTrue.at(0).at(ii).z - pcw(2);
+    dks.at(ii) = sqrtf(xk*xk + yk*yk + zk*zk);
+    xkHat = planes.at(0).at(ii).x - pcwHat(0);
+    ykHat = planes.at(0).at(ii).y - pcwHat(1);
+    zkHat = planes.at(0).at(ii).z - pcwHat(2);
+    dkHats.at(ii) = sqrtf(xkHat*xkHat + ykHat*ykHat + zkHat*zkHat);
+  }
+
+  float Dt = (t-startTime).toSec();
+
+  cloudDataSave = new CloudDataSave(Dt,dks,dkHats,dkKnowns);
+  cloudDataSaves.push_back(cloudDataSave);
 
 
   // // approximate the true distance for each point to each wall

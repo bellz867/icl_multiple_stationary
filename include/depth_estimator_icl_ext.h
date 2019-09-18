@@ -27,6 +27,7 @@ struct DepthEstimatorICLExt
   ros::Time tLastSave;
   Eigen::Vector3f pkcLastSave;
   float yysum,yusum;
+  Eigen::Vector2f kPtInit;
   Eigen::Vector3f uk;
   float dkHat;
   float dcHat;

@@ -3,7 +3,7 @@
 <launch>
 
   <!-- estimator node -->
-  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node">
+  <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node" output="screen">
   <!-- <node pkg="icl_multiple_stationary" type="estimator_main_node" name="estimator_main_node"> -->
 
 	  <!-- forward camera -->
@@ -31,7 +31,7 @@
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>
-    <param name="zmax" value="8.0"/>
+    <param name="zmax" value="4.0"/>
 
 	  <!-- cut off frequencies-->
 	  <param name="fq" value="10.0"/>

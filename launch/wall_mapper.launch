@@ -12,5 +12,9 @@
     <param name="minheight" value="-3.0"/>
     <param name="maxheight" value="3.0"/>
 
+    <!-- experiment details -->
+    <param name="saveExp" value="false"/>
+    <param name="expName" value="x1"/>
+
   </node>
 </launch>

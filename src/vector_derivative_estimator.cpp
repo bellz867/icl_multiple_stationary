@@ -16,7 +16,7 @@ void VectorDerivativeEstimator::initialize(int stateSizeInit)
 	float rr = 0.00001;
 	R = rr*Eigen::MatrixXf::Identity(stateSize,stateSize);//measurment covariance
 	RR = rr*Eigen::MatrixXf::Identity(2*stateSize,2*stateSize);//measurment covariance
-	RR.block(stateSize,stateSize,stateSize,stateSize) = 1000.0*R;
+	RR.block(stateSize,stateSize,stateSize,stateSize) = 10000.0*R;
 	P.block(0,0,stateSize,stateSize) = R;//covariance
 	Q.block(0,0,stateSize,stateSize) =  0.1*Eigen::MatrixXf::Identity(stateSize,stateSize);//process covariance
 
