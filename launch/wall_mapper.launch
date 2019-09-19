@@ -13,7 +13,7 @@
     <param name="maxheight" value="3.0"/>
 
     <!-- experiment details -->
-    <param name="saveExp" value="false"/>
+    <param name="saveExp" value="true"/>
     <param name="expName" value="x1"/>
 
   </node>

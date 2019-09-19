@@ -6,7 +6,7 @@ KeyframePlanes::~KeyframePlanes()
 	if (saveExp && allPtsKnown)
 	{
 		std::cout << std::endl << "saving " << keyInd << std::endl;
-		std::ofstream saveFile("/home/ncr/ncr_ws/src/icl_multiple_stationary/experiment/"+expName+"/"+std::to_string(keyInd)+".txt");
+		std::ofstream saveFile("/home/ncr/ncr_ws/src/icl_multiple_stationary/experiment/key_"+std::to_string(keyInd)+".txt");
 		if (saveFile.is_open())
 		{
       std::cout << "\nopen\n";
@@ -294,6 +294,21 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
   float xkHat = 0;
   float ykHat = 0;
   float zkHat = 0;
+
+  planesDraw.clear();
+  planesDraw.height = 1;
+  planesDraw.width = planesTrue.at(0).size();
+  planesDraw.is_dense = true;
+  planesDraw.resize(planesTrue.at(0).size());
+
+  planesTrueDraw.clear();
+  planesTrueDraw.height = 1;
+  planesTrueDraw.width = planesTrue.at(0).size();
+  planesTrueDraw.is_dense = true;
+  planesTrueDraw.resize(planesTrue.at(0).size());
+
+  //get number known
+  int numKnown = 0;
   for (int ii = 0; ii < planesTrue.at(0).size(); ii++)
   {
     xk = planesTrue.at(0).at(ii).x - pcw(0);
@@ -304,7 +319,17 @@ KeyframePlanes::KeyframePlanes(float minareaInit, float maxareaInit, float minhe
     ykHat = planes.at(0).at(ii).y - pcwHat(1);
     zkHat = planes.at(0).at(ii).z - pcwHat(2);
     dkHats.at(ii) = sqrtf(xkHat*xkHat + ykHat*ykHat + zkHat*zkHat);
+
+    if (bool(dkKnowns.at(ii)))
+    {
+      planesDraw.at(numKnown) = planes.at(0).at(ii);
+      planesTrueDraw.at(numKnown) = planesTrue.at(0).at(ii);
+      numKnown++;
+    }
   }
+
+  planesDraw.resize(numKnown);
+  planesTrueDraw.resize(numKnown);
 
   float Dt = (t-startTime).toSec();
 
@@ -529,6 +554,18 @@ void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector
     // planes.at(planeIndInd) = cloud;
   }
 
+  planesDraw.clear();
+  planesDraw.height = 1;
+  planesDraw.width = planesTrue.at(0).size();
+  planesDraw.is_dense = true;
+  planesDraw.resize(planesTrue.at(0).size());
+
+  planesTrueDraw.clear();
+  planesTrueDraw.height = 1;
+  planesTrueDraw.width = planesTrue.at(0).size();
+  planesTrueDraw.is_dense = true;
+  planesTrueDraw.resize(planesTrue.at(0).size());
+
   std::vector<float> dks(planesTrue.at(0).size());
   std::vector<float> dkHats(planesTrue.at(0).size());
   float xk = 0;
@@ -537,6 +574,7 @@ void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector
   float xkHat = 0;
   float ykHat = 0;
   float zkHat = 0;
+  int numKnown = 0;
   for (int ii = 0; ii < planesTrue.at(0).size(); ii++)
   {
     xk = planesTrue.at(0).at(ii).x - pcw(0);
@@ -547,7 +585,17 @@ void KeyframePlanes::update(int planeIndInd, PointCloudRGB& cloud, Eigen::Vector
     ykHat = planes.at(0).at(ii).y - pcwHat(1);
     zkHat = planes.at(0).at(ii).z - pcwHat(2);
     dkHats.at(ii) = sqrtf(xkHat*xkHat + ykHat*ykHat + zkHat*zkHat);
+
+    if (bool(dkKnowns.at(ii)))
+    {
+      planesDraw.at(numKnown) = planes.at(0).at(ii);
+      planesTrueDraw.at(numKnown) = planesTrue.at(0).at(ii);
+      numKnown++;
+    }
   }
+
+  planesDraw.resize(numKnown);
+  planesTrueDraw.resize(numKnown);
 
   float Dt = (t-startTime).toSec();
 

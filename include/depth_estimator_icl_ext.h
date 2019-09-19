@@ -50,7 +50,7 @@ struct DepthEstimatorICLExt
   void initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit, float tauInit, ros::Time t,
                   float fxInit, float fyInit, float cxInit, float cyInit);
   Eigen::Vector3f current();
-  Eigen::Vector3f update(Eigen::Vector3f mc, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt,  Eigen::Vector3f pkc, Eigen::Vector4f qkc);
+  Eigen::VectorXf update(Eigen::Vector3f mc, Eigen::Vector3f tkc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt,  Eigen::Vector3f pkc, Eigen::Vector4f qkc);
   Eigen::Vector3f predict(Eigen::Vector3f v, Eigen::Vector3f w, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc);
 };
 

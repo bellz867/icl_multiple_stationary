@@ -307,8 +307,10 @@ void WallMapper::wallCB(const icl_multiple_stationary::Wall::ConstPtr& msg)
 		{
 			if (keyframePlanes.at(i)->allPtsKnown)
 			{
-				*map += keyframePlanes.at(i)->planes.at(j);
-				*map += keyframePlanes.at(i)->planesTrue.at(j);
+				// *map += keyframePlanes.at(i)->planes.at(j);
+				// *map += keyframePlanes.at(i)->planesTrue.at(j);
+				*map += keyframePlanes.at(i)->planesDraw;
+				*map += keyframePlanes.at(i)->planesTrueDraw;
 			}
 			// //for each point on that plane
 			// for (int k = 0; k < keyframePlanes.at(i)->planesPoints.at(j).size(); k++)

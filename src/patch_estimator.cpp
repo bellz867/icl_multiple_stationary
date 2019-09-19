@@ -3,71 +3,71 @@
 PatchEstimator::~PatchEstimator()
 {
 	destroyLock.lock();
-	if (saveExp)
-	{
-		std::cout << "\nsaving\n";
-		std::ofstream saveFile("/home/ncr/ncr_ws/src/icl_stationary/experiment/"+expName+".txt");
-		if (saveFile.is_open())
-		{
-			std::cout << "\nopen\n";
-			saveFile << "time,";
-			saveFile << "pkcx," << "pkcy," << "pkcz,";
-			saveFile << "qkcw," << "qkcx," << "qkcy," << "qkcz,";
-			saveFile << "pkcICLx," << "pkcICLy," << "pkcICLz,";
-			saveFile << "qkcICLw," << "qkcICLx," << "qkcICLy," << "qkcICLz,";
-			saveFile << "pikx," << "piky," << "pikz,";
-			saveFile << "pikICLx," << "pikICLy," << "pikICLz,";
-			saveFile << "picx," << "picy," << "picz,";
-			saveFile << "picICLx," << "picICLy," << "picICLz,";
-			saveFile << "picEKFx," << "picEKFy," << "picEKFz,";
-			saveFile << "picLSx," << "picLSy," << "picLSz,";
-			saveFile << "picICLExtx," << "picICLExty," << "picICLExtz,";
-			saveFile << "vx," << "vy," << "vz,";
-			saveFile << "wx," << "wy," << "wz,";
-			saveFile << "\n";
-
-			for (int jj = 0; jj < data.size(); jj++)
-			{
-				float timej = data.at(jj)->time;
-				Eigen::Vector3f pkcj = data.at(jj)->pkc;
-				Eigen::Vector4f qkcj = data.at(jj)->qkc;
-				Eigen::Vector3f pkcICLj = data.at(jj)->pkcICL;
-				Eigen::Vector4f qkcICLj = data.at(jj)->qkcICL;
-				Eigen::Vector3f pikj = data.at(jj)->pik;
-				Eigen::Vector3f pikICLj = data.at(jj)->pikICL;
-				Eigen::Vector3f picj = data.at(jj)->pic;
-				Eigen::Vector3f picICLj = data.at(jj)->picICL;
-				Eigen::Vector3f picEKFj = data.at(jj)->picEKF;
-				Eigen::Vector3f picLSj = data.at(jj)->picLS;
-				Eigen::Vector3f picICLExtj = data.at(jj)->picICLExt;
-				Eigen::Vector3f vj = data.at(jj)->v;
-				Eigen::Vector3f wj = data.at(jj)->w;
-
-				std::cout << "\n picICLExtj \n" << picICLExtj << std::endl;
-
-				saveFile << timej << ",";
-				saveFile << pkcj(0) << "," << pkcj(1) << "," << pkcj(2) << ",";
-				saveFile << qkcj(0) << "," << qkcj(1) << "," << qkcj(2) << "," << qkcj(3) << ",";
-				saveFile << pkcICLj(0) << "," << pkcICLj(1) << "," << pkcICLj(2) << ",";
-				saveFile << qkcICLj(0) << "," << qkcICLj(1) << "," << qkcICLj(2) << "," << qkcICLj(3) << ",";
-				saveFile << pikj(0) << "," << pikj(1) << "," << pikj(2) << ",";
-				saveFile << pikICLj(0) << "," << pikICLj(1) << "," << pikICLj(2) << ",";
-				saveFile << picj(0) << "," << picj(1) << "," << picj(2) << ",";
-				saveFile << picICLj(0) << "," << picICLj(1) << "," << picICLj(2) << ",";
-				saveFile << picEKFj(0) << "," << picEKFj(1) << "," << picEKFj(2) << ",";
-				saveFile << picLSj(0) << "," << picLSj(1) << "," << picLSj(2) << ",";
-				saveFile << picICLExtj(0) << "," << picICLExtj(1) << "," << picICLExtj(2) << ",";
-				saveFile << vj(0) << "," << vj(1) << "," << vj(2) << ",";
-				saveFile << wj(0) << "," << wj(1) << "," << wj(2) << ",";
-				saveFile << "\n";
-
-				delete data.at(jj);
-			}
-			saveFile.close();
-			std::cout << "\nclose\n";
-		}
-		std::cout << "\nsaved\n";
-	}
+	// if (saveExp)
+	// {
+	// 	std::cout << "\nsaving\n";
+	// 	std::ofstream saveFile("/home/ncr/ncr_ws/src/icl_stationary/experiment/"+expName+".txt");
+	// 	if (saveFile.is_open())
+	// 	{
+	// 		std::cout << "\nopen\n";
+	// 		saveFile << "time,";
+	// 		saveFile << "pkcx," << "pkcy," << "pkcz,";
+	// 		saveFile << "qkcw," << "qkcx," << "qkcy," << "qkcz,";
+	// 		saveFile << "pkcICLx," << "pkcICLy," << "pkcICLz,";
+	// 		saveFile << "qkcICLw," << "qkcICLx," << "qkcICLy," << "qkcICLz,";
+	// 		saveFile << "pikx," << "piky," << "pikz,";
+	// 		saveFile << "pikICLx," << "pikICLy," << "pikICLz,";
+	// 		saveFile << "picx," << "picy," << "picz,";
+	// 		saveFile << "picICLx," << "picICLy," << "picICLz,";
+	// 		saveFile << "picEKFx," << "picEKFy," << "picEKFz,";
+	// 		saveFile << "picLSx," << "picLSy," << "picLSz,";
+	// 		saveFile << "picICLExtx," << "picICLExty," << "picICLExtz,";
+	// 		saveFile << "vx," << "vy," << "vz,";
+	// 		saveFile << "wx," << "wy," << "wz,";
+	// 		saveFile << "\n";
+	//
+	// 		for (int jj = 0; jj < data.size(); jj++)
+	// 		{
+	// 			float timej = data.at(jj)->time;
+	// 			Eigen::Vector3f pkcj = data.at(jj)->pkc;
+	// 			Eigen::Vector4f qkcj = data.at(jj)->qkc;
+	// 			Eigen::Vector3f pkcICLj = data.at(jj)->pkcICL;
+	// 			Eigen::Vector4f qkcICLj = data.at(jj)->qkcICL;
+	// 			Eigen::Vector3f pikj = data.at(jj)->pik;
+	// 			Eigen::Vector3f pikICLj = data.at(jj)->pikICL;
+	// 			Eigen::Vector3f picj = data.at(jj)->pic;
+	// 			Eigen::Vector3f picICLj = data.at(jj)->picICL;
+	// 			Eigen::Vector3f picEKFj = data.at(jj)->picEKF;
+	// 			Eigen::Vector3f picLSj = data.at(jj)->picLS;
+	// 			Eigen::Vector3f picICLExtj = data.at(jj)->picICLExt;
+	// 			Eigen::Vector3f vj = data.at(jj)->v;
+	// 			Eigen::Vector3f wj = data.at(jj)->w;
+	//
+	// 			std::cout << "\n picICLExtj \n" << picICLExtj << std::endl;
+	//
+	// 			saveFile << timej << ",";
+	// 			saveFile << pkcj(0) << "," << pkcj(1) << "," << pkcj(2) << ",";
+	// 			saveFile << qkcj(0) << "," << qkcj(1) << "," << qkcj(2) << "," << qkcj(3) << ",";
+	// 			saveFile << pkcICLj(0) << "," << pkcICLj(1) << "," << pkcICLj(2) << ",";
+	// 			saveFile << qkcICLj(0) << "," << qkcICLj(1) << "," << qkcICLj(2) << "," << qkcICLj(3) << ",";
+	// 			saveFile << pikj(0) << "," << pikj(1) << "," << pikj(2) << ",";
+	// 			saveFile << pikICLj(0) << "," << pikICLj(1) << "," << pikICLj(2) << ",";
+	// 			saveFile << picj(0) << "," << picj(1) << "," << picj(2) << ",";
+	// 			saveFile << picICLj(0) << "," << picICLj(1) << "," << picICLj(2) << ",";
+	// 			saveFile << picEKFj(0) << "," << picEKFj(1) << "," << picEKFj(2) << ",";
+	// 			saveFile << picLSj(0) << "," << picLSj(1) << "," << picLSj(2) << ",";
+	// 			saveFile << picICLExtj(0) << "," << picICLExtj(1) << "," << picICLExtj(2) << ",";
+	// 			saveFile << vj(0) << "," << vj(1) << "," << vj(2) << ",";
+	// 			saveFile << wj(0) << "," << wj(1) << "," << wj(2) << ",";
+	// 			saveFile << "\n";
+	//
+	// 			delete data.at(jj);
+	// 		}
+	// 		saveFile.close();
+	// 		std::cout << "\nclose\n";
+	// 	}
+	// 	std::cout << "\nsaved\n";
+	// }
 
 	// std::cout << "\n hid10 \n";
 	imagePub.shutdown();
@@ -91,7 +91,7 @@ PatchEstimator::~PatchEstimator()
 	chessboardPub.shutdown();
 	// std::cout << "\n hid19 \n";
 	// chessboardSub.shutdown();
-	// ROS_WARN("destroying \n");
+	ROS_WARN("destroying \n");
 
 	destroyLock.unlock();
 
@@ -277,7 +277,7 @@ bool PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 	std::cout << "\n onesMat.size() \n" << onesMat.size() << std::endl;
 
 	//find the best corners in the masked image
-	cv::goodFeaturesToTrack(image,ptCorners,30,0.01,100,mask,7);
+	cv::goodFeaturesToTrack(image,ptCorners,100,0.01,100,mask,7);
 	std::cout << "\n ptCorners.size() " << ptCorners.size() << std::endl;
 	std::cout << "\n minFeaturesBad " << minFeaturesBad << std::endl;
 
@@ -315,9 +315,13 @@ bool PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 		depthEstimators.push_back(newDepthEstimator);
 		// std::cout << ii << " ptix " << pts.at(ii).x << " ptiy " << pts.at(ii).y << std::endl;
 		std::cout << ii << " ptCix " << ptCorners.at(ii).x << " ptCiy " << ptCorners.at(ii).y << std::endl;
+		avgcPtx += ptCorners.at(ii).x;
+		avgcPty += ptCorners.at(ii).y;
 		// std::cout << ii << " mcx " << depthEstimators.at(ii)->mc(0) << " mcy " << depthEstimators.at(ii)->mc(1) << std::endl;
 		// std::cout << ii << " mkx " << depthEstimators.at(ii)->mk(0) << " mky " << depthEstimators.at(ii)->mk(1) << std::endl;
 	}
+	avgcPtx /= float(ptCorners.size());
+	avgcPty /= float(ptCorners.size());
 	depthEstimatorsSaved = depthEstimators;
 	return true;
 }
@@ -1083,43 +1087,46 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		// Eigen::Vector4f qkc = getqMat(getqInv(qcw))*qkw;
 		// qkc /= qkc.norm();
 
-		icl_multiple_stationary::Roi roiMsg;
-		roiMsg.header.stamp = t;
-		roiMsg.pose.position.x = pcw(0);
-		roiMsg.pose.position.y = pcw(1);
-		roiMsg.pose.position.z = pcw(2);
-		roiMsg.pose.orientation.w = qcw(0);
-		roiMsg.pose.orientation.x = qcw(1);
-		roiMsg.pose.orientation.y = qcw(2);
-		roiMsg.pose.orientation.z = qcw(3);
-		roiMsg.poseHat.position.x = pcwHat(0);
-		roiMsg.poseHat.position.y = pcwHat(1);
-		roiMsg.poseHat.position.z = pcwHat(2);
-		roiMsg.poseHat.orientation.w = qcwHat(0);
-		roiMsg.poseHat.orientation.x = qcwHat(1);
-		roiMsg.poseHat.orientation.y = qcwHat(2);
-		roiMsg.poseHat.orientation.z = qcwHat(3);
-		roiMsg.poseBody.position.x = pbw(0);
-		roiMsg.poseBody.position.y = pbw(1);
-		roiMsg.poseBody.position.z = pbw(2);
-		roiMsg.poseBody.orientation.w = qbw(0);
-		roiMsg.poseBody.orientation.x = qbw(1);
-		roiMsg.poseBody.orientation.y = qbw(2);
-		roiMsg.poseBody.orientation.z = qbw(3);
-		roiMsg.poseBodyHat.position.x = pbwHat(0);
-		roiMsg.poseBodyHat.position.y = pbwHat(1);
-		roiMsg.poseBodyHat.position.z = pbwHat(2);
-		roiMsg.poseBodyHat.orientation.w = qbwHat(0);
-		roiMsg.poseBodyHat.orientation.x = qbwHat(1);
-		roiMsg.poseBodyHat.orientation.y = qbwHat(2);
-		roiMsg.poseBodyHat.orientation.z = qbwHat(3);
-		roiPub.publish(roiMsg);
-
-		if (!landmarkView)
+		if (!patchShutdown)
 		{
-			std_msgs::Time tMsg;
-			tMsg.data = t;
-			chessboardPub.publish(tMsg);
+			icl_multiple_stationary::Roi roiMsg;
+			roiMsg.header.stamp = t;
+			roiMsg.pose.position.x = pcw(0);
+			roiMsg.pose.position.y = pcw(1);
+			roiMsg.pose.position.z = pcw(2);
+			roiMsg.pose.orientation.w = qcw(0);
+			roiMsg.pose.orientation.x = qcw(1);
+			roiMsg.pose.orientation.y = qcw(2);
+			roiMsg.pose.orientation.z = qcw(3);
+			roiMsg.poseHat.position.x = pcwHat(0);
+			roiMsg.poseHat.position.y = pcwHat(1);
+			roiMsg.poseHat.position.z = pcwHat(2);
+			roiMsg.poseHat.orientation.w = qcwHat(0);
+			roiMsg.poseHat.orientation.x = qcwHat(1);
+			roiMsg.poseHat.orientation.y = qcwHat(2);
+			roiMsg.poseHat.orientation.z = qcwHat(3);
+			roiMsg.poseBody.position.x = pbw(0);
+			roiMsg.poseBody.position.y = pbw(1);
+			roiMsg.poseBody.position.z = pbw(2);
+			roiMsg.poseBody.orientation.w = qbw(0);
+			roiMsg.poseBody.orientation.x = qbw(1);
+			roiMsg.poseBody.orientation.y = qbw(2);
+			roiMsg.poseBody.orientation.z = qbw(3);
+			roiMsg.poseBodyHat.position.x = pbwHat(0);
+			roiMsg.poseBodyHat.position.y = pbwHat(1);
+			roiMsg.poseBodyHat.position.z = pbwHat(2);
+			roiMsg.poseBodyHat.orientation.w = qbwHat(0);
+			roiMsg.poseBodyHat.orientation.x = qbwHat(1);
+			roiMsg.poseBodyHat.orientation.y = qbwHat(2);
+			roiMsg.poseBodyHat.orientation.z = qbwHat(3);
+			roiPub.publish(roiMsg);
+
+			if (!landmarkView)
+			{
+				std_msgs::Time tMsg;
+				tMsg.data = t;
+				chessboardPub.publish(tMsg);
+			}
 		}
 
 		pubMutex.unlock();
@@ -1208,6 +1215,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::vector<cv::Point2f>::iterator itk = kPts.begin();
 	float avgNumSaved = 0.0;
 	float avgNumThrown = 0.0;
+	float avgdkKnown = 0.0;
 
 	std::vector<cv::Point2f> flows(pPts.size());
 	std::vector<cv::Point2f>::iterator itf = flows.begin();
@@ -1225,6 +1233,11 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 		avgNumSaved += float((*itD)->depthEstimatorICLExt.numSaved);
 		avgNumThrown += float((*itD)->depthEstimatorICLExt.numThrown);
+
+		if ((*itD)->depthEstimatorICLExt.dkKnown)
+		{
+			avgdkKnown += 1.0;
+		}
 
 		itk++;
 		itp++;
@@ -1244,6 +1257,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		avgNumSaved /= float(numberPts);
 		avgNumThrown /= float(numberPts);
 		avgFlow /= float(numberPts);
+		avgdkKnown /= float(numberPts);
 	}
 
 	// std::vector<float> flowxs(pPts.size()),flowys(pPts.size());
@@ -1292,7 +1306,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	// flowDiffPt.x = flowxMed*dt;
 	// flowDiffPt.y = flowyMed*dt;
 	//remove outlier flows
-	std::cout << "\n num points before flow " << depthEstimators.size() << " avgNumSaved " << avgNumSaved << std::endl;
+
+	featureMutex.lock();
+	std::cout << "\n num points before flow " << depthEstimators.size() << " avgNumSaved " << avgNumSaved << " avgdkKnown " << avgdkKnown << std::endl;
 	float timeFromStart = (t-tStart).toSec();
 	for (int ii = 0; ii < flows.size(); ii++)
 	{
@@ -1320,7 +1336,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		}
 		else
 		{
-			if (depthEstimators.at(ii)->badCount > 5 || ((avgNumSaved > 5) && (depthEstimators.at(ii)->depthEstimatorICLExt.numSaved < 2)))
+			if ((depthEstimators.at(ii)->badCount > 1) || ( (avgdkKnown > 0.6) && !depthEstimators.at(ii)->depthEstimatorICLExt.dkKnown))
 			{
 				delete depthEstimators.at(ii);
 			}
@@ -1348,7 +1364,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	kPts = kPtsInFlow;
 	depthEstimators = depthEstimatorsInFlow;
 
-	std::cout << "\n num points after flow " << depthEstimators.size() << std::endl;
+	featureMutex.unlock();
+
+	std::cout << "\n num points after flow " << depthEstimatorsInFlow.size() << std::endl;
 	// std::cout << "\n medDiffx " << flowDiffPt.x << ", medDiffy " << flowDiffPt.y << std::endl;
 	std::cout << "\n qAng " << qAng << std::endl;
 	std::cout << "\n currentBound.width " << currentBound.width << std::endl;
@@ -1357,7 +1375,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
 
 	// if (normGood && angGood)
-	if ((qAng < 30.0) && (0.6*currentBound.width > (numberFeaturesPerPartCol-1)*minDistance/2) && (0.6*currentBound.height > (numberFeaturesPerPartRow-1)*minDistance/2) && (depthEstimators.size() > minFeaturesBad))
+	if ((qAng < 30.0) && (currentBound.width > (numberFeaturesPerPartCol-1)*50) && (currentBound.height > (numberFeaturesPerPartRow-1)*50) && (depthEstimatorsInFlow.size() > minFeaturesBad))
 	{
 		try
 		{
@@ -1590,7 +1608,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 
 			// std::vector<cv::Point2f> ppts;
 			// ppts.clear();
+			featureMutex.lock();
 			findPoints(image,kPts,pPts,cPts,G,pkc);
+			featureMutex.unlock();
 			kPtsInPred = kPts;
 			cPtsInPred = cPts;
 
@@ -1650,7 +1670,19 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	}
 	else
 	{
-		ROS_ERROR("angle off");
+		if ((qAng >= 30.0))
+		{
+			ROS_ERROR("angle off");
+		}
+		if ((currentBound.width <= (numberFeaturesPerPartCol-1)*50) || (currentBound.height <= (numberFeaturesPerPartRow-1)*50))
+		{
+			ROS_ERROR("area to small");
+		}
+		if ((depthEstimators.size() <= minFeaturesBad))
+		{
+			ROS_ERROR("too few features");
+		}
+
 		featureMutex.lock();
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
 		{
@@ -2106,7 +2138,7 @@ void PatchEstimator::findPoints(cv::Mat& image, std::vector<cv::Point2f>& kPts, 
 	cPts = cPtsInPred;
 	if (cPts.size() > 0)
 	{
-		float sigPred = 5.0;
+		float sigPred = 3.0;
 		float sigPred2 = sigPred*sigPred;
 		// float chi2 = 3.84; //chi^2 for 95%
 		float chi2 = 6.63; //chi^2 for 99%
@@ -3382,8 +3414,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// std::vector<cv::Point2f>::iterator itkc = kPtsC.begin();
 		float betakc = 0.0;
 		// cv::MatIterator_<uchar> itIn = inliersG.begin<uchar>();
-		float avgcPtx = 0.0;
-		float avgcPty = 0.0;
+		// float avgcPtx = 0.0;
+		// float avgcPty = 0.0;
 		bool allPtsKnownIn = true;
 		float dkcAvg = 0.0;
 		for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
@@ -3461,7 +3493,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 
 		currentAvgPartition = partitionCols*avgRowInd + avgColInd;
 
-		ROS_WARN("time for estimators %2.4f, avg partition is %d, all points known %d",float(clock()-updateClock)/CLOCKS_PER_SEC,currentAvgPartition,int(allPtsKnown));
+		ROS_WARN("time for estimators %2.4f, avg partition is %d, all points known %d, avgcPtx %3.4f",float(clock()-updateClock)/CLOCKS_PER_SEC,currentAvgPartition,int(allPtsKnown),avgcPtx);
 		updateClock = clock();
 
 		assert(depthEstimators.size() > 0);

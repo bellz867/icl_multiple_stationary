@@ -68,10 +68,13 @@ float DepthEstimator::update(Eigen::Vector3f mcMeas, Eigen::Vector3f tkc, Eigen:
 
   // std::cout << "\n hi3 \n";
 
-  Eigen::Vector3f dkdcdkcICLExt = depthEstimatorICLExt.update(uc,tkc,Rkc,v,w,t,dt,pkc,qkc);
+  Eigen::VectorXf dkdcdkcICLExt = depthEstimatorICLExt.update(uc,tkc,Rkc,v,w,t,dt,pkc,qkc);
   dkHatICLExt = dkdcdkcICLExt(0);
   dcHatICLExt = dkdcdkcICLExt(1);
   dkcHatICLExt = dkdcdkcICLExt(2);
+
+  ptk(0) = dkdcdkcICLExt(3);
+  ptk(1) = dkdcdkcICLExt(4);
 
   return dkcHatICLExt;
 }

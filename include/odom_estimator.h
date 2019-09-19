@@ -1,5 +1,7 @@
 #include <mutex>
 #include <deque>
+#include <vector>
+#include <fstream>
 
 #include <ros/ros.h>
 #include <ros/console.h>
@@ -13,6 +15,7 @@
 #include <helper_functions.h>
 #include <icl_multiple_stationary/PoseDelta.h>
 #include <vector_derivative_estimator.h>
+#include <pose_data_save.h>
 
 struct OdomEstimator
 {
@@ -22,11 +25,15 @@ struct OdomEstimator
   std::string bodyName;
 	std::string cameraName;
 	ros::Time tVelLast;//last time
+	ros::Time tStart;//last time
 	std::mutex poseDeltaMutex;
 	std::deque<icl_multiple_stationary::PoseDelta::ConstPtr> poseDeltas;
 	bool useMocap,gotInitialPose;
 	VectorDerivativeEstimator qDotEstimator,pDotEstimator,vDotEstimator,wDotEstimator;
 	float cvHat,cwHat,kcv,kcw;
+
+	std::vector<PoseDataSave*> poseDataSaves;
+	PoseDataSave* poseDataSaveNew;
 
 	bool firstVel;
 	Eigen::Vector3f pcwHat;
@@ -44,11 +51,15 @@ struct OdomEstimator
 	Eigen::Vector3f pbInit;
 	Eigen::Vector4f qbInit;
 
+	bool saveExp;
+	std::string expName;
+
 	float pTau;
 	float qTau;
 	float vTau;
 	float wTau;
 
+	~OdomEstimator();
   OdomEstimator();
 
 	void mocapPoseCB(const nav_msgs::Odometry::ConstPtr& msg);

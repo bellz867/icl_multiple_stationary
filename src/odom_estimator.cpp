@@ -1,5 +1,40 @@
 #include <odom_estimator.h>
 
+OdomEstimator::~OdomEstimator()
+{
+	if (saveExp)
+	{
+		std::cout << std::endl << "saving pose" << std::endl;
+		std::ofstream saveOdomFile("/home/ncr/ncr_ws/src/icl_multiple_stationary/experiment/pose.txt");
+		if (saveOdomFile.is_open())
+		{
+      std::cout << "\nopen\n";
+      saveOdomFile << "time" << ",";
+			saveOdomFile << "px" << "," << "py" << "," << "pz" << ",";
+			saveOdomFile << "qw" << "," << "qx" << "," << "qy" << "," << "qz" << ",";
+			saveOdomFile << "pxHat" << "," << "pyHat" << "," << "pzHat" << ",";
+			saveOdomFile << "qwHat" << "," << "qxHat" << "," << "qyHat" << "," << "qzHat" << ",";
+			saveOdomFile << "\n";
+
+			for (int ii = 0; ii < poseDataSaves.size(); ii++)
+			{
+        saveOdomFile << poseDataSaves.at(ii)->time << ",";
+				saveOdomFile << poseDataSaves.at(ii)->pbw(0) << "," << poseDataSaves.at(ii)->pbw(1) << "," << poseDataSaves.at(ii)->pbw(2) << ",";
+				saveOdomFile << poseDataSaves.at(ii)->qbw(0) << "," << poseDataSaves.at(ii)->qbw(1) << "," << poseDataSaves.at(ii)->qbw(2) << "," << poseDataSaves.at(ii)->qbw(3) << ",";
+				saveOdomFile << poseDataSaves.at(ii)->pbwHat(0) << "," << poseDataSaves.at(ii)->pbwHat(1) << "," << poseDataSaves.at(ii)->pbwHat(2) << ",";
+				saveOdomFile << poseDataSaves.at(ii)->qbwHat(0) << "," << poseDataSaves.at(ii)->qbwHat(1) << "," << poseDataSaves.at(ii)->qbwHat(2) << "," << poseDataSaves.at(ii)->qbwHat(3) << ",";
+				saveOdomFile << "\n";
+
+				delete poseDataSaves.at(ii);
+			}
+			saveOdomFile.close();
+
+      std::cout << "\nclose\n";
+		}
+		std::cout << std::endl << "saved pose" << std::endl;
+	}
+}
+
 OdomEstimator::OdomEstimator()
 {
 	// Parameters
@@ -7,6 +42,8 @@ OdomEstimator::OdomEstimator()
 	nhp.param<std::string>("bodyName", bodyName, "turtle");
 	nhp.param<std::string>("cameraName", cameraName, "camera");
 	nhp.param<bool>("useMocap", useMocap, false);
+	nhp.param<std::string>("expName", expName, "");
+	nhp.param<bool>("saveExp", saveExp, false);
 
 
 	float pcbx,pcby,pcbz,qcbw,qcbx,qcby,qcbz,qmew,qmex,qmey,qmez;
@@ -90,6 +127,7 @@ void OdomEstimator::mocapPoseCB(const nav_msgs::Odometry::ConstPtr& msg)
 		vDotEstimator.initialize(3);
 		wDotEstimator.initialize(3);
 		tVelLast = t;
+		tStart = t;
 		gotInitialPose = true;
 	}
 	// initialPoseSub.shutdown();
@@ -116,6 +154,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 
 	float dt = (t-tVelLast).toSec();
 	tVelLast = t;
+
 
 	// get the low pass gains
 	float kp = dt/(pTau + dt);
@@ -340,4 +379,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	bodyOdomMsg.twist.twist.angular.y = wbHat(1);
 	bodyOdomMsg.twist.twist.angular.z = wbHat(2);
 	bodyOdomPub.publish(bodyOdomMsg);
+
+	poseDataSaveNew = new PoseDataSave((t-tStart).toSec(),pbwMocapLast,qbwMocapLast,pbwHat,qbwHat);
+	poseDataSaves.push_back(poseDataSaveNew);
 }

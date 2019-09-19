@@ -103,6 +103,8 @@ struct PatchEstimator
 	Eigen::Vector3f wcbHat;
 	std::deque<BundleSave*> bundleSaves;
 	BundleSave* bundleNew;
+	float avgcPtx;
+	float avgcPty;
 
 	VectorDerivativeEstimator qDotEstimator;
 

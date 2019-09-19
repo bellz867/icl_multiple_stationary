@@ -5,6 +5,7 @@
 // #include <fstream>
 // #include <ctime>
 #include <vector>
+#include <fstream>
 
 #include <ros/ros.h>
 #include <geometry_msgs/Point32.h>
@@ -33,6 +34,7 @@ struct KeyframePlanes
   std::vector<uint8_t> inds;
   std::vector<int> planesInd;
   std::vector<PointCloudRGB> planes,planesTrue;
+  PointCloudRGB planesDraw,planesTrueDraw;
   Eigen::Vector3f wBL,wCL,wTL,wTR,wCR,wBR;
   Eigen::Vector3f nBL,nCL,nTL,nTR,nCR,nBR;
   CloudDataSave* cloudDataSave;

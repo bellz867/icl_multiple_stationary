@@ -116,7 +116,7 @@ Eigen::Vector3f DepthEstimatorICLExt::predict(Eigen::Vector3f v, Eigen::Vector3f
   return mcEst;
 }
 
-Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
+Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vector3f ukc, Eigen::Matrix3f Rkc, Eigen::Vector3f v, Eigen::Vector3f w, ros::Time t, float dt, Eigen::Vector3f pkc, Eigen::Vector4f qkc)
 {
   // std::cout << "\n hi4 \n";
   // clock_t processTime = clock();
@@ -304,7 +304,7 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   psiDotInt += (psiDot*dt);
 
   // std::cout << "\n hi9 \n";
-  float lambdaa = 0.4;
+  float lambdaa = 0.3;
   float lambdat = 0.0001;
   float dmin = 0.01*zmin;
   float dmax = zmax;
@@ -751,10 +751,16 @@ Eigen::Vector3f DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // ROS_WARN("time5 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
   // processTime = clock();
 
-  Eigen::Vector2f kPtRan = kPtInit + 2.0*Eigen::Vector2f::Random();
-  Eigen::Vector2f mkRan((kPtRan(0)-cx)/fx,(kPtRan(1)-cy)/fy);
-  uk = Eigen::Vector3f((kPtRan(0)-cx)/fx,(kPtRan(1)-cy)/fy,1.0);
-  uk /= uk.norm();
+  // Eigen::Vector2f kPtRan = kPtInit + 2.0*Eigen::Vector2f::Random();
+  // Eigen::Vector2f mkRan((kPtRan(0)-cx)/fx,(kPtRan(1)-cy)/fy);
+  // uk = Eigen::Vector3f((kPtRan(0)-cx)/fx,(kPtRan(1)-cy)/fy,1.0);
+  // uk /= uk.norm();
 
-  return Eigen::Vector3f(dkHat,dcHat,dkcHat);
+  Eigen::VectorXf iclOut = Eigen::VectorXf::Zero(5);
+  iclOut(0) = dkHat;
+  iclOut(1) = dcHat;
+  iclOut(2) = dkcHat;
+  iclOut(3) = kPtInit(0);
+  iclOut(4) = kPtInit(1);
+  return iclOut;
 }

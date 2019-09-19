@@ -25,13 +25,13 @@
     <param name="minDistance" value="150"/>
     <param name="partitionSide" value="1"/>
     <param name="numberFeaturesPerPartRow" value="5"/>
-    <param name="numberFeaturesPerPartCol" value="6"/>
+    <param name="numberFeaturesPerPartCol" value="10"/>
     <param name="patchSizeBase" value="50"/>
     <param name="checkSizeBase" value="90"/>
 
     <!-- min and max depths-->
     <param name="zmin" value="1.0"/>
-    <param name="zmax" value="4.0"/>
+    <param name="zmax" value="5.0"/>
 
 	  <!-- cut off frequencies-->
 	  <param name="fq" value="10.0"/>

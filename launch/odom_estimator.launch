@@ -29,6 +29,10 @@
     <param name="fv" value="50.0"/>
     <param name="fw" value="50.0"/>
 
+    <!-- experiment details -->
+    <param name="saveExp" value="true"/>
+    <param name="expName" value="s16"/>
+
   </node>
 
   <!-- <node pkg="odom_estimator" type="odom_node" name="odom_node_cam" output="screen">

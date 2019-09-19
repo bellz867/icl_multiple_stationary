@@ -197,6 +197,11 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 	}
 
 	//if an active keyframe then check if moved or rotated away a certain amount, if so add another key frame
+	float avgcPtx = 0.0;
+	float avgcPty = 0.0;
+	bool notFirst = false;
+	bool tooFewFeatures = false;
+	std::mutex imageMutex;
 	if (keyframes.size() > 0)
 	{
 		// //determine how far from last key
@@ -217,9 +222,11 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		//go through existing keyframes and determine if still active, if not delete
 		std::vector<PatchEstimator*> keyframesIn;
 
+		imageMutex.lock();
 		for (int ii = 0; ii < keyframes.size(); ii++)
 		{
 			bool keepframe = false;
+
 
 			if (!keyframes.at(ii)->firstImage)
 			{
@@ -230,6 +237,10 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 
 				if (!keyframes.at(ii)->patchShutdown)
 				{
+					// if (keyframes.at(ii)->depthEstimators.size() >= minFeaturesBad)
+					// {
+					// 	keepframe = true;
+					// }
 					keepframe = true;
 				}
 			}
@@ -238,11 +249,35 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 				keepframe = true;
 			}
 
+
 			if (keepframe)
 			{
 				keyframesIn.push_back(keyframes.at(ii));
-				std::cout << "\n keyframes.at(ii)->currentAvgPartition " << keyframes.at(ii)->currentAvgPartition << std::endl;
-				addKeytoPartition.at(keyframes.at(ii)->currentAvgPartition) = false;
+				// std::cout << "\n keyframes.at(ii)->currentAvgPartition " << keyframes.at(ii)->currentAvgPartition << std::endl;
+
+
+				// if (!keyframes.at(ii)->firstImage)
+				// {
+					// avgcPtx += keyframes.at(ii)->avgcPtx;
+					// avgcPty += keyframes.at(ii)->avgcPty;
+					// notFirst = true;
+					// addKeytoPartition.at(keyframes.at(ii)->currentAvgPartition) = false;
+					// if (!tooFewFeatures)
+					// {
+					// 	if (keyframes.at(ii)->depthEstimators.size() > 30)
+					// 	{
+					//
+					// 		tooFewFeatures = true;
+					// 	}
+					// }
+				// }
+				// else
+				// {
+				// 	if (notFirst)
+				// 	{
+				// 		notFirst = false;
+				// 	}
+				// }
 			}
 			else
 			{
@@ -251,7 +286,24 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		}
 		keyframes = keyframesIn;
 		keyframesIn.clear();
+		imageMutex.unlock();
 	}
+
+	// bool notCentered = false;
+	// if ((keyframes.size() > 0) && (partitionCols < 2))
+	// {
+	// 	avgcPtx /= float(keyframes.size());
+	// 	avgcPty /= float(keyframes.size());
+	//
+	//
+	// 	if ((avgcPtx < 0.3*imageWidth) || (avgcPtx > 0.7*imageWidth))
+	// 	{
+	// 		notCentered = true;
+	// 	}
+	// }
+
+	// std::cout << "\n\n\n\n\n\n\n\n\n\n\n\n not centered " << int(notCentered);
+
 	// else
 	// {
 	// 	addframe = true;
@@ -261,7 +313,8 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 	clock_t keyTime = clock();
 
 	// add a new keyframe if needed and total is less than 3
-	if (keyframes.size() < 3)
+	bool added = false;
+	if (keyframes.size() < 1)
 	{
 		for(int ii = 0; ii < addKeytoPartition.size(); ii++)
 		{
@@ -272,11 +325,41 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 																			fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
 																			expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
 				keyframes.push_back(newKeyframe);
-
+				added = true;
 				keyInd++;
 			}
 		}
 	}
+
+	// std::cout << " keyframes.size() " << int(keyframes.size()) << " added " << int(added) << " notFirst " << notFirst;
+
+	// bool centeradded = false;
+	// if ((keyframes.size() < 2) && tooFewFeatures)
+	// {
+	// 	lastKeyOdom = imageOdom;
+	// 	newKeyframe = new PatchEstimator(imageWidth,imageHeight,partitionRows,partitionCols,minDistance,minFeaturesDanger,minFeaturesBad,keyInd,0,0,
+	// 																fx,fy,cx,cy,zmin,zmax,fq,fp,ft,fn,fd,fG,cameraName,tau,saveExp,
+	// 																expName,patchSizeBase,checkSizeBase,pcb,qcb,numberFeaturesPerPartCol,numberFeaturesPerPartRow);
+	// 	keyframes.push_back(newKeyframe);
+	// 	centeradded = true;
+	// 	keyInd++;
+	// }
+
+
+	// std::cout << " keyframes.size() " << int(keyframes.size()) << " centeradded " << int(centeradded) << "\n\n\n\n\n\n\n\n\n\n\n\n";
+
+	// imageMutex.lock();
+	// //clearn if messed up
+	// for (int ii = 0; ii < keyframes.size(); ii++)
+	// {
+	// 	if (tooFewFeatures && (keyframes.at(0)->depthEstimators.size() < 10))
+	// 	{
+	// 		delete keyframes.at(0);
+	// 		keyframes.erase(keyframes.begin());
+	// 	}
+	// }
+	//
+	// imageMutex.unlock();
 
 	// if (addframe)
 	// {
