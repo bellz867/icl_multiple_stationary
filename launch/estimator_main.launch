@@ -30,8 +30,8 @@
     <param name="checkSizeBase" value="90"/>
 
     <!-- min and max depths-->
-    <param name="zmin" value="1.0"/>
-    <param name="zmax" value="5.0"/>
+    <param name="zmin" value="0.5"/>
+    <param name="zmax" value="6.0"/>
 
 	  <!-- cut off frequencies-->
 	  <param name="fq" value="10.0"/>

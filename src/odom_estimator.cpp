@@ -14,6 +14,7 @@ OdomEstimator::~OdomEstimator()
 			saveOdomFile << "qw" << "," << "qx" << "," << "qy" << "," << "qz" << ",";
 			saveOdomFile << "pxHat" << "," << "pyHat" << "," << "pzHat" << ",";
 			saveOdomFile << "qwHat" << "," << "qxHat" << "," << "qyHat" << "," << "qzHat" << ",";
+			saveOdomFile << "mode" << ",";
 			saveOdomFile << "\n";
 
 			for (int ii = 0; ii < poseDataSaves.size(); ii++)
@@ -23,6 +24,7 @@ OdomEstimator::~OdomEstimator()
 				saveOdomFile << poseDataSaves.at(ii)->qbw(0) << "," << poseDataSaves.at(ii)->qbw(1) << "," << poseDataSaves.at(ii)->qbw(2) << "," << poseDataSaves.at(ii)->qbw(3) << ",";
 				saveOdomFile << poseDataSaves.at(ii)->pbwHat(0) << "," << poseDataSaves.at(ii)->pbwHat(1) << "," << poseDataSaves.at(ii)->pbwHat(2) << ",";
 				saveOdomFile << poseDataSaves.at(ii)->qbwHat(0) << "," << poseDataSaves.at(ii)->qbwHat(1) << "," << poseDataSaves.at(ii)->qbwHat(2) << "," << poseDataSaves.at(ii)->qbwHat(3) << ",";
+				saveOdomFile << poseDataSaves.at(ii)->mode << ",";
 				saveOdomFile << "\n";
 
 				delete poseDataSaves.at(ii);
@@ -183,6 +185,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	int numMeas = poseDeltasRemove.size();
 	//check if one saw landmark
 	bool landmarkView = false;
+	int mode = 0;
 	// int numMeas = 0;
 	if (numMeas > 0)
 	{
@@ -200,6 +203,7 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 
 		if (!landmarkView)
 		{
+			mode = 2;
 			for (std::deque<icl_multiple_stationary::PoseDelta::ConstPtr>::iterator it = poseDeltasRemove.begin(); it != poseDeltasRemove.end(); it++)
 			{
 				// get the poses at time i
@@ -274,13 +278,12 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 		}
 		else
 		{
+			mode = 1;
 			// pbwTildeSum = 10.0*(pbwMocapLast - pbwHat);
 			// qbwTildeSum = 10.0*(qbwMocapLast - qbwHat);
 			pbwHat = pbwMocapLast;
 			qbwHat = qbwMocapLast;
 		}
-
-
 	}
 
 	poseDeltasRemove.clear();
@@ -380,6 +383,6 @@ void OdomEstimator::velCB(const nav_msgs::Odometry::ConstPtr& msg)
 	bodyOdomMsg.twist.twist.angular.z = wbHat(2);
 	bodyOdomPub.publish(bodyOdomMsg);
 
-	poseDataSaveNew = new PoseDataSave((t-tStart).toSec(),pbwMocapLast,qbwMocapLast,pbwHat,qbwHat);
+	poseDataSaveNew = new PoseDataSave((t-tStart).toSec(),pbwMocapLast,qbwMocapLast,pbwHat,qbwHat,mode);
 	poseDataSaves.push_back(poseDataSaveNew);
 }
