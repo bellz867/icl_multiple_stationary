@@ -3,10 +3,12 @@
 CloudDataSave::CloudDataSave()
 {}
 
-CloudDataSave::CloudDataSave(float timeInit, std::vector<float> dksInit, std::vector<float> dkHatsInit, std::vector<uint8_t> dkKnownsInit)
+CloudDataSave::CloudDataSave(float timeInit, PointCloudRGB cloudTrueInit, PointCloudRGB cloudHatInit, Eigen::Vector3f pcwInit, Eigen::Vector3f pcwHatInit, std::vector<uint8_t> dkKnownsInit)
 {
   time = timeInit;
-  dks = dksInit;
-  dkHats = dkHatsInit;
+  cloudTrue = cloudTrueInit;
+  cloudHat = cloudHatInit;
+  pcw = pcwInit;
+  pcwHat = pcwHatInit;
   dkKnowns = dkKnownsInit;
 }

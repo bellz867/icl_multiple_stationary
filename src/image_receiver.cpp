@@ -202,6 +202,7 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 	bool notFirst = false;
 	bool tooFewFeatures = false;
 	std::mutex imageMutex;
+	// imageMutex.lock();
 	if (keyframes.size() > 0)
 	{
 		// //determine how far from last key
@@ -222,7 +223,7 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		//go through existing keyframes and determine if still active, if not delete
 		std::vector<PatchEstimator*> keyframesIn;
 
-		imageMutex.lock();
+
 		for (int ii = 0; ii < keyframes.size(); ii++)
 		{
 			bool keepframe = false;
@@ -286,8 +287,9 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		}
 		keyframes = keyframesIn;
 		keyframesIn.clear();
-		imageMutex.unlock();
+
 	}
+	// imageMutex.unlock();
 
 	// bool notCentered = false;
 	// if ((keyframes.size() > 0) && (partitionCols < 2))
@@ -331,6 +333,7 @@ void ImageReceiver::keyframeCB(const sensor_msgs::Image::ConstPtr& msg)
 		}
 	}
 
+	std::cout << " keyframes.size() " << int(keyframes.size()) << std::endl;
 	// std::cout << " keyframes.size() " << int(keyframes.size()) << " added " << int(added) << " notFirst " << notFirst;
 
 	// bool centeradded = false;

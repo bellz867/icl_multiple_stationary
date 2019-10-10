@@ -121,8 +121,8 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n hi4 \n";
   // clock_t processTime = clock();
 
-  float kxi = 100.0;
-  float kX = 40.0;
+  float kxi = 40.0;
+  float kX = 30.0;
 
   Eigen::Matrix<float,6,1> xHat;
   if (dt > 0.0)
@@ -237,23 +237,23 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   float xirho = xiT*rho;
   float kxixiTilde = kxi*(xirho - xixi*dcHat);
 
-  Eigen::Matrix<float,3,2> Yk;
-  Eigen::Matrix<float,2,3> YkT;
-  Yk.block(0,0,3,1) = ukc;
-  Yk.block(0,1,3,1) = Rkc*uk;
-  YkT = Yk.transpose();
-  Eigen::Matrix2f YkYk = YkT*Yk;
-  Eigen::Vector2f Ykuc = YkT*uc;
-  Eigen::Vector2f kxpxpTilde = 0.1*kxi*(Ykuc*dcHat - YkYk*Eigen::Vector2f(dkcHat,dkHat));
+  // Eigen::Matrix<float,3,2> Yk;
+  // Eigen::Matrix<float,2,3> YkT;
+  // Yk.block(0,0,3,1) = ukc;
+  // Yk.block(0,1,3,1) = Rkc*uk;
+  // YkT = Yk.transpose();
+  // Eigen::Matrix2f YkYk = YkT*Yk;
+  // Eigen::Vector2f Ykuc = YkT*uc;
+  // Eigen::Vector2f kxpxpTilde = 0.1*kxi*(Ykuc*dcHat - YkYk*Eigen::Vector2f(dkcHat,dkHat));
 
   // float ucukc = ucT*ukc;
-  // float ucRuk = ucT*Rkc*ukc;
-  // Eigen::RowVector2f psiu(ucukc,ucRuk);
-  // Eigen::Matrix<float,3,2> xipsiu = xi*psiu;
-  // Eigen::Matrix<float,2,3> xipsiuT = xipsiu.transpose();
-  // Eigen::Matrix2f xpxp = xipsiuT*xipsiu;
-  // Eigen::Vector2f xprho = xipsiuT*rho;
-  // Eigen::Vector2f kxpxpTilde = kxi*(xprho - xpxp*Eigen::Vector2f(dkcHat,dkHat));
+  float ucRuk = ucT*Rkc*ukc;
+  Eigen::RowVector2f psiu(ucukc,ucRuk);
+  Eigen::Matrix<float,3,2> xipsiu = xi*psiu;
+  Eigen::Matrix<float,2,3> xipsiuT = xipsiu.transpose();
+  Eigen::Matrix2f xpxp = xipsiuT*xipsiu;
+  Eigen::Vector2f xprho = xipsiuT*rho;
+  Eigen::Vector2f kxpxpTilde = 0.1*kxi*(xprho - xpxp*Eigen::Vector2f(dkcHat,dkHat));
 
 
   // std::cout << "\n hi8 \n";
@@ -266,7 +266,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
   // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
   // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
-  // std::cout << "\n px " << pkc(0) << " py " << pkc(1) << " pz " << pkc(2) << std::endl;
+  // std::cout << "\n kxpxpTilde.transpose() " << kxpxpTilde.transpose() << std::endl;
 
 
   dcHat += ((dcDot+kxixiTilde)*dt);
@@ -307,7 +307,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   float lambdaa = 0.3;
   float lambdat = 0.0001;
   float dmin = 0.01*zmin;
-  float dmax = zmax;
+  float dmax = sqrtf(3)*zmax;
   float timeConvergeMin = -1.0/(lambdaa*kX)*log(dmin/dmax);
 
   if ((1.0-fabsf(ucukc)) < lambdaa)

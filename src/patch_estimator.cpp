@@ -69,6 +69,8 @@ PatchEstimator::~PatchEstimator()
 	// 	std::cout << "\nsaved\n";
 	// }
 
+	ROS_ERROR("\n\n starting destroy \n\n");
+
 	// std::cout << "\n hid10 \n";
 	imagePub.shutdown();
 	// std::cout << "\n hid11 \n";
@@ -77,9 +79,9 @@ PatchEstimator::~PatchEstimator()
 	// std::cout << "\n hid12 \n";
 	odomSub.shutdown();
 	// std::cout << "\n hid13 \n";
+	roiPub.shutdown();
 	roiSub.shutdown();
 	// std::cout << "\n hid14 \n";
-	roiPub.shutdown();
 	// std::cout << "\n hid15 \n";
 	poseDeltaPub.shutdown();
 	// std::cout << "\n hid16 \n";
@@ -89,9 +91,11 @@ PatchEstimator::~PatchEstimator()
 	// std::cout << "\n hid18 \n";
 
 	chessboardPub.shutdown();
+	chessboardSub.shutdown();
+
 	// std::cout << "\n hid19 \n";
 	// chessboardSub.shutdown();
-	ROS_WARN("destroying \n");
+	ROS_ERROR("\n\n destroyed \n\n");
 
 	destroyLock.unlock();
 
@@ -656,8 +660,8 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					icl_multiple_stationary::Wall wallMsg;
 					wallMsg.header.stamp = t;
 					// wallMsg.wallPts = wallPts;
-					// pcl::toROSMsg(cloud, wallMsg.cloud);
-					pcl::toROSMsg(kcloud, wallMsg.cloud);
+					pcl::toROSMsg(ccloud, wallMsg.cloud);
+					// pcl::toROSMsg(kcloud, wallMsg.cloud);
 					wallMsg.keyInd = keyInd;
 					wallMsg.patchInd = patchInd;
 					wallMsg.pose = msg->pose;
@@ -995,6 +999,10 @@ void PatchEstimator::imageCB(const sensor_msgs::Image::ConstPtr& msg)
 		// std::cout << "\n hid10 \n";
 
 		patchShutdown = true;
+		roiPub.shutdown();
+		roiSub.shutdown();
+		chessboardPub.shutdown();
+		chessboardSub.shutdown();
 		pubMutex.unlock();
 
 		// odomPub.shutdown();
@@ -3429,7 +3437,7 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkc,Rkc,vc,wc,t,pkc,qkc);
 			// dkcs.push_back(dkcHati);
 			dkcAvg += dkcHati;
-			depthEstimatorsInHomog.push_back(*itD);
+			// depthEstimatorsInHomog.push_back(*itD);
 			// if (bool(*itIn))
 			// {
 			// 	inlierRatio += 1.0;
@@ -3448,8 +3456,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// std::cout << "\n ii " << ii << " stop\n";
 		}
 		allPtsKnown = allPtsKnownIn;
-		depthEstimators = depthEstimatorsInHomog;
-		depthEstimatorsInHomog.clear();
+		// depthEstimators = depthEstimatorsInHomog;
+		// depthEstimatorsInHomog.clear();
 		// inlierRatio /= depthEstimators.size();
 		avgcPtx /= float(depthEstimators.size());
 		avgcPty /= float(depthEstimators.size());
@@ -3459,37 +3467,37 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		//find which partition the average is in
 		int partitionWidth = imageWidth/partitionCols;
 		int partitionHeight = imageHeight/partitionRows;
-		bool avgRowFound = false;
+		// bool avgRowFound = false;
 		int avgRowInd = 0;
-		while (!avgRowFound)
-		{
-			int top = avgRowInd*partitionHeight;
-			int bottom = (avgRowInd+1)*partitionHeight;
-			if ((top <= avgcPty) && (avgcPty <= bottom))
-			{
-				avgRowFound = true;
-			}
-			else
-			{
-				avgRowInd++;
-			}
-		}
+		// while (!avgRowFound)
+		// {
+		// 	int top = avgRowInd*partitionHeight;
+		// 	int bottom = (avgRowInd+1)*partitionHeight;
+		// 	if ((top <= avgcPty) && (avgcPty <= bottom))
+		// 	{
+		// 		avgRowFound = true;
+		// 	}
+		// 	else
+		// 	{
+		// 		avgRowInd++;
+		// 	}
+		// }
 
-		bool avgColFound = false;
+		// bool avgColFound = false;
 		int avgColInd = 0;
-		while (!avgColFound)
-		{
-			int left = avgColInd*partitionWidth;
-			int right = (avgColInd+1)*partitionWidth;
-			if ((left <= avgcPtx) && (avgcPtx <= right))
-			{
-				avgColFound = true;
-			}
-			else
-			{
-				avgColInd++;
-			}
-		}
+		// while (!avgColFound)
+		// {
+		// 	int left = avgColInd*partitionWidth;
+		// 	int right = (avgColInd+1)*partitionWidth;
+		// 	if ((left <= avgcPtx) && (avgcPtx <= right))
+		// 	{
+		// 		avgColFound = true;
+		// 	}
+		// 	else
+		// 	{
+		// 		avgColInd++;
+		// 	}
+		// }
 
 		currentAvgPartition = partitionCols*avgRowInd + avgColInd;
 

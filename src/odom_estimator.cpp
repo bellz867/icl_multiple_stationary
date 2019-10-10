@@ -5,7 +5,7 @@ OdomEstimator::~OdomEstimator()
 	if (saveExp)
 	{
 		std::cout << std::endl << "saving pose" << std::endl;
-		std::ofstream saveOdomFile("/home/ncr/ncr_ws/src/icl_multiple_stationary/experiment/pose.txt");
+		std::ofstream saveOdomFile("/home/ncr/ncr_ws/src/icl_multiple_stationary/experiment/pose.csv");
 		if (saveOdomFile.is_open())
 		{
       std::cout << "\nopen\n";
