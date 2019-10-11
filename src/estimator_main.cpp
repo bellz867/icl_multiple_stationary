@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 
     ImageReceiver imageReceiver;
 
-    ros::AsyncSpinner spinner(2);
+    ros::AsyncSpinner spinner(4);
     spinner.start();
     ros::waitForShutdown();
 

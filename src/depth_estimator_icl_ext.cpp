@@ -12,6 +12,9 @@ DepthEstimatorICLExt::DepthEstimatorICLExt()
   numThrown = 0;
   timeConverge = 0.0;
   firstUpdate = true;
+  W = Eigen::Matrix2f::Zero();
+  W(0,0) = 1.0;
+  W(1,1) = 1.0;
 }
 void DepthEstimatorICLExt::initialize(Eigen::Vector3f uInit, float zminInit, float zmaxInit, float zInit,
                                       float tauInit, ros::Time t, float fxInit, float fyInit, float cxInit, float cyInit)
@@ -123,6 +126,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
 
   float kxi = 40.0;
   float kX = 30.0;
+  float dtApprox = 1.0/30.0;
 
   Eigen::Matrix<float,6,1> xHat;
   if (dt > 0.0)
@@ -131,7 +135,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   }
   else
   {
-    xHat = uDotEstimator.update(ucMeas,(1.0/0.03)*(ucMeas-up),t);
+    xHat = uDotEstimator.update(ucMeas,(1.0/dtApprox)*(ucMeas-up),t);
   }
 
   // ROS_WARN("time1 %2.5f",float(clock()-processTime)/CLOCKS_PER_SEC);
@@ -206,7 +210,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   //   }
   //   else
   //   {
-  //     Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/0.03,t);
+  //     Xpsi = psiDotEstimator.update(psiMeas,(psiMeas-psiLast)/dtApprox,t);
   //   }
   // }
 
@@ -306,7 +310,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
   // std::cout << "\n hi9 \n";
   float lambdaa = 0.3;
   float lambdat = 0.0001;
-  float dmin = 0.01*zmin;
+  float dmin = 0.01;
   float dmax = sqrtf(3)*zmax;
   float timeConvergeMin = -1.0/(lambdaa*kX)*log(dmin/dmax);
 
@@ -350,7 +354,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     std::cout << "\n v clear\n";
   }
 
-  if (pkc.norm() < 0.05)
+  if (pkc.norm() < 0.1)
   {
     // psiBuff.clear();
     // psiDotBuff.clear();
@@ -407,8 +411,44 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     }
 
     // Eigen::Vector2f Y = psiDotInt;
-    Eigen::Vector2f Y = (buffs.back()->psi - buffs.front()->psi);
-    Eigen::Vector2f U = uvInt;
+    // Eigen::Vector2f Y = (buffs.back()->psi - buffs.front()->psi);
+    Eigen::Vector2f Y = Eigen::Vector2f::Zero();
+    // Eigen::Vector2f U = uvInt;
+    Eigen::Vector2f U = Eigen::Vector2f::Zero();
+
+    float sumx = 0.0;
+    float sumxx = 0.0;
+    float sumy0 = 0.0;
+    float sumy1 = 0.0;
+    float sumxy0 = 0.0;
+    float sumxy1 = 0.0;
+    float sumii = float(buffs.size());
+
+    for (int ii = 0; ii < buffs.size(); ii++)
+    {
+      // std::cout << ii << ", Dt " << (buffs.at(ii)->t-buffs.front()->t).toSec() << ", psi " << buffs.at(ii)->psi.transpose() << ", uv " << buffs.at(ii)->uv.transpose() << std::endl;
+      float xii = (buffs.at(ii)->t-buffs.front()->t).toSec();
+      float y0ii = buffs.at(ii)->psi(0);
+      float y1ii = buffs.at(ii)->psi(1);
+      sumx += xii;
+      sumxx += (xii*xii);
+      sumy0 += y0ii;
+      sumy1 += y1ii;
+      sumxy0 += xii*y0ii;
+      sumxy1 += xii*y1ii;
+      U += 2.0*buffs.at(ii)->uv;
+    }
+
+    float Ymdet = sumii*sumxx - sumx*sumx;
+    float Ym0 = (sumii*sumxy0 - sumx*sumy0)/Ymdet;
+    float Ym1 = (sumii*sumxy1 - sumx*sumy1)/Ymdet;
+    Y(0) = Ym0*(buffs.back()->t-buffs.front()->t).toSec();
+    Y(1) = Ym1*(buffs.back()->t-buffs.front()->t).toSec();
+
+    //subtract of the extra at end and begin
+    U -= buffs.front()->uv;
+    U -= buffs.back()->uv;
+    U *= dtApprox/2.0;
 
     // std::cout << ", psiDotInt(0)  " << psiDotInt(0) << ", psiDotInt(1)  " << psiDotInt(1) << ", Y(0)  " << Y(0) << ", Y(1)  " << Y(1) << ", U(0)  " << U(0) << ", U(1)  " << U(1);
 
@@ -430,11 +470,13 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Yx " << Yx << std::endl;
     // std::cout << "\n Ux " << Ux << std::endl;
 
-    float yy = Yx*Yx + Yy*Yy;
+    float yy = Yx*W(0,0)*Yx + Yy*W(1,1)*Yy;
     // float yy2 = Yx2*Yx2 + Yy2*Yy2;
-    float yu = Yx*Ux+Yy*Uy;
+    float yu = Yx*W(0,0)*Ux + Yy*W(1,1)*Uy;
     // float yu2 = Yx2*Ux+Yy2*Uy;
     float dk = yu/yy;
+
+    // std::cout << "\n yu/yy " << dk << std::endl;
     // float dk2 = yu2/yy2;
     float dkMed = yusum/yysum;
 
@@ -459,7 +501,6 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     Eigen::Vector2f dcdkt = YtYtI*YtT*pkc;
 
     // std::cout << ", dct " << dcdkt(0) <<  ", dkt  " << dcdkt(1);
-    // std::cout << ", dkMed " << dkMed <<  ", dk  " << dk << ", dk2 " << dk2 << ", |Y| " << Y.norm() << ", |U| ";
     // std::cout << U.norm() << ", psi(0)*dk " << psi(0)*dk << ", psi(1)*dk " << psi(1)*dk;
     // std::cout << ", psi(0)*dkMed " << psi(0)*dkMed << ", psi(1)*dkMed " << psi(1)*dkMed << std::endl;
     // std::cout << "\n yu " << yu << std::endl;
@@ -468,7 +509,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    bool measgood = (U.norm() > 0.2) && (Y.norm() > 0.1);
+    bool measgood = (U.norm() > 0.15) && (Y.norm() > 0.1);
     // bool measgood = true;
 
 
@@ -476,7 +517,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     {
       //chi^2 test for reprojection error using dk
       // assume pixel standard deviation of 2 implying variance of 4
-      float cPtSig = 5;
+      float cPtSig = 3;
       float cPtSig2 = cPtSig*cPtSig;
       Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
       // Eigen::Vector3f pcProj = pkc + dk*(Rkc*uk);
@@ -502,7 +543,9 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       }
 
       std::cout << std::endl;
-      std::cout << "dkHat " << dkHat <<  ", dk " << dk;
+      std::cout << "dcHat " << dcHat;
+      std::cout << ", dkHat " << dkHat <<  ", dk " << dk;
+      std::cout << ", dkMed " << dkMed;
       std::cout << ", cPtProjx " << cPtProj(0) << ", cPtProjy " << cPtProj(1);
       std::cout << ", cPtx " << cPt(0) << ", cPty " << cPt(1) << ", chiTestVal " << chiTestVal;
       std::cout << ", numSaved " << numSaved << ", yysum " << yysum << ", lambdat " << lambdat;

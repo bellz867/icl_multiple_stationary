@@ -671,7 +671,7 @@ void PatchEstimator::roiCB(const icl_multiple_stationary::Roi::ConstPtr& msg)
 					wallPub.publish(wallMsg);
 					// if (allPtsKnown && (acos(nyICL) > (70.0*3.1415/180.0)) && (acos(nxICL) > (70.0*3.1415/180.0)))
 					// if (allPtsKnown && (avgNumSaved >= 1) && (acos(nzICL) < (30.0*3.1415/180.0)))
-					if (allPtsKnown && (avgNumSaved >= 1))
+					if ((allPtsKnown && (avgNumSaved >= 1)) || landmarkView)
 					{
 
 						icl_multiple_stationary::PoseDelta poseDeltaMsg;
@@ -1153,7 +1153,7 @@ void PatchEstimator::chessboardCB(const std_msgs::Time::ConstPtr& msg)
 		return;
 	}
 
-	if (numLandmarkCheck < 5)
+	if (numLandmarkCheck < 3)
 	{
 		numLandmarkCheck++;
 		chessboardMutex.unlock();

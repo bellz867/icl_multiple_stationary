@@ -29,6 +29,7 @@ struct DepthEstimatorICLExt
   float yysum,yusum;
   Eigen::Vector2f kPtInit;
   Eigen::Vector3f uk;
+  Eigen::Matrix2f W;
   float dkHat;
   float dcHat;
   float dkcHat;
