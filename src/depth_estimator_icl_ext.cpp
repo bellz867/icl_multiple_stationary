@@ -468,15 +468,15 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     // std::cout << "\n Dt " << (tBuff.at(tBuff.size()-1) - tBuff.at(0)).toSec() << std::endl;
 
     //check which estimates are good
-    // bool measgood = (fabsf(Uy) > 0.2) && (fabsf(Yy) > 0.1);
-    bool measgood = true;
+    bool measgood = (U.norm() > 0.2) && (Y.norm() > 0.1);
+    // bool measgood = true;
 
 
-    if ((dk > zmin) && (dk < zmax))
+    if (measgood && (dk > zmin) && (dk < zmax))
     {
       //chi^2 test for reprojection error using dk
       // assume pixel standard deviation of 2 implying variance of 4
-      float cPtSig = 3;
+      float cPtSig = 5;
       float cPtSig2 = cPtSig*cPtSig;
       Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
       // Eigen::Vector3f pcProj = pkc + dk*(Rkc*uk);
@@ -487,6 +487,19 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       float chi2 = 6.63; //chi^2 for 99%
       Eigen::Vector2f cPtD = cPtProj - cPt;
       float chiTestVal = (cPtD(0)*cPtD(0) + cPtD(1)*cPtD(1))/cPtSig2;
+
+      float chiTestSumVal = 0.0;
+      bool useSum = false;
+      if (yysum > lambdat)
+      {
+        float dkSumMed = yusum/yysum;
+        Eigen::Vector3f pcSumProj = pkc + rotatevec(uk*dkSumMed,qkc);
+        Eigen::Vector3f mcSumProj = pcSumProj/pcSumProj(2);
+        Eigen::Vector2f cPtSumProj(mcSumProj(0)*fx+cx,mcSumProj(1)*fy+cy);
+        Eigen::Vector2f cPtSumD = cPtSumProj - cPt;
+        chiTestSumVal = (cPtSumD(0)*cPtSumD(0) + cPtSumD(1)*cPtSumD(1))/cPtSig2;
+        useSum = true;
+      }
 
       std::cout << std::endl;
       std::cout << "dkHat " << dkHat <<  ", dk " << dk;
@@ -500,6 +513,14 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
       if (chiTestVal > chi2)
       {
         measgood = false;
+      }
+
+      if (useSum)
+      {
+        if (chiTestSumVal > chi2)
+        {
+          measgood = false;
+        }
       }
     }
     else

@@ -32,6 +32,8 @@
     <!-- experiment details -->
     <param name="saveExp" value="true"/>
     <param name="expName" value="s16"/>
+    <param name="predictOnly" value="false"/>
+
 
   </node>
 

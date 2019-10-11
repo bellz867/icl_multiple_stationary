@@ -31,6 +31,7 @@ struct OdomEstimator
 	bool useMocap,gotInitialPose;
 	VectorDerivativeEstimator qDotEstimator,pDotEstimator,vDotEstimator,wDotEstimator;
 	float cvHat,cwHat,kcv,kcw;
+	bool predictOnly;
 
 	std::vector<PoseDataSave*> poseDataSaves;
 	PoseDataSave* poseDataSaveNew;
