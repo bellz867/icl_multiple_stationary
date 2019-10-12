@@ -1394,7 +1394,7 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	std::cout << "\n avgNumThrown " << avgNumThrown << std::endl;
 
 	// if (normGood && angGood)
-	if ((qAng < 30.0) && (currentBound.width > (numberFeaturesPerPartCol-1)*50) && (currentBound.height > (numberFeaturesPerPartRow-1)*50) && (depthEstimatorsInFlow.size() > minFeaturesBad))
+	if ((qAng < 15.0) && (currentBound.width > (numberFeaturesPerPartCol-1)*50) && (currentBound.height > (numberFeaturesPerPartRow-1)*50) && (depthEstimatorsInFlow.size() > minFeaturesBad))
 	{
 		try
 		{
