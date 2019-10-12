@@ -1224,6 +1224,8 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	float avgNumSaved = 0.0;
 	float avgNumThrown = 0.0;
 	float avgdkKnown = 0.0;
+	int numberdkKnown = 0;
+	int numWithSaved = 0;
 
 	std::vector<cv::Point2f> flows(pPts.size());
 	std::vector<cv::Point2f>::iterator itf = flows.begin();
@@ -1245,7 +1247,14 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		if ((*itD)->depthEstimatorICLExt.dkKnown)
 		{
 			avgdkKnown += 1.0;
+			numberdkKnown += 1;
 		}
+
+		if ((*itD)->depthEstimatorICLExt.numSaved > 0)
+		{
+			numWithSaved += 1;
+		}
+
 
 		itk++;
 		itp++;
@@ -1316,13 +1325,13 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 	//remove outlier flows
 
 	featureMutex.lock();
-	std::cout << "\n num points before flow " << depthEstimators.size() << " avgNumSaved " << avgNumSaved << " avgdkKnown " << avgdkKnown << std::endl;
+	std::cout << "\n num points before flow " << depthEstimators.size() << " avgNumSaved " << avgNumSaved << " numWithSaved " << numWithSaved << " avgdkKnown " << avgdkKnown << " numberdkKnown " << numberdkKnown << std::endl;
 	float timeFromStart = (t-tStart).toSec();
 	for (int ii = 0; ii < flows.size(); ii++)
 	{
 		cv::Point2f flowdiffi = avgFlow - flows.at(ii);
 		float chiTestVal = (flowdiffi.x*flowdiffi.x + flowdiffi.y*flowdiffi.y)/flowsig2;
-		std::cout << " flowx " << flows.at(ii).x << " flowy " << flows.at(ii).y << " chiVal " << chiTestVal << " badCount " << depthEstimators.at(ii)->badCount << std::endl;
+		std::cout << " flowx " << flows.at(ii).x << " flowy " << flows.at(ii).y << " chiVal " << chiTestVal << " badCount " << depthEstimators.at(ii)->badCount << " numSaved " << depthEstimators.at(ii)->depthEstimatorICLExt.numSaved  << std::endl;
 		// if ((chiTestVal < flowchi2) || (timeFromStart < 0.25))
 		// {
 		// 	pPtsInFlow.push_back(pPts.at(ii));
@@ -1344,7 +1353,9 @@ void PatchEstimator::match(cv::Mat& image, float dt, Eigen::Vector3f vc, Eigen::
 		}
 		else
 		{
-			if ((depthEstimators.at(ii)->badCount > 1) || ( (avgdkKnown > 0.6) && !depthEstimators.at(ii)->depthEstimatorICLExt.dkKnown))
+			// if ((depthEstimators.at(ii)->badCount > 1) || ( (avgdkKnown > 0.6) && !depthEstimators.at(ii)->depthEstimatorICLExt.dkKnown))
+			// if (((depthEstimators.at(ii)->badCount > 1) || (numWithSaved > (minFeaturesBad+5))) && (depthEstimators.at(ii)->depthEstimatorICLExt.numSaved < 1))
+			if ((depthEstimators.at(ii)->badCount > 1) || ((numWithSaved > (minFeaturesBad+5)) && (depthEstimators.at(ii)->depthEstimatorICLExt.numSaved < 1)))
 			{
 				delete depthEstimators.at(ii);
 			}
@@ -2310,63 +2321,68 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 		// std::cout << "\n TA \n" << TA << std::endl;
 
 
-		// {
-		// 	// std::cout << "\n tryingPnP current \n" << std::endl;
-		// 	std::vector<cv::Point3f> cPts3(depthEstimators.size());
-		// 	std::vector<cv::Point3f>::iterator cPts3it = cPts3.begin();
-		// 	std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
-		// 	Eigen::Vector3f uci;
-		// 	for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
-		// 	{
-		// 		uci = Eigen::Vector3f(((*cPtsit).x-cx)/fx,((*cPtsit).y-cy)/fy,1.0);
-		// 		uci /= uci.norm();
-		// 		float dcHati = (*itD)->dcHatICLExt;
-		// 		(*cPts3it).x = uci(0)*dcHati;
-		// 		(*cPts3it).y = uci(1)*dcHati;
-		// 		(*cPts3it).z = uci(2)*dcHati;
-		// 		cPts3it++;
-		// 		cPtsit++;
-		// 	}
-		//
-		// 	Eigen::Matrix3f RckHatPnPf = getqRot(getqInv(qkc));
-		// 	cv::Mat RckHatPnP;
-		// 	cv::eigen2cv(RckHatPnPf,RckHatPnP);
-		// 	cv::Mat rvec(cv::Size(1,3),CV_32F);
-		// 	cv::Mat tvec(cv::Size(1,3),CV_32F);
-		// 	cv::Rodrigues(RckHatPnP,rvec);
-		// 	Eigen::Vector3f pck = -rotatevec(pkc,getqInv(qkc));
-		// 	cv::eigen2cv(pck,tvec);
-		// 	// std::cout << "rvecPnPcb \n" << rvec << std::endl;
-		// 	// std::cout << "tvecPnPcb \n" << tvec << std::endl;
-		// 	// usePnPc = cv::solvePnP(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
-		// 	usePnPc = cv::solvePnPRansac(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,100,3.0);
-		// 	// std::cout << "rvecPnPca \n" << rvec << std::endl;
-		// 	// std::cout << "tvecPnPca \n" << tvec << std::endl;
-		//
-		//
-		// 	if (usePnPc)
-		// 	{
-		// 		cv::Rodrigues(rvec,RckHatPnP);
-		// 		cv::cv2eigen(RckHatPnP,RckHatPnPf);
-		// 		Eigen::Quaternionf qckPnPq(RckHatPnPf);// convert to quaternion
-		// 		Eigen::Vector4f qckPnP;
-		// 		qckPnP << qckPnPq.w(),qckPnPq.x(),qckPnPq.y(),qckPnPq.z();
-		// 		qkcPnPc = getqInv(qckPnP);
-		// 		qkcPnPc /= qkcPnPc.norm();
-		// 		Eigen::Vector3f tckPnP;
-		// 		cv::cv2eigen(tvec,tckPnP);
-		// 		tkcPnPc = -rotatevec(tckPnP,qkcPnPc);
-		// 		float tkcPnPNorm = tkcPnPc.norm();
-		// 		if (tkcPnPNorm>0.001)
-		// 		{
-		// 			tkcPnPc /= tkcPnPNorm;
-		// 		}
-		// 		std::cout << std::endl;
-		// 		// std::cout << "dkcPnPc \n" << tkcPnPNorm << std::endl;
-		// 		// std::cout << "tkcPnPc \n" << tkcPnPc << std::endl;
-		// 		// std::cout << "qkcPnPc \n" << qkcPnPc << std::endl;
-		// 	}
-		// }
+		{
+			// std::cout << "\n tryingPnP current \n" << std::endl;
+			std::vector<cv::Point3f> cPts3(depthEstimators.size());
+			std::vector<cv::Point3f>::iterator cPts3it = cPts3.begin();
+			std::vector<cv::Point2f>::iterator cPtsit = cPts.begin();
+			Eigen::Vector3f uci;
+			for (std::vector<DepthEstimator*>::iterator itD = depthEstimators.begin() ; itD != depthEstimators.end(); itD++)
+			{
+				uci = Eigen::Vector3f(((*cPtsit).x-cx)/fx,((*cPtsit).y-cy)/fy,1.0);
+				uci /= uci.norm();
+				float dcHati = (*itD)->dcHatICLExt;
+				(*cPts3it).x = uci(0)*dcHati;
+				(*cPts3it).y = uci(1)*dcHati;
+				(*cPts3it).z = uci(2)*dcHati;
+				cPts3it++;
+				cPtsit++;
+			}
+
+			Eigen::Matrix3f RckHatPnPf = getqRot(getqInv(qkc));
+			cv::Mat RckHatPnP;
+			cv::eigen2cv(RckHatPnPf,RckHatPnP);
+			cv::Mat rvec(cv::Size(1,3),CV_32F);
+			cv::Mat tvec(cv::Size(1,3),CV_32F);
+			cv::Rodrigues(RckHatPnP,rvec);
+			Eigen::Vector3f pck = -rotatevec(pkc,getqInv(qkc));
+			cv::eigen2cv(pck,tvec);
+			// std::cout << "rvecPnPcb \n" << rvec << std::endl;
+			// std::cout << "tvecPnPcb \n" << tvec << std::endl;
+			// usePnPc = cv::solvePnP(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,cv::SOLVEPNP_ITERATIVE);
+			// usePnPc = cv::solvePnPRansac(cPts3,kPts,camMat,cv::Mat(),rvec,tvec,true,100,3.0);
+			int PnPcIn = 3.0;
+			while (!usePnPc && (PnPcIn < 5))
+			{
+				usePnPc = cv::solvePnPRansac(cPts3,kPts,camMat,cv::noArray(),rvec,tvec,true,100,float(PnPcIn),0.99);
+				PnPcIn++;
+			}
+			// std::cout << "rvecPnPca \n" << rvec << std::endl;
+			// std::cout << "tvecPnPca \n" << tvec << std::endl;
+
+			if (usePnPc)
+			{
+				cv::Rodrigues(rvec,RckHatPnP);
+				cv::cv2eigen(RckHatPnP,RckHatPnPf);
+				Eigen::Quaternionf qckPnPq(RckHatPnPf);// convert to quaternion
+				Eigen::Vector4f qckPnP;
+				qckPnP << qckPnPq.w(),qckPnPq.x(),qckPnPq.y(),qckPnPq.z();
+				qkcPnPc = getqInv(qckPnP);
+				qkcPnPc /= qkcPnPc.norm();
+				Eigen::Vector3f tckPnP;
+				cv::cv2eigen(tvec,tckPnP);
+				tkcPnPc = -rotatevec(tckPnP,qkcPnPc);
+				float tkcPnPNorm = tkcPnPc.norm();
+				if (tkcPnPNorm>0.001)
+				{
+					tkcPnPc /= tkcPnPNorm;
+				}
+				std::cout << std::endl;
+				// std::cout << "dkcPnPc \n" << tkcPnPNorm << std::endl;
+				// std::cout << "tkcPnPc \n" << tkcPnPc << std::endl;
+				// std::cout << "qkcPnPc \n" << qkcPnPc << std::endl;
+			}
+		}
 
 		// std::vector<cv::Point2f> kPtsTemp = kPts;
 		// std::vector<cv::Point2f> cPtsTemp = cPts;
@@ -2564,57 +2580,32 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 					// std::cout << "\n EkcPNPK " << Ekcs.back() << std::endl;
 				}
 
-				// if (!TA.empty())
-				// {
-				// 	if ((qkc + qkcPnPc).norm() < (qkc - qkcPnPc).norm())
-				// 	{
-				// 		qkcPnPc *= -1.0;
-				// 	}
-				//
-				// 	qkcs.push_back(qkcPnPc);
-				// 	if ((tkcPnPc.norm() > 0.001) && (pkc.norm() > 0.001))
-				// 	{
-				// 		errors.push_back((qkc - qkcPnPc).norm()+(pkc/pkc.norm()-tkcPnPc).norm());
-				// 		tkcs.push_back(tkcPnPc);
-				// 		Ekcs.push_back(getss(tkcPnPc)*getqRot(qkcPnPc));
-				// 	}
-				// 	else
-				// 	{
-				// 		errors.push_back((qkc - qkcPnPc).norm());
-				// 		tkcs.push_back(Eigen::Vector3f::Zero());
-				// 		Ekcs.push_back(Eigen::Matrix3f::Zero());
-				// 	}
-				//
-				// 	std::cout << "\n qkcwPNPC " << qkcPnPc(0) << " qkcxPNPC " << qkcPnPc(1) << " qkcyPNPC " << qkcPnPc(2) << " qkczPNPC " << qkcPnPc(3) << std::endl;
-				// 	std::cout << "\n tkcxPNPC " << tkcPnPc(0) << " tkcyPNPC " << tkcPnPc(1) << " tkczPNPC " << tkcPnPc(2) << std::endl;
-				// 	// std::cout << "\n EkcPNPC " << Ekcs.back() << std::endl;
-				// }
+				if (usePnPc)
+				{
+					if ((qkc + qkcPnPc).norm() < (qkc - qkcPnPc).norm())
+					{
+						qkcPnPc *= -1.0;
+					}
 
-				// if (usePnPc)
-				// {
-				// 	if ((qkc + qkcPnPc).norm() < (qkc - qkcPnPc).norm())
-				// 	{
-				// 		qkcPnPc *= -1.0;
-				// 	}
-				//
-				// 	qkcs.push_back(qkcPnPc);
-				// 	if ((tkcPnPc.norm() > 0.001) && (pkc.norm() > 0.001))
-				// 	{
-				// 		errors.push_back((qkc - qkcPnPc).norm()+(pkc/pkc.norm()-tkcPnPc).norm());
-				// 		tkcs.push_back(tkcPnPc);
-				// 		Ekcs.push_back(getss(tkcPnPc)*getqRot(qkcPnPc));
-				// 	}
-				// 	else
-				// 	{
-				// 		errors.push_back((qkc - qkcPnPc).norm());
-				// 		tkcs.push_back(Eigen::Vector3f::Zero());
-				// 		Ekcs.push_back(Eigen::Matrix3f::Zero());
-				// 	}
-				//
-				// 	std::cout << "\n qkcwPNPC " << qkcPnPc(0) << " qkcxPNPC " << qkcPnPc(1) << " qkcyPNPC " << qkcPnPc(2) << " qkczPNPC " << qkcPnPc(3) << std::endl;
-				// 	std::cout << "\n tkcxPNPC " << tkcPnPc(0) << " tkcyPNPC " << tkcPnPc(1) << " tkczPNPC " << tkcPnPc(2) << std::endl;
-				// 	// std::cout << "\n EkcPNPC " << Ekcs.back() << std::endl;
-				// }
+					qkcs.push_back(qkcPnPc);
+					if ((tkcPnPc.norm() > 0.001) && (pkc.norm() > 0.001))
+					{
+						errors.push_back((qkc - qkcPnPc).norm()+(pkc/pkc.norm()-tkcPnPc).norm());
+						tkcs.push_back(tkcPnPc);
+						// Ekcs.push_back(getss(tkcPnPc)*getqRot(qkcPnPc));
+					}
+					else
+					{
+						errors.push_back((qkc - qkcPnPc).norm());
+						tkcs.push_back(Eigen::Vector3f::Zero());
+						// Ekcs.push_back(Eigen::Matrix3f::Zero());
+					}
+					types.push_back(0);
+
+					std::cout << "\n qkcwPNPC " << qkcPnPc(0) << " qkcxPNPC " << qkcPnPc(1) << " qkcyPNPC " << qkcPnPc(2) << " qkczPNPC " << qkcPnPc(3) << std::endl;
+					std::cout << "\n tkcxPNPC " << tkcPnPc(0) << " tkcyPNPC " << tkcPnPc(1) << " tkczPNPC " << tkcPnPc(2) << std::endl;
+					// std::cout << "\n EkcPNPC " << Ekcs.back() << std::endl;
+				}
 
 				// if (!E.empty())
 				// {
