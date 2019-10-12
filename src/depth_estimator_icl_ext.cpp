@@ -517,7 +517,7 @@ Eigen::VectorXf DepthEstimatorICLExt::update(Eigen::Vector3f ucMeas, Eigen::Vect
     {
       //chi^2 test for reprojection error using dk
       // assume pixel standard deviation of 2 implying variance of 4
-      float cPtSig = 10;
+      float cPtSig = 3;
       float cPtSig2 = cPtSig*cPtSig;
       Eigen::Vector3f pcProj = pkc + rotatevec(uk*dk,qkc);
       // Eigen::Vector3f pcProj = pkc + dk*(Rkc*uk);
