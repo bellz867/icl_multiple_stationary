@@ -315,7 +315,7 @@ bool PatchEstimator::initialize(cv::Mat& image, nav_msgs::Odometry imageOdom, ro
 	std::cout << "\n patch \n";
 	for (int ii = 0; ii < ptCorners.size(); ii++)
 	{
-		newDepthEstimator = new DepthEstimator(ii,Eigen::Vector3f((ptCorners.at(ii).x-cx)/fx,(ptCorners.at(ii).y-cy)/fy,1.0),tLast,zmin,zmax,(zmin+zmax)/2.0,tau,fx,fy,cx,cy);
+		newDepthEstimator = new DepthEstimator(ii,Eigen::Vector3f((ptCorners.at(ii).x-cx)/fx,(ptCorners.at(ii).y-cy)/fy,1.0),tLast,zmin,zmax,zmax,tau,fx,fy,cx,cy);
 		depthEstimators.push_back(newDepthEstimator);
 		// std::cout << ii << " ptix " << pts.at(ii).x << " ptiy " << pts.at(ii).y << std::endl;
 		std::cout << ii << " ptCix " << ptCorners.at(ii).x << " ptCiy " << ptCorners.at(ii).y << std::endl;
