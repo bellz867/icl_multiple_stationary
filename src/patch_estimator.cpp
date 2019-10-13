@@ -3424,8 +3424,8 @@ void PatchEstimator::update(cv::Mat& image, std::vector<cv::Point2f>& kPts, std:
 			// 	(*itc).x = betakc*(*itkc).x + (1.0-betakc)*(*itc).x;
 			// 	(*itc).y = betakc*(*itkc).y + (1.0-betakc)*(*itc).y;
 			// }
-			float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkcHat,RkcHat,vc,wc,t,pkc,qkc);
-			// float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkc,Rkc,vc,wc,t,pkc,qkc);
+			// float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkcHat,RkcHat,vc,wc,t,pkc,qkc);
+			float dkcHati = (*itD)->update(Eigen::Vector3f(((*itc).x-cx)/fx,((*itc).y-cy)/fy,1.0),tkc,Rkc,vc,wc,t,pkc,qkc);
 			// dkcs.push_back(dkcHati);
 			dkcAvg += dkcHati;
 			// depthEstimatorsInHomog.push_back(*itD);
