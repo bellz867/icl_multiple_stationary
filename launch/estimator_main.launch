@@ -21,7 +21,7 @@
     <param name="partitionCols" value="1"/>
 
     <param name="closeLoop" value="true"/>
-    <param name="minFeaturesBad" value="20"/>
+    <param name="minFeaturesBad" value="15"/>
     <param name="minDistance" value="150"/>
     <param name="partitionSide" value="1"/>
     <param name="numberFeaturesPerPartRow" value="5"/>
